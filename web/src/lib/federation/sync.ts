@@ -231,6 +231,14 @@ export async function runSyncCycle(): Promise<{
   return { peersChecked: peers.length, changesApplied, errors };
 }
 
+/** Convert ISO 8601 string or Date to MySQL datetime format (YYYY-MM-DD HH:MM:SS) */
+function toMySQLDatetime(val: unknown): string {
+  if (!val) return new Date().toISOString().slice(0, 19).replace("T", " ");
+  const d = new Date(val as string);
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19).replace("T", " ");
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+
 /** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
 async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
   const conn = await pool.getConnection();
@@ -252,10 +260,10 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           [
             acct.account_name, acct.account_password, acct.account_email || "",
             acct.source_loginserver || "local",
-            acct.last_login_date || new Date(),
-            acct.created_at || new Date(),
-            acct.updated_at || new Date(),
-          ] as (string | number | Date)[]
+            toMySQLDatetime(acct.last_login_date),
+            toMySQLDatetime(acct.created_at),
+            toMySQLDatetime(acct.updated_at),
+          ] as string[]
         );
         applied++;
       } catch (err) {
@@ -276,7 +284,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             srv.long_name, srv.short_name, srv.tag_description || "",
-            srv.login_server_list_type_id || 1, srv.last_login_date || null,
+            srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
             srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
             srv.note || null, sourceNodeId,
           ] as (string | number | null)[]
@@ -301,8 +309,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           [
             adm.account_name, adm.account_password || "",
             adm.first_name || "", adm.last_name || "", adm.email || "",
-            adm.registration_date || new Date(), "", sourceNodeId,
-          ] as (string | number | Date | null)[]
+            toMySQLDatetime(adm.registration_date), "", sourceNodeId,
+          ] as (string | number)[]
         );
         applied++;
       } catch (err) {
