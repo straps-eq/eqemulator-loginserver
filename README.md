@@ -135,15 +135,20 @@ Once connected, operators can claim their server through the web UI to manage pr
 
 ## Federation
 
-### Join an existing federation
+### Join the official federation
 
-1. Go to **Admin Panel → Federation → Join Existing Federation**
-2. Enter the master node's URL and the bootstrap token provided by the master admin
-3. Your node will sync accounts, servers, and profiles automatically
+Once your node is running, join the EQEmulator.dev federation to sync accounts and server listings across all nodes:
 
-### Initialize a new federation (master)
+1. **Contact Straps** on [Discord](https://discord.gg/6T4n3DdPVB) or open a [GitHub Issue](https://github.com/straps-eq/eqemulator-loginserver/issues) to request a bootstrap token
+2. Provide your node's public URL (e.g. `https://eqloginserver.com`)
+3. Once approved, you'll receive a one-time bootstrap token
+4. Go to **Admin Panel → Federation → Join Existing Federation**
+5. Enter the master URL (`https://eqemulator.dev`) and your bootstrap token
+6. Your node will begin syncing accounts, servers, and profiles automatically
 
-Only the `admin` role (not `moderator`) can initialize a new federation master. See `docs/federation-setup.md` for the full guide.
+### Run your own independent federation
+
+If you want to run a separate federation (not connected to EQEmulator.dev), you can initialize your own master node. Only the `admin` role can do this. See `docs/federation-setup.md` for the full guide.
 
 ## Ports
 
