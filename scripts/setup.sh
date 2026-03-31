@@ -108,6 +108,26 @@ FEDERATION_SYNC_SECRET=$(gen_secret 32)
 FEDERATION_KEY_ENCRYPTION_SECRET=$(gen_secret 32)
 METRICS_BEARER_TOKEN=$(gen_secret 32)
 
+# ── Optional: Resend email API ──
+echo ""
+echo "── Email Configuration (optional) ──"
+echo "  Resend (https://resend.com) enables email verification and MFA codes."
+echo "  Get a free API key at https://resend.com — the from-email domain must be verified there."
+echo "  Press Enter to skip if you don't have one yet."
+echo ""
+read -rp "  Resend API Key (or Enter to skip): " RESEND_API_KEY
+RESEND_API_KEY="${RESEND_API_KEY:-}"
+
+if [ -n "$RESEND_API_KEY" ]; then
+  echo "  ✓ Resend API key configured"
+  read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@${DOMAIN}]: " RESEND_FROM_EMAIL
+  RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@${DOMAIN}}"
+  echo "  ✓ From email: ${RESEND_FROM_EMAIL}"
+else
+  RESEND_FROM_EMAIL="noreply@${DOMAIN}"
+  echo "  · Skipped — emails disabled (can be added to .env later)"
+fi
+
 # ── Create .env ──
 if [ -f .env ]; then
   echo "  WARNING: .env already exists — backing up to .env.backup"
@@ -141,8 +161,8 @@ TURNSTILE_SECRET_KEY=
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 
 # ── Resend (optional — email verification + MFA) ──
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=noreply@${DOMAIN}
+RESEND_API_KEY=${RESEND_API_KEY}
+RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}
 
 # ── Federation ──
 FEDERATION_SYNC_SECRET=${FEDERATION_SYNC_SECRET}

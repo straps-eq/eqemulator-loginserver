@@ -17,6 +17,9 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState<"" | "sending" | "sent" | "error">("")
+
 
   // MFA state
   const [mfaRequired, setMfaRequired] = useState(false);
@@ -40,6 +43,7 @@ function LoginForm() {
 
       if (!res.ok) {
         setError(data.error || "Login failed");
+        setNeedsVerification(res.status === 403 && (data.error || "").includes("verify"));
         return;
       }
 
@@ -160,6 +164,38 @@ function LoginForm() {
           {error && (
             <div className="rounded bg-burgundy-600/10 border border-burgundy-600/20 px-4 py-3 text-sm text-burgundy-400 mb-5">
               {error}
+              {needsVerification && (
+                <button
+                  type="button"
+                  disabled={resendStatus === "sending" || resendStatus === "sent"}
+                  onClick={async () => {
+                    setResendStatus("sending");
+                    try {
+                      const res = await fetch("/api/account/resend-verification", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username }),
+                      });
+                      if (res.ok) {
+                        setResendStatus("sent");
+                      } else {
+                        const data = await res.json();
+                        setResendStatus("error");
+                        setError(data.error || "Failed to resend verification email");
+                      }
+                    } catch {
+                      setResendStatus("error");
+                    }
+                  }}
+                  className="block mt-2 text-xs text-frost-400 hover:text-frost-300 underline underline-offset-2 transition-colors disabled:opacity-50 disabled:no-underline"
+                >
+                  {resendStatus === "sending"
+                    ? "Sending..."
+                    : resendStatus === "sent"
+                    ? "✓ Verification email sent — check your inbox"
+                    : "Resend verification email"}
+                </button>
+              )}
             </div>
           )}
 

@@ -237,22 +237,25 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   let applied = 0;
 
   try {
-    // Upsert login_accounts — use ON DUPLICATE KEY UPDATE on id
+    // Upsert login_accounts — match on unique key (source_loginserver, account_name)
+    // Don't include id — let auto-increment handle it so local IDs don't conflict
     for (const acct of data.accounts) {
       try {
         await conn.execute(
-          `INSERT INTO login_accounts (id, account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO login_accounts (account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              account_password = VALUES(account_password),
              account_email = VALUES(account_email),
              last_login_date = VALUES(last_login_date),
              updated_at = VALUES(updated_at)`,
           [
-            acct.id, acct.account_name, acct.account_password, acct.account_email || "",
-            acct.source_loginserver || "local", acct.last_login_date || null,
-            acct.created_at || null, acct.updated_at || null,
-          ] as (string | number | null)[]
+            acct.account_name, acct.account_password, acct.account_email || "",
+            acct.source_loginserver || "local",
+            acct.last_login_date || new Date(),
+            acct.created_at || new Date(),
+            acct.updated_at || new Date(),
+          ] as (string | number | Date)[]
         );
         applied++;
       } catch (err) {
@@ -293,12 +296,12 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     for (const adm of data.admins) {
       try {
         await conn.execute(
-          `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, federation_source_node_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, registration_ip_address, federation_source_node_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             adm.account_name, adm.account_password || "",
             adm.first_name || "", adm.last_name || "", adm.email || "",
-            adm.registration_date || new Date(), sourceNodeId,
+            adm.registration_date || new Date(), "", sourceNodeId,
           ] as (string | number | Date | null)[]
         );
         applied++;

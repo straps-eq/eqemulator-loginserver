@@ -19,6 +19,7 @@ import {
   Database,
   Clock,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 
 interface NodeInfo {
@@ -768,9 +769,9 @@ function PeerCard({
             {peer.nodeTier}
           </span>
         </div>
-        {isMaster && peer.isApproved && (
+        {isMaster && (
           <div className="flex items-center gap-1">
-            {peer.status === "active" && peer.nodeTier === "mesh" && (
+            {peer.isApproved && peer.status === "active" && peer.nodeTier === "mesh" && (
               <button
                 onClick={() =>
                   onAction({ action: "set_tier", node_id: peer.id, tier: "official" })
@@ -781,7 +782,7 @@ function PeerCard({
                 Promote
               </button>
             )}
-            {peer.status === "active" && peer.nodeTier === "official" && (
+            {peer.isApproved && peer.status === "active" && peer.nodeTier === "official" && (
               <button
                 onClick={() =>
                   onAction({ action: "set_tier", node_id: peer.id, tier: "mesh" })
@@ -792,7 +793,7 @@ function PeerCard({
                 Demote
               </button>
             )}
-            {peer.status === "active" && (
+            {peer.isApproved && peer.status === "active" && (
               <button
                 onClick={() =>
                   onAction({ action: "suspend_node", node_id: peer.id })
@@ -803,7 +804,7 @@ function PeerCard({
                 <Pause className="h-3.5 w-3.5" />
               </button>
             )}
-            {peer.status === "suspended" && (
+            {peer.isApproved && peer.status === "suspended" && (
               <button
                 onClick={() =>
                   onAction({ action: "reactivate_node", node_id: peer.id })
@@ -814,7 +815,7 @@ function PeerCard({
                 <Play className="h-3.5 w-3.5" />
               </button>
             )}
-            {peer.status !== "revoked" && (
+            {peer.isApproved && peer.status !== "revoked" && (
               <button
                 onClick={() =>
                   onAction({ action: "revoke_node", node_id: peer.id })
@@ -823,6 +824,19 @@ function PeerCard({
                 title="Revoke"
               >
                 <Ban className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {(peer.status === "revoked" || peer.status === "suspended" || !peer.isApproved) && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete node "${peer.name}"? This cannot be undone.`)) {
+                    onAction({ action: "delete_node", node_id: peer.id });
+                  }
+                }}
+                className="p-1 rounded text-parchment-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                title="Delete permanently"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             )}
           </div>

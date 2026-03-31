@@ -312,6 +312,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case "delete_node": {
+        const self = await nodeModule.getSelfNode();
+        if (!self?.isMaster) {
+          return NextResponse.json({ error: "Only master can delete nodes" }, { status: 403 });
+        }
+        const { node_id: deleteId } = body;
+        if (!deleteId || typeof deleteId !== "number" || deleteId <= 0) {
+          return NextResponse.json({ error: "Valid node_id is required" }, { status: 400 });
+        }
+        if (deleteId === self.id) {
+          return NextResponse.json({ error: "Cannot delete self" }, { status: 400 });
+        }
+        // Also clean up origin map entries for this node
+        const { federationOriginMap } = await import("@/db/schema");
+        await db
+          .delete(federationOriginMap)
+          .where(eq(federationOriginMap.originNodeId, deleteId));
+        await db
+          .delete(federationNodes)
+          .where(eq(federationNodes.id, deleteId));
+        await nodeModule.auditLog(self.id, "node_deleted", { nodeId: deleteId });
+        return NextResponse.json({ success: true });
+      }
+
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
