@@ -86,6 +86,21 @@ The script handles everything:
 
 If you omit the arguments, the script will prompt interactively.
 
+### Email Configuration (required for MFA & verification)
+
+Email-based MFA and account verification require a **Resend** account with a **verified sending domain**.
+
+1. Create a free account at [resend.com](https://resend.com)
+2. Add and verify your sending domain (or use `eqemulator.dev` — ask **straps** in [Discord](https://discord.gg/6T4n3DdPVB) for a shared API key)
+3. Generate an API key and enter it during `setup.sh`, or add to `.env` later:
+
+```env
+RESEND_API_KEY=re_xxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@eqemulator.dev
+```
+
+> **Note:** The from-email domain must match a verified domain in your Resend account. If you don't have your own, use `noreply@eqemulator.dev` with the shared key from straps.
+
 ### Step 3 — Create your admin account
 
 1. Register at `https://your-domain.com`
