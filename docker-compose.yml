@@ -1,0 +1,139 @@
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: eqemu-mariadb
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./mariadb/data:/var/lib/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  loginserver:
+    build:
+      context: ./loginserver
+      dockerfile: Dockerfile
+    container_name: eqemu-loginserver
+    restart: always
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+      - LSPX=1
+    volumes:
+      - ./loginserver/login.json:/opt/loginserver/login.json:ro
+      - loginserver-data:/opt/loginserver/data
+    ports:
+      - "5998:5998/udp"
+      - "5999:5999/udp"
+      - "15900:15900/udp"
+      - "5998:5998/tcp"
+      - "5999:5999/tcp"
+      - "15900:15900/tcp"
+    networks:
+      - internal
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: eqemu-web
+    restart: always
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - LOGINSERVER_API_URL=http://loginserver:6000
+      - LOGINSERVER_API_TOKEN=${LOGINSERVER_API_TOKEN}
+      - DATABASE_URL=mysql://${DB_WEB_USER}:${DB_WEB_PASSWORD}@mariadb:3306/${DB_NAME}
+      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NEXT_PUBLIC_APP_URL=https://${DOMAIN}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - internal
+    expose:
+      - "3000"
+
+  redis:
+    image: redis:7-alpine
+    container_name: eqemu-redis
+    restart: always
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - internal
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: eqemu-nginx
+    restart: always
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    networks:
+      - internal
+
+  certbot:
+    image: certbot/certbot
+    container_name: eqemu-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: eqemu-prometheus
+    restart: always
+    depends_on:
+      - web
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=1y"
+      - "--storage.tsdb.retention.size=5GB"
+      - "--web.enable-lifecycle"
+    networks:
+      - internal
+    expose:
+      - "9090"
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  loginserver-data:
+  prometheus-data:

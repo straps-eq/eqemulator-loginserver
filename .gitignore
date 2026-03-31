@@ -1,0 +1,38 @@
+# Environment and secrets
+.env
+.env.local
+.env.production
+
+# Database data
+mariadb/data/
+
+# SSL certificates
+certbot/conf/
+certbot/www/
+
+# Loginserver runtime config (contains DB password)
+loginserver/login.json
+
+# Loginserver compiled data
+loginserver/data/
+
+# Backups
+backups/
+
+# Prometheus data
+prometheus/data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# nginx runtime config (contains your domain — use .example as template)
+nginx/conf.d/default.conf
+
+# User-uploaded content
+web/public/uploads/
+
+# IDE
+.vscode/
+.idea/
+.windsurf/
