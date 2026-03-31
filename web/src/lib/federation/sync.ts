@@ -93,6 +93,14 @@ interface ChangesResponse {
   latest_seq: number;
 }
 
+interface SyncDataResponse {
+  node_id: number;
+  accounts: Array<Record<string, unknown>>;
+  servers: Array<Record<string, unknown>>;
+  admins: Array<Record<string, unknown>>;
+  timestamp: number;
+}
+
 /** Run a single sync cycle: pull changes from all active peers. */
 export async function runSyncCycle(): Promise<{
   peersChecked: number;
@@ -131,54 +139,76 @@ export async function runSyncCycle(): Promise<{
 
       // Pull changes since our last known seq for this peer
       const sinceSeq = peer.lastSyncSeq || 0;
-      if (hb.data.latest_seq <= sinceSeq) continue; // nothing new
+      if (hb.data.latest_seq <= sinceSeq) {
+        // Even if no changelog changes, still do full data sync
+      } else {
+        const changesRes = await federationGet<ChangesResponse>(
+          peer.endpointUrl,
+          `/api/federation/changes?since=${sinceSeq}&limit=500`,
+          peer.tlsCertHash
+        );
 
-      const changesRes = await federationGet<ChangesResponse>(
-        peer.endpointUrl,
-        `/api/federation/changes?since=${sinceSeq}&limit=500`,
-        peer.tlsCertHash
-      );
+        if (!changesRes.ok || !changesRes.data?.changes) {
+          errors.push(`${peer.name}: pull changes failed — ${changesRes.error}`);
+        } else {
+          let maxSeq = sinceSeq;
 
-      if (!changesRes.ok || !changesRes.data?.changes) {
-        errors.push(`${peer.name}: pull changes failed — ${changesRes.error}`);
-        continue;
-      }
+          for (const change of changesRes.data.changes) {
+            if (!SYNCED_TABLES.has(change.table_name)) continue;
 
-      let maxSeq = sinceSeq;
+            // Origin authority: only apply inserts from any node,
+            // updates/deletes only from the origin node
+            if (change.operation !== "insert") {
+              const isOrigin = await isOriginNode(change.table_name, change.row_id, change.origin_node_id);
+              if (!isOrigin) {
+                await auditLog(peer.id, "origin_authority_rejected", {
+                  table: change.table_name,
+                  rowId: change.row_id,
+                  operation: change.operation,
+                  originNodeId: change.origin_node_id,
+                });
+                if (change.id > maxSeq) maxSeq = change.id;
+                continue;
+              }
+            }
 
-      for (const change of changesRes.data.changes) {
-        if (!SYNCED_TABLES.has(change.table_name)) continue;
+            try {
+              await applyChange(change);
+              changesApplied++;
+            } catch (err) {
+              errors.push(`${peer.name}: apply ${change.table_name}#${change.row_id} failed — ${err}`);
+            }
 
-        // Origin authority: only apply inserts from any node,
-        // updates/deletes only from the origin node
-        if (change.operation !== "insert") {
-          const isOrigin = await isOriginNode(change.table_name, change.row_id, change.origin_node_id);
-          if (!isOrigin) {
-            await auditLog(peer.id, "origin_authority_rejected", {
-              table: change.table_name,
-              rowId: change.row_id,
-              operation: change.operation,
-              originNodeId: change.origin_node_id,
-            });
             if (change.id > maxSeq) maxSeq = change.id;
-            continue;
+          }
+
+          // Update our cursor for this peer
+          if (maxSeq > sinceSeq) {
+            await updatePeerSyncSeq(peer.id, maxSeq);
           }
         }
+      }
 
-        try {
-          await applyChange(change);
-          changesApplied++;
-        } catch (err) {
-          errors.push(`${peer.name}: apply ${change.table_name}#${change.row_id} failed — ${err}`);
+      // Full loginserver data sync — pull all accounts, servers, admins from this peer
+      try {
+        const syncData = await federationGet<SyncDataResponse>(
+          peer.endpointUrl,
+          "/api/federation/sync_data",
+          peer.tlsCertHash
+        );
+
+        if (syncData.ok && syncData.data) {
+          const applied = await applyFullDataSync(syncData.data, peer.id);
+          changesApplied += applied;
+        } else {
+          errors.push(`${peer.name}: sync_data failed — ${syncData.error}`);
         }
-
-        if (change.id > maxSeq) maxSeq = change.id;
+      } catch (err) {
+        errors.push(`${peer.name}: sync_data error — ${err instanceof Error ? err.message : String(err)}`);
       }
 
-      // Update our cursor for this peer
-      if (maxSeq > sinceSeq) {
-        await updatePeerSyncSeq(peer.id, maxSeq);
-      }
+      // Update last sync timestamp
+      await updatePeerSyncSeq(peer.id, peer.lastSyncSeq || 0);
     } catch (err) {
       errors.push(`${peer.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -199,6 +229,90 @@ export async function runSyncCycle(): Promise<{
   }
 
   return { peersChecked: peers.length, changesApplied, errors };
+}
+
+/** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
+async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
+  const conn = await pool.getConnection();
+  let applied = 0;
+
+  try {
+    // Upsert login_accounts — use ON DUPLICATE KEY UPDATE on id
+    for (const acct of data.accounts) {
+      try {
+        await conn.execute(
+          `INSERT INTO login_accounts (id, account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             account_password = VALUES(account_password),
+             account_email = VALUES(account_email),
+             last_login_date = VALUES(last_login_date),
+             updated_at = VALUES(updated_at)`,
+          [
+            acct.id, acct.account_name, acct.account_password, acct.account_email || "",
+            acct.source_loginserver || "local", acct.last_login_date || null,
+            acct.created_at || null, acct.updated_at || null,
+          ] as (string | number | null)[]
+        );
+        applied++;
+      } catch (err) {
+        console.error(`[sync_data] account upsert error for ${acct.account_name}:`, err);
+      }
+    }
+
+    // Delete old synced servers from this source, then insert fresh
+    await conn.execute(
+      `DELETE FROM login_world_servers WHERE federation_source_node_id = ?`,
+      [sourceNodeId]
+    );
+
+    for (const srv of data.servers) {
+      try {
+        await conn.execute(
+          `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            srv.long_name, srv.short_name, srv.tag_description || "",
+            srv.login_server_list_type_id || 1, srv.last_login_date || null,
+            srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+            srv.note || null, sourceNodeId,
+          ] as (string | number | null)[]
+        );
+        applied++;
+      } catch (err) {
+        console.error(`[sync_data] server upsert error for ${srv.short_name}:`, err);
+      }
+    }
+
+    // Delete old synced admins from this source, then insert fresh
+    await conn.execute(
+      `DELETE FROM login_server_admins WHERE federation_source_node_id = ?`,
+      [sourceNodeId]
+    );
+
+    for (const adm of data.admins) {
+      try {
+        await conn.execute(
+          `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, federation_source_node_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            adm.account_name, adm.account_password || "",
+            adm.first_name || "", adm.last_name || "", adm.email || "",
+            adm.registration_date || new Date(), sourceNodeId,
+          ] as (string | number | Date | null)[]
+        );
+        applied++;
+      } catch (err) {
+        console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
+      }
+    }
+
+    console.log(`[sync_data] Applied ${applied} records from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins`);
+  } finally {
+    conn.release();
+  }
+
+  return applied;
 }
 
 /** Check if a change came from the origin node for a given record. */

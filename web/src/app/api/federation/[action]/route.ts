@@ -279,6 +279,77 @@ async function handlePasswordSync(req: NextRequest) {
   return NextResponse.json({ applied, rejected_weak_hash: rejectedWeak });
 }
 
+// ── Sync Data (full table export for mesh nodes) ──
+async function handleSyncData(req: NextRequest) {
+  const { getSelfNode } = await import("@/lib/federation/node");
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const { db } = await import("@/lib/db");
+  const { loginAccounts, loginWorldServers, loginServerAdmins } = await import("@/db/schema");
+
+  const self = await getSelfNode();
+  if (!self) {
+    return NextResponse.json({ error: "Federation not initialized" }, { status: 503 });
+  }
+
+  const auth = await authenticateFederationRequest(req, "");
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  // Export loginserver accounts (with password hashes for auth replication)
+  const accounts = await db
+    .select({
+      id: loginAccounts.id,
+      account_name: loginAccounts.accountName,
+      account_password: loginAccounts.accountPassword,
+      account_email: loginAccounts.accountEmail,
+      source_loginserver: loginAccounts.sourceLoginserver,
+      last_login_date: loginAccounts.lastLoginDate,
+      created_at: loginAccounts.createdAt,
+      updated_at: loginAccounts.updatedAt,
+    })
+    .from(loginAccounts);
+
+  // Export world servers (only locally connected, not already-synced records)
+  const { sql } = await import("drizzle-orm");
+  const servers = await db
+    .select({
+      id: loginWorldServers.id,
+      long_name: loginWorldServers.longName,
+      short_name: loginWorldServers.shortName,
+      tag_description: loginWorldServers.tagDescription,
+      login_server_list_type_id: loginWorldServers.loginServerListTypeId,
+      last_login_date: loginWorldServers.lastLoginDate,
+      login_server_admin_id: loginWorldServers.loginServerAdminId,
+      is_server_trusted: loginWorldServers.isServerTrusted,
+      note: loginWorldServers.note,
+    })
+    .from(loginWorldServers)
+    .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
+
+  // Export server admins (only local records)
+  const admins = await db
+    .select({
+      id: loginServerAdmins.id,
+      account_name: loginServerAdmins.accountName,
+      account_password: loginServerAdmins.accountPassword,
+      first_name: loginServerAdmins.firstName,
+      last_name: loginServerAdmins.lastName,
+      email: loginServerAdmins.email,
+      registration_date: loginServerAdmins.registrationDate,
+    })
+    .from(loginServerAdmins)
+    .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
+
+  return NextResponse.json({
+    node_id: self.id,
+    accounts,
+    servers,
+    admins,
+    timestamp: Date.now(),
+  });
+}
+
 // ── Sync ──
 async function handleSync(req: NextRequest) {
   const { getSelfNode } = await import("@/lib/federation/node");
@@ -315,6 +386,8 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
         return await handleConfigGet(req);
       case "changes":
         return await handleChangesGet(req);
+      case "sync_data":
+        return await handleSyncData(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

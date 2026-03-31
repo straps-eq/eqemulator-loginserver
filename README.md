@@ -45,61 +45,51 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 
 ### Prerequisites
 
-- Linux server (Ubuntu 22.04+ recommended)
-- Docker & Docker Compose v2
-- A domain name with DNS pointing to your server
-- (Optional) Cloudflare for DNS load balancing
+- **Linux server** (Ubuntu 22.04+ recommended, 1 vCPU / 1 GB RAM minimum)
+- **Domain name** with an A record pointing to your server's IP
+- **Firewall/security group** allowing these ports:
 
-### 1. Clone and run setup
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 80 | TCP | SSL certificate issuance |
+| 443 | TCP | HTTPS web UI |
+| 5998 | TCP+UDP | Titanium client login |
+| 5999 | TCP+UDP | SoD+/RoF2 client login |
+| 15900 | TCP+UDP | Larion client login |
+
+### Step 1 — Install Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+```
+
+**Log out and back in** for the group change to take effect.
+
+### Step 2 — Clone and run setup
 
 ```bash
 git clone https://github.com/straps-eq/eqemulator-loginserver.git
 cd eqemulator-loginserver
 chmod +x scripts/setup.sh
-./scripts/setup.sh
+./scripts/setup.sh login.yourdomain.com you@email.com
 ```
 
-The setup script auto-generates all secrets (DB passwords, session key, API tokens, federation secrets) — every installation gets unique values.
+The script handles everything:
+- Generates all secrets (DB passwords, session key, API tokens, federation keys)
+- Configures `.env`, `login.json`, and nginx with your domain
+- Obtains a **Let's Encrypt SSL certificate** (port 80 must be open)
+- Generates DH parameters for TLS
+- Pulls and starts all Docker containers
+- Runs all database migrations
+- Verifies all services are running
 
-### 2. Configure your domain
+If you omit the arguments, the script will prompt interactively.
 
-```bash
-nano .env                           # Set DOMAIN to your hostname
-nano nginx/conf.d/default.conf      # Replace YOURDOMAIN.COM
-```
+### Step 3 — Create your admin account
 
-### 3. Start everything
-
-```bash
-docker compose -f docker-compose.release.yml up -d
-```
-
-This pulls pre-built images and starts MariaDB, loginserver, web app, nginx, Redis, and Prometheus. No local compilation needed.
-
-### 4. Run database migrations
-
-```bash
-source .env
-for f in web/migrations/*.sql; do
-  docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f"
-done
-```
-
-### 5. Set up SSL
-
-```bash
-docker run --rm -v ./certbot/conf:/etc/letsencrypt \
-  -v ./certbot/www:/var/www/certbot \
-  certbot/certbot certonly --webroot \
-  -w /var/www/certbot -d YOUR_DOMAIN
-docker restart eqemu-nginx
-```
-
-### 6. Create your first admin account
-
-1. Register through the web UI at `https://your-domain.com`
-2. Verify your email
-3. Promote to admin:
+1. Register at `https://your-domain.com`
+2. Promote to admin:
 
 ```bash
 source .env
@@ -109,7 +99,14 @@ docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login \
       WHERE username = 'YOUR_USERNAME';"
 ```
 
-### 7. Configure EQ clients
+### Step 4 — Join the federation
+
+1. Go to **Admin → Federation → Join Existing Federation**
+2. Enter the master URL: `https://eqemulator.dev`
+3. Get a bootstrap token from [Discord](https://discord.gg/6T4n3DdPVB)
+4. Your node will begin syncing accounts, servers, and profiles automatically
+
+### Step 5 — Configure EQ clients
 
 Players update their `eqhost.txt`:
 
@@ -120,14 +117,23 @@ Host=login.yourdomain.com:5999
 
 > **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d` with the default `docker-compose.yml`.
 
-## Upgrading
+### Troubleshooting
 
-When a new release is published, node operators can upgrade with:
+| Problem | Fix |
+|---------|-----|
+| SSL cert fails | Check DNS is pointing to this server, port 80 is open, re-run `setup.sh` |
+| nginx restart-looping | SSL cert missing — run setup.sh again or check `certbot/conf/live/` |
+| MariaDB not ready | Wait 60s on first boot (init scripts run once), check `docker logs eqemu-mariadb` |
+| 500 errors in admin | Run migrations: `source .env && for f in web/migrations/*.sql; do docker exec -i eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f" 2>/dev/null; done` |
+| Web app shows "No RESEND_API_KEY" | Email features are optional; set `RESEND_API_KEY` in `.env` then `docker compose -f docker-compose.release.yml up -d web` |
+
+## Upgrading
 
 ```bash
 cd eqemulator-loginserver
 
-# Pull latest images
+# Pull latest code and images
+git pull origin main
 docker compose -f docker-compose.release.yml pull
 
 # Restart services
@@ -136,15 +142,15 @@ docker compose -f docker-compose.release.yml up -d
 # Run any new database migrations
 source .env
 for f in web/migrations/*.sql; do
-  docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f"
+  docker exec -i eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f" 2>/dev/null
 done
 ```
 
-Migrations are idempotent (`IF NOT EXISTS` / `IF NOT EXISTS`), so re-running all of them is safe.
+> **Note:** The `-i` flag on `docker exec` is required for piping SQL files. Migrations are idempotent — re-running all of them is safe.
 
-The federation dashboard shows each node's software version. Outdated nodes display an amber **"update available"** indicator so the master operator can see who needs to upgrade.
+The federation dashboard shows each node's software version. Outdated nodes display an amber **"update available"** indicator.
 
-> **Auto-updates:** For hands-off upgrades, add [Watchtower](https://containrrr.dev/watchtower/) to your compose stack. It polls GHCR hourly and auto-restarts containers when new images are available. You'll still need to run migrations manually for schema changes.
+> **Auto-updates:** Add [Watchtower](https://containrrr.dev/watchtower/) to auto-pull new images hourly. You'll still need to run migrations manually for schema changes.
 
 ## Server Operators
 

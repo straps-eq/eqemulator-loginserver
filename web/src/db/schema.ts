@@ -40,6 +40,7 @@ export const loginWorldServers = mysqlTable("login_world_servers", {
   loginServerAdminId: int("login_server_admin_id").notNull(),
   isServerTrusted: int("is_server_trusted").notNull(),
   note: varchar("note", { length: 255 }),
+  federationSourceNodeId: int("federation_source_node_id"),
 });
 
 export const loginServerAdmins = mysqlTable("login_server_admins", {
@@ -51,6 +52,7 @@ export const loginServerAdmins = mysqlTable("login_server_admins", {
   email: varchar("email", { length: 100 }).notNull().default(""),
   registrationDate: datetime("registration_date").notNull(),
   registrationIpAddress: varchar("registration_ip_address", { length: 80 }).notNull().default(""),
+  federationSourceNodeId: int("federation_source_node_id"),
 });
 
 export const loginServerListTypes = mysqlTable("login_server_list_types", {

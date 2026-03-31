@@ -14,6 +14,7 @@ CREATE USER IF NOT EXISTS 'eqemu_web'@'%' IDENTIFIED BY '${DB_WEB_PASSWORD}';
 GRANT SELECT ON eqemu_login.login_accounts TO 'eqemu_web'@'%';
 GRANT SELECT ON eqemu_login.login_world_servers TO 'eqemu_web'@'%';
 GRANT SELECT ON eqemu_login.login_server_list_types TO 'eqemu_web'@'%';
+GRANT SELECT ON eqemu_login.login_server_admins TO 'eqemu_web'@'%';
 GRANT SELECT ON eqemu_login.login_api_tokens TO 'eqemu_web'@'%';
 
 -- Full access on platform tables
@@ -25,6 +26,13 @@ GRANT ALL ON eqemu_login.server_profiles TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.server_claims TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.platform_config TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.world_server_admin_links TO 'eqemu_web'@'%';
+
+-- Full access on federation tables (created by migrations)
+GRANT ALL ON eqemu_login.federation_nodes TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.federation_config TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.federation_changelog TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.federation_audit_log TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.federation_origin_map TO 'eqemu_web'@'%';
 
 -- Seed API token for loginserver <-> web communication
 INSERT INTO login_api_tokens (token, can_write, can_read, created_at)

@@ -82,6 +82,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
   const [peerForm, setPeerForm] = useState({ name: "", endpoint_url: "" });
   const [showAddPeer, setShowAddPeer] = useState(false);
   const [copiedToken, setCopiedToken] = useState<number | null>(null);
+  const [pendingBootstrapToken, setPendingBootstrapToken] = useState<{ nodeId: number; token: string } | null>(null);
   const [syncResult, setSyncResult] = useState<{
     peersChecked: number;
     changesApplied: number;
@@ -114,6 +115,8 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
         alert(result.error || "Action failed");
       } else if (key === "sync") {
         setSyncResult(result);
+      } else if (key === "add_peer" && result.bootstrap_token) {
+        setPendingBootstrapToken({ nodeId: result.node_id, token: result.bootstrap_token });
       }
       await fetchData();
     } catch {
@@ -551,6 +554,41 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               <Plus className="h-3 w-3" />
               Generate Bootstrap Token
             </button>
+          </div>
+        )}
+
+        {/* Bootstrap token banner */}
+        {pendingBootstrapToken && (
+          <div className="rounded-lg border border-forest-400/30 bg-forest-400/5 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-display uppercase tracking-wider text-forest-400">
+                Bootstrap Token Generated
+              </span>
+              <button
+                onClick={() => setPendingBootstrapToken(null)}
+                className="text-parchment-600 hover:text-parchment-400 text-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+            <p className="text-xs text-parchment-500 mb-2">
+              Copy this token and paste it into the new node&apos;s &quot;Join Federation&quot; form. It will not be shown again.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded bg-[#080b12] border border-frost-400/10 px-3 py-2 text-sm font-mono text-frost-300 break-all select-all">
+                {pendingBootstrapToken.token}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(pendingBootstrapToken.token);
+                  setCopiedToken(pendingBootstrapToken.nodeId);
+                  setTimeout(() => setCopiedToken(null), 2000);
+                }}
+                className="shrink-0 rounded bg-frost-400/15 border border-frost-400/20 px-3 py-2 text-xs text-frost-300 hover:bg-frost-400/25 transition-colors"
+              >
+                {copiedToken === pendingBootstrapToken.nodeId ? "Copied!" : "Copy"}
+              </button>
+            </div>
           </div>
         )}
 
