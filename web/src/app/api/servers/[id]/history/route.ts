@@ -31,19 +31,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: rawId } = await params;
-  const id = parseInt(rawId, 10);
-  if (isNaN(id)) {
-    return NextResponse.json({ error: "Invalid server ID" }, { status: 400 });
-  }
+  const slug = decodeURIComponent(rawId);
+  const numId = parseInt(slug, 10);
 
-  // Look up server short name from DB
+  // Look up server — accept numeric ID or short_name
   const [server] = await db
     .select({
       shortName: loginWorldServers.shortName,
       federationSourceNodeId: loginWorldServers.federationSourceNodeId,
     })
     .from(loginWorldServers)
-    .where(eq(loginWorldServers.id, id))
+    .where(
+      isNaN(numId)
+        ? eq(loginWorldServers.shortName, slug)
+        : eq(loginWorldServers.id, numId)
+    )
     .limit(1);
 
   if (!server) {

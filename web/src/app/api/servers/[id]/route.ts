@@ -10,16 +10,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: rawId } = await params;
-  const id = parseInt(rawId, 10);
-  if (isNaN(id)) {
-    return NextResponse.json({ error: "Invalid server ID" }, { status: 400 });
-  }
+  const slug = decodeURIComponent(rawId);
+  const numId = parseInt(slug, 10);
 
-  // Get server from DB
+  // Get server from DB — accept numeric ID or short_name
   const [server] = await db
     .select()
     .from(loginWorldServers)
-    .where(eq(loginWorldServers.id, id))
+    .where(
+      isNaN(numId)
+        ? eq(loginWorldServers.shortName, slug)
+        : eq(loginWorldServers.id, numId)
+    )
     .limit(1);
 
   if (!server) {
@@ -30,7 +32,7 @@ export async function GET(
   const [profile] = await db
     .select()
     .from(serverProfiles)
-    .where(eq(serverProfiles.worldServerId, id))
+    .where(eq(serverProfiles.worldServerId, server.id))
     .limit(1);
 
   // Get live data from loginserver API

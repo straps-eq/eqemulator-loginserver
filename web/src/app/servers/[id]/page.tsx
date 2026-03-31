@@ -11,11 +11,16 @@ import { PopulationChart } from "./population-chart";
 
 export const dynamic = "force-dynamic";
 
-async function getServer(id: number) {
+async function getServer(idOrSlug: string) {
+  const numId = parseInt(idOrSlug, 10);
   const [server] = await db
     .select()
     .from(loginWorldServers)
-    .where(eq(loginWorldServers.id, id))
+    .where(
+      isNaN(numId)
+        ? eq(loginWorldServers.shortName, idOrSlug)
+        : eq(loginWorldServers.id, numId)
+    )
     .limit(1);
   return server || null;
 }
@@ -75,10 +80,8 @@ async function getLiveData(shortName: string, longName: string) {
 export default async function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   const { id: rawId } = await params;
-  const id = parseInt(rawId, 10);
-  if (isNaN(id)) notFound();
 
-  const server = await getServer(id);
+  const server = await getServer(decodeURIComponent(rawId));
   if (!server) notFound();
 
   const adminId = server.loginServerAdminId || 0;
@@ -121,7 +124,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
 
           {/* Population chart */}
           <div className="mt-5">
-            <PopulationChart serverId={server.id} />
+            <PopulationChart serverId={server.id} shortName={server.shortName} />
           </div>
 
           {/* Banner */}

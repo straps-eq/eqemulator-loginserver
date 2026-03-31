@@ -141,24 +141,25 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
   return <div ref={containerRef} className="w-full h-full uplot-dark" />;
 }
 
-export function PopulationChart({ serverId }: { serverId: number }) {
+export function PopulationChart({ serverId, shortName }: { serverId: number; shortName?: string }) {
   const [data, setData] = useState<StatsData | null>(null);
   const [days, setDays] = useState(1);
   const [mounted, setMounted] = useState(false);
+  const apiId = shortName ? encodeURIComponent(shortName) : serverId;
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/servers/${serverId}/history?days=${days}`);
+        const res = await fetch(`/api/servers/${apiId}/history?days=${days}`);
         if (res.ok) setData(await res.json());
       } catch {}
     };
     load();
     const interval = setInterval(load, 60 * 1000);
     return () => clearInterval(interval);
-  }, [serverId, days]);
+  }, [apiId, days]);
 
   const step = days <= 1 ? "1m" : days <= 7 ? "5m" : "15m";
 

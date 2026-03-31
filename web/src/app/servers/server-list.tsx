@@ -118,7 +118,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                       className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] ${
                         server.db_id ? "cursor-pointer" : ""
                       } ${i < tierServers.length - 1 ? "border-b border-frost-400/5" : ""}`}
-                      onClick={() => server.db_id && router.push(`/servers/${server.db_id}`, { scroll: false })}
+                      onClick={() => server.server_short_name && router.push(`/servers/${encodeURIComponent(server.server_short_name)}`, { scroll: false })}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`h-2 w-2 rounded-full flex-shrink-0 ${isOnline ? "bg-forest-500" : "bg-parchment-800"}`} />
