@@ -341,11 +341,57 @@ async function handleSyncData(req: NextRequest) {
     .from(loginServerAdmins)
     .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
 
+  // Export server profiles joined with server short_name for reliable matching
+  const { serverProfiles } = await import("@/db/schema");
+  const { eq: eqOp } = await import("drizzle-orm");
+  const profiles = await db
+    .select({
+      short_name: loginWorldServers.shortName,
+      description: serverProfiles.description,
+      website_url: serverProfiles.websiteUrl,
+      discord_url: serverProfiles.discordUrl,
+      banner_image_url: serverProfiles.bannerImageUrl,
+      expansion_era: serverProfiles.expansionEra,
+      custom_ruleset: serverProfiles.customRuleset,
+      tags: serverProfiles.tags,
+      display_tier: serverProfiles.displayTier,
+      show_player_count: serverProfiles.showPlayerCount,
+    })
+    .from(serverProfiles)
+    .innerJoin(loginWorldServers, eqOp(serverProfiles.worldServerId, loginWorldServers.id));
+
+  // Export live server data (players online, status, zones) from loginserver API
+  const http = await import("http");
+  const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
+  const token = process.env.LOGINSERVER_API_TOKEN || "";
+  const liveServers: Record<string, unknown>[] = await new Promise((resolve) => {
+    const r = http.get(`${apiUrl}/v1/servers/list`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk: string) => data += chunk);
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          // Strip sensitive IPs before sending over federation
+          const safe = (Array.isArray(json) ? json : []).map(
+            ({ local_ip, remote_ip, ...rest }: Record<string, unknown>) => rest
+          );
+          resolve(safe);
+        } catch { resolve([]); }
+      });
+    });
+    r.on("error", () => resolve([]));
+    r.setTimeout(5000, () => { r.destroy(); resolve([]); });
+  });
+
   return NextResponse.json({
     node_id: self.id,
     accounts,
     servers,
     admins,
+    profiles,
+    live_servers: liveServers,
     timestamp: Date.now(),
   });
 }

@@ -98,7 +98,27 @@ interface SyncDataResponse {
   accounts: Array<Record<string, unknown>>;
   servers: Array<Record<string, unknown>>;
   admins: Array<Record<string, unknown>>;
+  profiles: Array<Record<string, unknown>>;
+  live_servers: Array<Record<string, unknown>>;
   timestamp: number;
+}
+
+/** Cached live server data from federation peers — keyed by source node ID. */
+const federatedLiveCache = new Map<number, { data: Array<Record<string, unknown>>; expires: number }>();
+const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
+
+/** Get cached live servers from all federation peers. */
+export function getFederatedLiveServers(): Array<Record<string, unknown>> {
+  const now = Date.now();
+  const all: Array<Record<string, unknown>> = [];
+  federatedLiveCache.forEach((entry, nodeId) => {
+    if (now < entry.expires) {
+      all.push(...entry.data);
+    } else {
+      federatedLiveCache.delete(nodeId);
+    }
+  });
+  return all;
 }
 
 /** Run a single sync cycle: pull changes from all active peers. */
@@ -318,7 +338,63 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    console.log(`[sync_data] Applied ${applied} records from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins`);
+    // Upsert server profiles — match by short_name to find local server ID
+    const profileCount = data.profiles?.length || 0;
+    if (data.profiles && data.profiles.length > 0) {
+      for (const prof of data.profiles) {
+        try {
+          // Find the local server by short_name (synced from this federation source)
+          const [rows] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+            [prof.short_name as string, sourceNodeId] as (string | number)[]
+          ) as unknown as [Array<{ id: number }>];
+
+          if (rows.length > 0) {
+            const localServerId = rows[0].id;
+            await conn.execute(
+              `INSERT INTO server_profiles (world_server_id, description, website_url, discord_url, banner_image_url, expansion_era, custom_ruleset, tags, display_tier, show_player_count, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE
+                 description = VALUES(description),
+                 website_url = VALUES(website_url),
+                 discord_url = VALUES(discord_url),
+                 banner_image_url = VALUES(banner_image_url),
+                 expansion_era = VALUES(expansion_era),
+                 custom_ruleset = VALUES(custom_ruleset),
+                 tags = VALUES(tags),
+                 display_tier = VALUES(display_tier),
+                 show_player_count = VALUES(show_player_count),
+                 updated_at = NOW()`,
+              [
+                localServerId,
+                prof.description || null,
+                prof.website_url || null,
+                prof.discord_url || null,
+                prof.banner_image_url || null,
+                prof.expansion_era || null,
+                prof.custom_ruleset || null,
+                prof.tags ? JSON.stringify(prof.tags) : null,
+                prof.display_tier || null,
+                prof.show_player_count ?? 1,
+              ] as (string | number | null)[]
+            );
+            applied++;
+          }
+        } catch (err) {
+          console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
+        }
+      }
+    }
+
+    // Cache live server data for the servers API
+    if (data.live_servers && data.live_servers.length > 0) {
+      federatedLiveCache.set(sourceNodeId, {
+        data: data.live_servers,
+        expires: Date.now() + LIVE_CACHE_TTL_MS,
+      });
+    }
+
+    console.log(`[sync_data] Applied ${applied} records from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
   } finally {
     conn.release();
   }

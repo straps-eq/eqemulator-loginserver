@@ -92,37 +92,50 @@ export async function GET() {
     };
   });
 
-  // Include federated servers from DB that aren't currently live-connected
+  // Include federated servers — use cached live data from federation sync
+  let federatedLive: Array<Record<string, unknown>> = [];
+  try {
+    const { getFederatedLiveServers } = await import("@/lib/federation/sync");
+    federatedLive = getFederatedLiveServers();
+  } catch {}
+
   const liveShortNames = new Set(liveServers.map((l: any) => l.server_short_name));
   const liveNames = new Set(liveServers.map((l: any) => l.server_long_name));
-  const federatedOffline = dbServers
+  const federatedServers = dbServers
     .filter((d) => d.federationSourceNodeId && d.federationSourceNodeId > 0)
     .filter((d) => !liveShortNames.has(d.shortName) && !liveNames.has(d.longName))
     .map((d) => {
       const profile = profiles.find(
         (p) => p.worldServerId === d.id || ((d.loginServerAdminId || 0) > 0 && p.loginServerAdminId === d.loginServerAdminId)
       );
+      // Match with cached live data from federation
+      const liveFed = federatedLive.find(
+        (l: any) => l.server_short_name === d.shortName || l.server_long_name === d.longName
+      ) as Record<string, any> | undefined;
       const manualTier = profile?.displayTier;
+      const playersOnline = liveFed?.players_online ?? 0;
+      const effectiveTier = manualTier || autoTier(playersOnline, highMin, mediumMin);
+      const showPlayerCount = profile?.showPlayerCount ?? 1;
       return {
         server_long_name: d.longName,
         server_short_name: d.shortName,
         server_list_type_id: d.loginServerListTypeId,
-        server_status: 0,
-        zones_booted: 0,
-        players_online: 0,
-        world_id: 0,
+        server_status: liveFed?.server_status ?? 0,
+        zones_booted: liveFed?.zones_booted ?? 0,
+        players_online: showPlayerCount ? playersOnline : undefined,
+        world_id: liveFed?.world_id ?? 0,
         db_id: d.id,
         is_trusted: d.isServerTrusted ? true : false,
         tag_description: d.tagDescription || null,
         is_claimed: (d.loginServerAdminId || 0) > 0,
-        display_tier: manualTier || "low",
+        display_tier: effectiveTier,
         tier_override: manualTier ? true : false,
-        show_player_count: profile?.showPlayerCount ?? true,
+        show_player_count: !!showPlayerCount,
         is_federated: true,
       };
     });
 
-  const allServers = [...enriched, ...federatedOffline];
+  const allServers = [...enriched, ...federatedServers];
 
   // Cache the response
   cachedResponse = { data: allServers, expires: now + CACHE_TTL_MS };
