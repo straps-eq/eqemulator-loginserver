@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { serverProfiles, platformConfig } from "@/db/schema";
+import { serverProfiles, platformConfig, platformAdmins } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 async function requireAdmin() {
   const session = await getSession();
-  if (!session.isLoggedIn || !session.isAdmin) {
+  if (!session.isLoggedIn || !session.accountId) {
+    return null;
+  }
+  const adminCheck = await db
+    .select({ role: platformAdmins.role })
+    .from(platformAdmins)
+    .where(eq(platformAdmins.loginAccountId, session.accountId));
+  if (adminCheck.length === 0 || (adminCheck[0].role !== "admin" && adminCheck[0].role !== "moderator")) {
     return null;
   }
   return session;

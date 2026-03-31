@@ -58,9 +58,12 @@ export async function GET(
   if (days > 14) step = "900s";  // 30 days = 2880 points
   if (days > 60) step = "3600s"; // 365 days = 8760 points
 
-  const escaped = server.shortName.replace(/[\\'"]/g, "\\$&");
-  const playersQuery = `eqemu_server_players_online{server_short_name="${escaped}"}`;
-  const statusQuery = `eqemu_server_status{server_short_name="${escaped}"}`;
+  const sanitized = server.shortName.replace(/[^a-zA-Z0-9_\-]/g, "");
+  if (!sanitized) {
+    return NextResponse.json({ history: [], stats: { avg: 0, max: 0, samples: 0, uptime_pct: null } });
+  }
+  const playersQuery = `eqemu_server_players_online{server_short_name="${sanitized}"}`;
+  const statusQuery = `eqemu_server_status{server_short_name="${sanitized}"}`;
 
   const [playersResult, statusResult] = await Promise.all([
     promQuery(playersQuery, start, end, step),

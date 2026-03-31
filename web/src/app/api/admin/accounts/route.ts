@@ -13,7 +13,15 @@ import { eq, sql } from "drizzle-orm";
 
 async function requireAdmin() {
   const session = await getSession();
-  if (!session.isLoggedIn || !session.accountId || !session.isAdmin) {
+  if (!session.isLoggedIn || !session.accountId) {
+    return null;
+  }
+  // Re-verify admin role from DB (session may be stale after demotion)
+  const adminCheck = await db
+    .select({ role: platformAdmins.role })
+    .from(platformAdmins)
+    .where(eq(platformAdmins.loginAccountId, session.accountId));
+  if (adminCheck.length === 0 || (adminCheck[0].role !== "admin" && adminCheck[0].role !== "moderator")) {
     return null;
   }
   return session;

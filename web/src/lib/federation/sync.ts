@@ -29,17 +29,17 @@ const SYNCED_TABLES = new Set([
 const ALLOWED_COLUMNS: Record<string, Set<string>> = {
   login_accounts: new Set([
     "id", "account_name", "account_password", "account_email",
-    "source_loginserver", "last_ip_address", "last_login_date",
+    "source_loginserver", "last_login_date",
     "created_at", "updated_at",
   ]),
   login_world_servers: new Set([
     "id", "long_name", "short_name", "tag_description",
-    "login_server_list_type_id", "last_login_date", "last_ip_address",
+    "login_server_list_type_id", "last_login_date",
     "login_server_admin_id", "is_server_trusted", "note",
   ]),
   login_server_admins: new Set([
     "id", "account_name", "account_password", "first_name",
-    "last_name", "email", "registration_date", "registration_ip_address",
+    "last_name", "email", "registration_date",
   ]),
   server_profiles: new Set([
     "id", "world_server_id", "server_description", "server_banner_url",
