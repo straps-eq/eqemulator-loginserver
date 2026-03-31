@@ -38,7 +38,10 @@ export async function GET(
 
   // Look up server short name from DB
   const [server] = await db
-    .select({ shortName: loginWorldServers.shortName })
+    .select({
+      shortName: loginWorldServers.shortName,
+      federationSourceNodeId: loginWorldServers.federationSourceNodeId,
+    })
     .from(loginWorldServers)
     .where(eq(loginWorldServers.id, id))
     .limit(1);
@@ -49,6 +52,42 @@ export async function GET(
 
   const url = new URL(request.url);
   const days = Math.min(parseInt(url.searchParams.get("days") || "1", 10), 365);
+
+  // If this is a federated server, proxy the history request to the source node
+  if (server.federationSourceNodeId && server.federationSourceNodeId > 0) {
+    try {
+      const { federationNodes } = await import("@/db/schema");
+      const [sourceNode] = await db
+        .select({ endpointUrl: federationNodes.endpointUrl })
+        .from(federationNodes)
+        .where(eq(federationNodes.id, server.federationSourceNodeId))
+        .limit(1);
+
+      if (sourceNode?.endpointUrl) {
+        // Fetch the source node's server list to find the matching server ID
+        const listRes = await fetch(`${sourceNode.endpointUrl}/api/servers`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (listRes.ok) {
+          const servers = await listRes.json();
+          const match = (Array.isArray(servers) ? servers : []).find(
+            (s: any) => s.server_short_name === server.shortName
+          );
+          if (match?.db_id) {
+            const histRes = await fetch(
+              `${sourceNode.endpointUrl}/api/servers/${match.db_id}/history?days=${days}`,
+              { signal: AbortSignal.timeout(10000) }
+            );
+            if (histRes.ok) {
+              return NextResponse.json(await histRes.json());
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall through to local Prometheus query (will return empty)
+    }
+  }
 
   const end = Math.floor(Date.now() / 1000);
   const start = end - days * 86400;

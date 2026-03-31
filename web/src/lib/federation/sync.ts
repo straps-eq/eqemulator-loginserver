@@ -151,9 +151,10 @@ export async function runSyncCycle(): Promise<{
         continue;
       }
 
-      // Store peer's reported software version
+      // Update heartbeat timestamp and peer's reported software version
+      const { updatePeerHeartbeat, updatePeerVersion } = await import("./node");
+      await updatePeerHeartbeat(peer.id);
       if (hb.data.software_version) {
-        const { updatePeerVersion } = await import("./node");
         await updatePeerVersion(peer.id, hb.data.software_version);
       }
 
