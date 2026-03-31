@@ -1,5 +1,7 @@
 # EQEmulator.dev
 
+[![Build](https://github.com/straps-eq/eqemulator-loginserver/actions/workflows/release.yml/badge.svg)](https://github.com/straps-eq/eqemulator-loginserver/actions/workflows/release.yml)
+
 A federated login infrastructure for EverQuest private servers — built for reliability, transparency, and the long-term health of the emulation community.
 
 ## What is this?
@@ -31,7 +33,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 
 | Component | Purpose |
 |-----------|---------|
-| **Next.js 14** | Web application (App Router, server components) |
+| **Next.js 15** | Web application (App Router, server components) |
 | **MariaDB** | Account data, server profiles, federation state |
 | **EQEmu Loginserver** | Handles EQ client connections (Titanium/SoD+/Larion) |
 | **Redis** | Rate limiting, MFA code storage (optional) |
@@ -194,17 +196,23 @@ If you want to run a separate federation (not connected to EQEmulator.dev), you 
 - **Rate limiting** on all auth endpoints
 - **PII stripped** from public API responses (no IPs, registration data)
 - **Only scrypt/argon2id** password hashes accepted across federation
+- **Nonce-based CSP** — no unsafe-inline or unsafe-eval
 
 See `web/docs/security-audit-federation.md` for the full security audit.
 
+**Report a vulnerability:** Use [GitHub Private Vulnerability Reporting](https://github.com/straps-eq/eqemulator-loginserver/security/advisories/new) or contact Straps on [Discord](https://discord.gg/6T4n3DdPVB). See [SECURITY.md](SECURITY.md) for details.
+
 ## Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR guidelines.
+
 1. Fork the repo
-2. Create a feature branch
-3. Submit a pull request
+2. Create a feature branch from `main`
+3. Test locally with `docker compose build web`
+4. Submit a pull request
 
 Please open an issue first for large changes.
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 Straps
+[GPL-3.0](LICENSE) — matching the upstream [EQEmu Server](https://github.com/EQEmu/Server) license
