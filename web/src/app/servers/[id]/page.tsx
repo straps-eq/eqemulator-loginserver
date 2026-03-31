@@ -55,9 +55,21 @@ async function getLiveData(shortName: string, longName: string) {
     req.setTimeout(5000, () => { req.destroy(); resolve([]); });
   });
 
-  return servers.find(
+  const local = servers.find(
     (s) => s.server_short_name === shortName || s.server_long_name === longName
-  ) || null;
+  );
+  if (local) return local;
+
+  // Fallback: check federated live cache for servers not connected to this loginserver
+  try {
+    const { getFederatedLiveServers } = require("@/lib/federation/sync");
+    const federated = getFederatedLiveServers();
+    return federated.find(
+      (s: any) => s.server_short_name === shortName || s.server_long_name === longName
+    ) || null;
+  } catch {
+    return null;
+  }
 }
 
 export default async function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
