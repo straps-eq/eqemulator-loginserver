@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 type RouteContext = { params: Promise<{ action: string }> };
 
@@ -290,8 +291,9 @@ async function handleSync(req: NextRequest) {
   if (!secret) {
     return NextResponse.json({ error: "FEDERATION_SYNC_SECRET not configured" }, { status: 500 });
   }
-  const provided = req.headers.get("x-sync-secret");
-  if (provided !== secret) {
+  const provided = req.headers.get("x-sync-secret") || "";
+  if (provided.length !== secret.length ||
+      !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -60,9 +60,10 @@ async function getLiveData(shortName: string, longName: string) {
   ) || null;
 }
 
-export default async function ServerDetailPage({ params }: { params: { id: string } }) {
+export default async function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  const id = parseInt(params.id, 10);
+  const { id: rawId } = await params;
+  const id = parseInt(rawId, 10);
   if (isNaN(id)) notFound();
 
   const server = await getServer(id);
