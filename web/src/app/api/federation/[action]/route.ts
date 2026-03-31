@@ -344,7 +344,7 @@ async function handleSyncData(req: NextRequest) {
   // Export server profiles joined with server short_name for reliable matching
   const { serverProfiles } = await import("@/db/schema");
   const { eq: eqOp } = await import("drizzle-orm");
-  const profiles = await db
+  const profileRows = await db
     .select({
       short_name: loginWorldServers.shortName,
       description: serverProfiles.description,
@@ -359,6 +359,15 @@ async function handleSyncData(req: NextRequest) {
     })
     .from(serverProfiles)
     .innerJoin(loginWorldServers, eqOp(serverProfiles.worldServerId, loginWorldServers.id));
+
+  // Make relative banner URLs absolute so mesh nodes can display them
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || self.endpointUrl).replace(/\/$/, "");
+  const profiles = profileRows.map((p) => ({
+    ...p,
+    banner_image_url: p.banner_image_url && p.banner_image_url.startsWith("/")
+      ? `${siteUrl}${p.banner_image_url}`
+      : p.banner_image_url,
+  }));
 
   // Export live server data (players online, status, zones) from loginserver API
   const http = await import("http");

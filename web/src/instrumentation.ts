@@ -15,7 +15,7 @@ export async function register() {
         syncRunning = true;
         try {
           const res = await fetch(`http://localhost:${port}/api/federation/sync`, {
-            method: "GET",
+            method: "POST",
             headers: { "x-sync-secret": syncSecret },
           });
           if (res.ok) {
