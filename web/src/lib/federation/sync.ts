@@ -34,7 +34,7 @@ const ALLOWED_COLUMNS: Record<string, Set<string>> = {
   ]),
   login_world_servers: new Set([
     "id", "long_name", "short_name", "tag_description",
-    "login_server_list_type_id", "last_login_date",
+    "login_server_list_type_id", "last_login_date", "last_ip_address",
     "login_server_admin_id", "is_server_trusted", "note",
   ]),
   login_server_admins: new Set([
