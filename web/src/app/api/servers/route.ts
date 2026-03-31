@@ -7,6 +7,14 @@ import http from "http";
 /** Map population tier to loginserver list type id (shown in EQ client). */
 const tierToListType: Record<string, number> = { high: 1, medium: 2, low: 3 };
 
+/** In-memory response cache to avoid hammering DB on every poll. */
+let cachedResponse: { data: any; expires: number } | null = null;
+const CACHE_TTL_MS = 10_000; // 10 seconds
+
+/** Throttle list type sync to once per 60s. */
+let lastSyncTime = 0;
+const SYNC_INTERVAL_MS = 60_000;
+
 export const dynamic = "force-dynamic";
 
 async function getLiveServers() {
@@ -38,6 +46,11 @@ function autoTier(playersOnline: number, highMin: number, mediumMin: number): st
 }
 
 export async function GET() {
+  const now = Date.now();
+  if (cachedResponse && now < cachedResponse.expires) {
+    return NextResponse.json(cachedResponse.data);
+  }
+
   const [liveServers, dbServers, profiles, configRows] = await Promise.all([
     getLiveServers(),
     db.select().from(loginWorldServers),
@@ -79,29 +92,38 @@ export async function GET() {
     };
   });
 
-  // Auto-sync in-game list type from population tier (fire-and-forget)
-  const updates: Promise<unknown>[] = [];
-  for (const live of liveServers) {
-    const dbMatch = dbServers.find(
-      (d) => d.shortName === live.server_short_name || d.longName === live.server_long_name
-    );
-    if (!dbMatch) continue;
-    const profile = profiles.find(
-      (p) => p.worldServerId === dbMatch.id || ((dbMatch.loginServerAdminId || 0) > 0 && p.loginServerAdminId === dbMatch.loginServerAdminId)
-    );
-    const manualTier = profile?.displayTier;
-    const tier = manualTier || autoTier(live.players_online ?? 0, highMin, mediumMin);
-    const wantListType = tierToListType[tier] ?? 3;
-    if (dbMatch.loginServerListTypeId !== wantListType) {
-      updates.push(
-        db.update(loginWorldServers)
-          .set({ loginServerListTypeId: wantListType })
-          .where(eq(loginWorldServers.id, dbMatch.id))
+  // Cache the response
+  cachedResponse = { data: enriched, expires: now + CACHE_TTL_MS };
+
+  // Auto-sync in-game list type (throttled to once per 60s)
+  if (now - lastSyncTime > SYNC_INTERVAL_MS) {
+    lastSyncTime = now;
+    const updates: Promise<unknown>[] = [];
+    for (const live of liveServers) {
+      const dbMatch = dbServers.find(
+        (d) => d.shortName === live.server_short_name || d.longName === live.server_long_name
       );
+      if (!dbMatch) continue;
+      const profile = profiles.find(
+        (p) => p.worldServerId === dbMatch.id || ((dbMatch.loginServerAdminId || 0) > 0 && p.loginServerAdminId === dbMatch.loginServerAdminId)
+      );
+      const manualTier = profile?.displayTier;
+      const tier = manualTier || autoTier(live.players_online ?? 0, highMin, mediumMin);
+      const wantListType = tierToListType[tier] ?? 3;
+      if (dbMatch.loginServerListTypeId !== wantListType) {
+        updates.push(
+          db.update(loginWorldServers)
+            .set({ loginServerListTypeId: wantListType })
+            .where(eq(loginWorldServers.id, dbMatch.id))
+        );
+      }
     }
-  }
-  if (updates.length > 0) {
-    try { await Promise.all(updates); } catch (e) { console.error("[servers] list type sync error:", e); }
+    if (updates.length > 0) {
+      try {
+        await Promise.all(updates);
+        console.log('[servers] list type sync: updated', updates.length, 'servers (loginserver restart needed to take effect in EQ client)');
+      } catch (e) { console.error("[servers] list type sync error:", e); }
+    }
   }
 
   return NextResponse.json(enriched);

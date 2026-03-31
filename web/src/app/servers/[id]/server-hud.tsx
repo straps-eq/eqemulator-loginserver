@@ -129,7 +129,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
         }
       } catch {}
     };
-    const interval = setInterval(poll, 5000);
+    const interval = setInterval(poll, 15000);
     return () => clearInterval(interval);
   }, [serverId, info.shortName, info.longName]);
 
