@@ -48,55 +48,66 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 - A domain name with DNS pointing to your server
 - (Optional) Cloudflare for DNS load balancing
 
-### 1. Clone and configure
+### 1. Clone and run setup
 
 ```bash
-git clone https://github.com/YourOrg/eqemulator-dev.git
-cd eqemulator-dev
-cp .env.example .env
+git clone https://github.com/straps-eq/eqemulator-loginserver.git
+cd eqemulator-loginserver
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
-Edit `.env` with your values. At minimum you need:
+The setup script auto-generates all secrets (DB passwords, session key, API tokens, federation secrets) — every installation gets unique values.
 
-| Variable | Description |
-|----------|-------------|
-| `DOMAIN` | Your public hostname |
-| `DB_ROOT_PASSWORD` | MariaDB root password |
-| `DB_PASSWORD` | Loginserver DB password |
-| `DB_WEB_PASSWORD` | Web app DB password |
-| `SESSION_SECRET` | 64+ random characters for cookie encryption |
-| `LOGINSERVER_API_TOKEN` | Token matching `login_api_tokens` table |
-
-### 2. Start services
+### 2. Configure your domain
 
 ```bash
-docker compose up -d
+nano .env                           # Set DOMAIN to your hostname
+nano nginx/conf.d/default.conf      # Replace YOURDOMAIN.COM
 ```
 
-This starts MariaDB, the loginserver, the web app, nginx, and Redis.
-
-### 3. Run database migrations
+### 3. Start everything
 
 ```bash
+docker compose -f docker-compose.release.yml up -d
+```
+
+This pulls pre-built images and starts MariaDB, loginserver, web app, nginx, Redis, and Prometheus. No local compilation needed.
+
+### 4. Run database migrations
+
+```bash
+source .env
 for f in web/migrations/*.sql; do
   docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f"
 done
 ```
 
-### 4. Create your first admin account
+### 5. Set up SSL
+
+```bash
+docker run --rm -v ./certbot/conf:/etc/letsencrypt \
+  -v ./certbot/www:/var/www/certbot \
+  certbot/certbot certonly --webroot \
+  -w /var/www/certbot -d YOUR_DOMAIN
+docker restart eqemu-nginx
+```
+
+### 6. Create your first admin account
 
 1. Register through the web UI at `https://your-domain.com`
 2. Verify your email
 3. Promote to admin:
 
 ```bash
+source .env
 docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login \
   -e "INSERT INTO platform_admins (login_account_id, role)
       SELECT id, 'admin' FROM platform_accounts
       WHERE username = 'YOUR_USERNAME';"
 ```
 
-### 5. Configure EQ clients
+### 7. Configure EQ clients
 
 Players update their `eqhost.txt`:
 
@@ -104,6 +115,8 @@ Players update their `eqhost.txt`:
 [LoginServer]
 Host=login.yourdomain.com:5999
 ```
+
+> **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d` with the default `docker-compose.yml`.
 
 ## Server Operators
 

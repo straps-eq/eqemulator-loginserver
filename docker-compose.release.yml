@@ -1,0 +1,124 @@
+# Pre-built image compose file — no local compilation needed.
+# Run: docker compose -f docker-compose.release.yml up -d
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: eqemu-mariadb
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-eqemu_login}
+      MARIADB_USER: ${DB_USER:-eqemu_ls}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./mariadb/data:/var/lib/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  loginserver:
+    image: ghcr.io/straps-eq/eqemu-loginserver:latest
+    container_name: eqemu-loginserver
+    restart: always
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+      - LSPX=1
+    volumes:
+      - ./loginserver/login.json:/opt/loginserver/login.json:ro
+      - loginserver-data:/opt/loginserver/data
+    ports:
+      - "5998:5998/udp"
+      - "5999:5999/udp"
+      - "15900:15900/udp"
+      - "5998:5998/tcp"
+      - "5999:5999/tcp"
+      - "15900:15900/tcp"
+    networks:
+      - internal
+
+  web:
+    image: ghcr.io/straps-eq/eqemu-web:latest
+    container_name: eqemu-web
+    restart: always
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=mysql://${DB_WEB_USER:-eqemu_web}:${DB_WEB_PASSWORD}@mariadb:3306/${DB_NAME:-eqemu_login}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NEXT_PUBLIC_SITE_URL=https://${DOMAIN}
+      - NEXT_PUBLIC_APP_URL=https://${DOMAIN}
+      - LOGINSERVER_API_URL=http://loginserver:6000
+      - LOGINSERVER_API_TOKEN=${LOGINSERVER_API_TOKEN}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
+      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      - FEDERATION_SYNC_SECRET=${FEDERATION_SYNC_SECRET:-}
+      - METRICS_BEARER_TOKEN=${METRICS_BEARER_TOKEN:-}
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: eqemu-redis
+    restart: always
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:alpine
+    container_name: eqemu-nginx
+    restart: always
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    networks:
+      - internal
+
+  certbot:
+    image: certbot/certbot
+    container_name: eqemu-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: eqemu-prometheus
+    restart: always
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - internal
+
+volumes:
+  loginserver-data:
+  redis-data:
+  prometheus-data:
+
+networks:
+  internal:
+    driver: bridge
