@@ -31,6 +31,8 @@ services:
     environment:
       - DB_PASSWORD=${DB_PASSWORD}
       - LSPX=1
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - ./loginserver/login.json:/opt/loginserver/login.json:ro
       - loginserver-data:/opt/loginserver/data

@@ -191,7 +191,7 @@ Response:
 {
   "success": true,
   "node_id": 2,
-  "bootstrap_token": "a1b2c3d4e5f6..."
+  "bootstrap_token": "<GENERATED_TOKEN_HERE>"
 }
 ```
 
@@ -218,7 +218,7 @@ curl -X POST https://eu.eqemulator.dev/api/admin/federation \
     "name": "EQEmulator EU",
     "endpoint_url": "https://eu.eqemulator.dev",
     "master_url": "https://eqemulator.dev",
-    "bootstrap_token": "a1b2c3d4e5f6..."
+    "bootstrap_token": "<GENERATED_TOKEN_HERE>"
   }'
 ```
 

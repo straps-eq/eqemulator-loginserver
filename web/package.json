@@ -29,6 +29,9 @@
     "tailwind-merge": "^2.5.0",
     "uplot": "^1.6.32"
   },
+  "overrides": {
+    "postal-mime": "2.7.4"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",

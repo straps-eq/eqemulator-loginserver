@@ -50,6 +50,9 @@ WORKDIR /opt/loginserver
 COPY --from=builder /build/source/build/bin/loginserver .
 COPY --from=builder /build/source/loginserver/login_util/ ./data/
 
+# Note: The EQEmu loginserver binary requires root at runtime (signal handling,
+# shared memory). Container hardening is applied via docker-compose security_opt.
+
 EXPOSE 5998/udp 5999/udp 15900/udp 5998/tcp 5999/tcp 15900/tcp 6000/tcp
 
 CMD ["./loginserver"]
