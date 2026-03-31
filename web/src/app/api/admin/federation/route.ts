@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { platformAdmins } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { version as APP_VERSION } from "../../../../../package.json";
 
 async function requireAdmin() {
   const session = await getSession();
@@ -69,6 +70,7 @@ export async function GET() {
 
     return NextResponse.json({
       initialized: !!self,
+      selfVersion: APP_VERSION,
       self: self
         ? {
             id: self.id,
@@ -91,6 +93,7 @@ export async function GET() {
         isApproved: n.isApproved,
         status: n.status,
         nodeTier: n.nodeTier,
+        softwareVersion: n.softwareVersion,
         lastSyncSeq: n.lastSyncSeq,
         lastSyncAt: n.lastSyncAt,
         lastHeartbeatAt: n.lastHeartbeatAt,

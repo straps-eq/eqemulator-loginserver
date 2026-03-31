@@ -365,6 +365,14 @@ export async function updatePeerHeartbeat(nodeId: number) {
     .where(eq(federationNodes.id, nodeId));
 }
 
+/** Update a peer's reported software version. */
+export async function updatePeerVersion(nodeId: number, version: string) {
+  await db
+    .update(federationNodes)
+    .set({ softwareVersion: version, updatedAt: new Date() })
+    .where(eq(federationNodes.id, nodeId));
+}
+
 /** Get all federation config entries. */
 export async function getAllConfig() {
   return db.select().from(federationConfig);

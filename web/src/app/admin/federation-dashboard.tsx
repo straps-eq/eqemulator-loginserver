@@ -18,6 +18,7 @@ import {
   Activity,
   Database,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 
 interface NodeInfo {
@@ -34,6 +35,7 @@ interface NodeInfo {
   lastSyncSeq: number;
   lastSyncAt: string | null;
   lastHeartbeatAt: string | null;
+  softwareVersion: string | null;
   hasPendingToken: boolean;
   bootstrapExpiresAt: string | null;
   createdAt: string | null;
@@ -55,6 +57,7 @@ interface AuditEntry {
 
 interface FederationData {
   initialized: boolean;
+  selfVersion: string;
   self: {
     id: number;
     name: string;
@@ -452,6 +455,10 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 {selfNode.nodeTier}
               </span>
             </div>
+            <div>
+              <span className="text-parchment-600">Version:</span>{" "}
+              <span className="text-frost-300 font-mono">v{data.selfVersion}</span>
+            </div>
             <div className="col-span-2">
               <span className="text-parchment-600">Endpoint:</span>{" "}
               <span className="text-parchment-300">{selfNode.endpointUrl}</span>
@@ -559,6 +566,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 key={peer.id}
                 peer={peer}
                 isMaster={!!data.self?.isMaster}
+                selfVersion={data.selfVersion}
                 onAction={doAction}
                 actionLoading={actionLoading}
                 copiedToken={copiedToken}
@@ -666,6 +674,7 @@ function StatCard({
 function PeerCard({
   peer,
   isMaster,
+  selfVersion,
   onAction,
   actionLoading,
   copiedToken,
@@ -673,11 +682,13 @@ function PeerCard({
 }: {
   peer: NodeInfo;
   isMaster: boolean;
+  selfVersion: string;
   onAction: (body: Record<string, unknown>) => void;
   actionLoading: string | null;
   copiedToken: number | null;
   onCopyToken: (text: string, nodeId: number) => void;
 }) {
+  const isOutdated = peer.softwareVersion && peer.softwareVersion !== selfVersion;
   const statusColor =
     peer.status === "active" && peer.isApproved
       ? "text-forest-400"
@@ -822,6 +833,22 @@ function PeerCard({
         <div>
           <span className="text-parchment-600">Sync Seq:</span>{" "}
           <span className="text-parchment-400">{peer.lastSyncSeq}</span>
+        </div>
+        <div>
+          <span className="text-parchment-600">Version:</span>{" "}
+          {peer.softwareVersion ? (
+            <span className={`font-mono ${isOutdated ? "text-amber-400" : "text-parchment-400"}`}>
+              v{peer.softwareVersion}
+              {isOutdated && (
+                <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  update available
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-parchment-700">unknown</span>
+          )}
         </div>
       </div>
 

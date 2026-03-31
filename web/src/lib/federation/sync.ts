@@ -84,6 +84,7 @@ interface HeartbeatResponse {
   is_master: boolean;
   latest_seq: number;
   latest_config_version: number;
+  software_version?: string;
   timestamp: number;
 }
 
@@ -120,6 +121,12 @@ export async function runSyncCycle(): Promise<{
       if (!hb.ok || !hb.data) {
         errors.push(`${peer.name}: heartbeat failed — ${hb.error}`);
         continue;
+      }
+
+      // Store peer's reported software version
+      if (hb.data.software_version) {
+        const { updatePeerVersion } = await import("./node");
+        await updatePeerVersion(peer.id, hb.data.software_version);
       }
 
       // Pull changes since our last known seq for this peer

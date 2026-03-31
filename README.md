@@ -120,6 +120,32 @@ Host=login.yourdomain.com:5999
 
 > **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d` with the default `docker-compose.yml`.
 
+## Upgrading
+
+When a new release is published, node operators can upgrade with:
+
+```bash
+cd eqemulator-loginserver
+
+# Pull latest images
+docker compose -f docker-compose.release.yml pull
+
+# Restart services
+docker compose -f docker-compose.release.yml up -d
+
+# Run any new database migrations
+source .env
+for f in web/migrations/*.sql; do
+  docker exec eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f"
+done
+```
+
+Migrations are idempotent (`IF NOT EXISTS` / `IF NOT EXISTS`), so re-running all of them is safe.
+
+The federation dashboard shows each node's software version. Outdated nodes display an amber **"update available"** indicator so the master operator can see who needs to upgrade.
+
+> **Auto-updates:** For hands-off upgrades, add [Watchtower](https://containrrr.dev/watchtower/) to your compose stack. It polls GHCR hourly and auto-restarts containers when new images are available. You'll still need to run migrations manually for schema changes.
+
 ## Server Operators
 
 World server operators connect by adding your loginserver to `eqemu_config.json`:

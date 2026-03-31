@@ -167,6 +167,7 @@ export const federationNodes = mysqlTable(
     lastSyncAt: datetime("last_sync_at"),
     lastHeartbeatAt: datetime("last_heartbeat_at"),
     tlsCertHash: varchar("tls_cert_hash", { length: 128 }),
+    softwareVersion: varchar("software_version", { length: 32 }),
     bootstrapToken: varchar("bootstrap_token", { length: 128 }),
     bootstrapExpiresAt: datetime("bootstrap_expires_at"),
     createdAt: datetime("created_at"),

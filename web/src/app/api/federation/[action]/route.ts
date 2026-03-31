@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { version as APP_VERSION } from "../../../../../package.json";
 
 type RouteContext = { params: Promise<{ action: string }> };
 
@@ -33,6 +34,7 @@ async function handleHeartbeat(req: NextRequest) {
       is_master: self.isMaster,
       latest_seq: latestSeq,
       latest_config_version: maxConfigVersion,
+      software_version: APP_VERSION,
       timestamp: Date.now(),
     });
   }
