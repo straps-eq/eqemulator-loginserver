@@ -120,8 +120,8 @@ RESEND_API_KEY="${RESEND_API_KEY:-}"
 
 if [ -n "$RESEND_API_KEY" ]; then
   echo "  ✓ Resend API key configured"
-  read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@${DOMAIN}]: " RESEND_FROM_EMAIL
-  RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@${DOMAIN}}"
+  read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@eqemulator.dev]: " RESEND_FROM_EMAIL
+  RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@eqemulator.dev}"
   echo "  ✓ From email: ${RESEND_FROM_EMAIL}"
 else
   RESEND_FROM_EMAIL="noreply@${DOMAIN}"

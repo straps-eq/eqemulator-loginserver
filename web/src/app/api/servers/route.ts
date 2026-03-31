@@ -92,8 +92,40 @@ export async function GET() {
     };
   });
 
+  // Include federated servers from DB that aren't currently live-connected
+  const liveShortNames = new Set(liveServers.map((l: any) => l.server_short_name));
+  const liveNames = new Set(liveServers.map((l: any) => l.server_long_name));
+  const federatedOffline = dbServers
+    .filter((d) => d.federationSourceNodeId && d.federationSourceNodeId > 0)
+    .filter((d) => !liveShortNames.has(d.shortName) && !liveNames.has(d.longName))
+    .map((d) => {
+      const profile = profiles.find(
+        (p) => p.worldServerId === d.id || ((d.loginServerAdminId || 0) > 0 && p.loginServerAdminId === d.loginServerAdminId)
+      );
+      const manualTier = profile?.displayTier;
+      return {
+        server_long_name: d.longName,
+        server_short_name: d.shortName,
+        server_list_type_id: d.loginServerListTypeId,
+        server_status: 0,
+        zones_booted: 0,
+        players_online: 0,
+        world_id: 0,
+        db_id: d.id,
+        is_trusted: d.isServerTrusted ? true : false,
+        tag_description: d.tagDescription || null,
+        is_claimed: (d.loginServerAdminId || 0) > 0,
+        display_tier: manualTier || "low",
+        tier_override: manualTier ? true : false,
+        show_player_count: profile?.showPlayerCount ?? true,
+        is_federated: true,
+      };
+    });
+
+  const allServers = [...enriched, ...federatedOffline];
+
   // Cache the response
-  cachedResponse = { data: enriched, expires: now + CACHE_TTL_MS };
+  cachedResponse = { data: allServers, expires: now + CACHE_TTL_MS };
 
   // Auto-sync in-game list type (throttled to once per 60s)
   if (now - lastSyncTime > SYNC_INTERVAL_MS) {
@@ -126,5 +158,5 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json(enriched);
+  return NextResponse.json(allServers);
 }
