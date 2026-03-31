@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Network, Server } from "lucide-react";
+import { Users, Network, Server, KeyRound } from "lucide-react";
 import { AdminDashboard } from "./admin-dashboard";
 import { FederationDashboard } from "./federation-dashboard";
 import { ServersDashboard } from "./servers-dashboard";
+import { LoginserverAccountsDashboard } from "./loginserver-accounts-dashboard";
 
 const tabs = [
   { id: "accounts", label: "Accounts", icon: Users },
+  { id: "loginserver", label: "Loginserver", icon: KeyRound },
   { id: "servers", label: "Servers", icon: Server },
   { id: "federation", label: "Federation", icon: Network },
 ] as const;
@@ -43,6 +45,7 @@ export function AdminTabs({ adminRole }: { adminRole: "admin" | "moderator" }) {
 
       {/* Tab content */}
       {activeTab === "accounts" && <AdminDashboard />}
+      {activeTab === "loginserver" && <LoginserverAccountsDashboard />}
       {activeTab === "servers" && <ServersDashboard />}
       {activeTab === "federation" && <FederationDashboard adminRole={adminRole} />}
     </div>
