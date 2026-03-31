@@ -1,14 +1,7 @@
 -- Platform tables for eqemulator.dev web application
+-- User creation and grants handled by 04-grants.sh (reads env vars at runtime)
 
 USE eqemu_login;
-
--- Web app DB user with limited permissions
--- Password must match DB_WEB_PASSWORD in .env
-CREATE USER IF NOT EXISTS 'eqemu_web'@'%' IDENTIFIED BY 'CHANGE_ME_DB_WEB_PASSWORD';
-GRANT SELECT ON eqemu_login.login_accounts TO 'eqemu_web'@'%';
-GRANT SELECT ON eqemu_login.login_world_servers TO 'eqemu_web'@'%';
-GRANT SELECT ON eqemu_login.login_server_list_types TO 'eqemu_web'@'%';
-GRANT SELECT ON eqemu_login.login_api_tokens TO 'eqemu_web'@'%';
 
 -- Platform accounts (separate identity from loginserver accounts)
 CREATE TABLE IF NOT EXISTS platform_accounts (
@@ -104,14 +97,3 @@ CREATE TABLE IF NOT EXISTS world_server_admin_links (
   INDEX idx_ws_platform (platform_account_id)
 );
 
--- Grant web user access to platform tables
-GRANT ALL ON eqemu_login.platform_accounts TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.account_login_links TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.platform_sessions TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.platform_admins TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.server_profiles TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.server_claims TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.platform_config TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.world_server_admin_links TO 'eqemu_web'@'%';
-
-FLUSH PRIVILEGES;

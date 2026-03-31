@@ -11,6 +11,8 @@ services:
       MARIADB_DATABASE: ${DB_NAME:-eqemu_login}
       MARIADB_USER: ${DB_USER:-eqemu_ls}
       MARIADB_PASSWORD: ${DB_PASSWORD}
+      DB_WEB_PASSWORD: ${DB_WEB_PASSWORD}
+      LOGINSERVER_API_TOKEN: ${LOGINSERVER_API_TOKEN}
     volumes:
       - ./mariadb/data:/var/lib/mysql
       - ./mariadb/init:/docker-entrypoint-initdb.d:ro

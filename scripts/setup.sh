@@ -104,21 +104,6 @@ else
   echo "· nginx/conf.d/default.conf already exists (skipped)"
 fi
 
-# ── Patch DB init scripts with generated secrets ──
-# The seed file needs the API token, the platform file needs the web DB password
-SEED_FILE="mariadb/init/02-seed.sql"
-PLATFORM_FILE="mariadb/init/03-platform.sql"
-
-if grep -q 'CHANGE_ME_GENERATE' "$SEED_FILE" 2>/dev/null; then
-  sed -i "s/CHANGE_ME_GENERATE_WITH_openssl_rand_hex_32/${LOGINSERVER_API_TOKEN}/" "$SEED_FILE"
-  echo "✓ Patched API token into $SEED_FILE"
-fi
-
-if grep -q 'CHANGE_ME_DB_WEB_PASSWORD' "$PLATFORM_FILE" 2>/dev/null; then
-  sed -i "s/CHANGE_ME_DB_WEB_PASSWORD/${DB_WEB_PASSWORD}/" "$PLATFORM_FILE"
-  echo "✓ Patched web DB password into $PLATFORM_FILE"
-fi
-
 # ── Create data directories ──
 mkdir -p mariadb/data backups certbot/conf certbot/www
 echo "✓ Created data directories"
