@@ -267,26 +267,85 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   let applied = 0;
 
   try {
-    // Upsert login_accounts — match on unique key (source_loginserver, account_name)
-    // Don't include id — let auto-increment handle it so local IDs don't conflict
+    // Upsert login_accounts — preserve master's ID so federated play auth works.
+    // The EQ client gets its account_id at login time from the local login_accounts.id.
+    // The world server's account table stores lsaccount_id from previous logins.
+    // If the mesh has a different ID for the same account, auth will fail.
     for (const acct of data.accounts) {
       try {
-        await conn.execute(
-          `INSERT INTO login_accounts (account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             account_password = VALUES(account_password),
-             account_email = VALUES(account_email),
-             last_login_date = VALUES(last_login_date),
-             updated_at = VALUES(updated_at)`,
-          [
-            acct.account_name, acct.account_password, acct.account_email || "",
-            acct.source_loginserver || "local",
-            toMySQLDatetime(acct.last_login_date),
-            toMySQLDatetime(acct.created_at),
-            toMySQLDatetime(acct.updated_at),
-          ] as string[]
-        );
+        const srcLs = acct.source_loginserver || "local";
+
+        if (acct.id) {
+          // Reconcile ID mismatches before upserting
+          // 1. Check if this account_name exists locally with a different ID
+          const [existing] = await conn.execute(
+            `SELECT id FROM login_accounts WHERE account_name = ? AND source_loginserver = ? LIMIT 1`,
+            [acct.account_name, srcLs] as string[]
+          ) as unknown as [Array<{ id: number }>];
+
+          if (existing.length > 0 && existing[0].id !== acct.id) {
+            const localId = existing[0].id;
+
+            // 2. Check if master's ID is already used by a DIFFERENT account locally
+            const [conflict] = await conn.execute(
+              `SELECT id, account_name FROM login_accounts WHERE id = ? LIMIT 1`,
+              [acct.id] as number[]
+            ) as unknown as [Array<{ id: number; account_name: string }>];
+
+            if (conflict.length > 0 && conflict[0].account_name !== acct.account_name) {
+              // Master's ID is taken by another local account — reassign it
+              const [maxRow] = await conn.execute(
+                `SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM login_accounts`,
+                [] as string[]
+              ) as unknown as [Array<{ next_id: number }>];
+              const newId = maxRow[0].next_id;
+              try { await conn.execute(`UPDATE account_login_links SET login_account_id = ? WHERE login_account_id = ?`, [newId, acct.id] as number[]); } catch {}
+              await conn.execute(`UPDATE login_accounts SET id = ? WHERE id = ?`, [newId, acct.id] as number[]);
+              console.log(`[sync_data] relocated conflicting account id ${acct.id} -> ${newId}`);
+            }
+
+            // 3. Remap local entry to master's ID
+            try { await conn.execute(`UPDATE account_login_links SET login_account_id = ? WHERE login_account_id = ?`, [acct.id, localId] as number[]); } catch {}
+            await conn.execute(`UPDATE login_accounts SET id = ? WHERE id = ?`, [acct.id, localId] as number[]);
+            console.log(`[sync_data] remapped ${acct.account_name} id ${localId} -> ${acct.id}`);
+          }
+
+          // 4. Upsert with master's ID
+          await conn.execute(
+            `INSERT INTO login_accounts (id, account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               account_password = VALUES(account_password),
+               account_email = VALUES(account_email),
+               last_login_date = VALUES(last_login_date),
+               updated_at = VALUES(updated_at)`,
+            [
+              acct.id, acct.account_name, acct.account_password, acct.account_email || "",
+              srcLs,
+              toMySQLDatetime(acct.last_login_date),
+              toMySQLDatetime(acct.created_at),
+              toMySQLDatetime(acct.updated_at),
+            ] as (string | number)[]
+          );
+        } else {
+          // No ID from master — fallback to name-based upsert
+          await conn.execute(
+            `INSERT INTO login_accounts (account_name, account_password, account_email, source_loginserver, last_login_date, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               account_password = VALUES(account_password),
+               account_email = VALUES(account_email),
+               last_login_date = VALUES(last_login_date),
+               updated_at = VALUES(updated_at)`,
+            [
+              acct.account_name, acct.account_password, acct.account_email || "",
+              srcLs,
+              toMySQLDatetime(acct.last_login_date),
+              toMySQLDatetime(acct.created_at),
+              toMySQLDatetime(acct.updated_at),
+            ] as string[]
+          );
+        }
         applied++;
       } catch (err) {
         console.error(`[sync_data] account upsert error for ${acct.account_name}:`, err);

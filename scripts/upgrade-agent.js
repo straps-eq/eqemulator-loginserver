@@ -25,10 +25,20 @@ function log(msg) {
 
 function run(cmd, opts = {}) {
   try {
-    return execSync(cmd, { encoding: "utf8", timeout: 120000, ...opts }).trim();
+    const safeCmd = cmd.replace(/-p"[^"]*"/g, '-p"***"');
+    log(`  $ ${safeCmd.slice(0, 200)}`);
+    return execSync(cmd, { encoding: "utf8", timeout: 300000, ...opts }).trim();
   } catch (err) {
-    return err.stderr ? err.stderr.trim() : err.message;
+    const msg = err.stderr ? err.stderr.trim() : err.message;
+    log(`  ✗ ${msg.replace(/-p"[^"]*"/g, '-p"***"').slice(0, 300)}`);
+    return msg;
   }
+}
+
+// Helper: run docker compose with correct file, env, and project name.
+// Project name must match the host's (derived from directory name "eqemu").
+function compose(args) {
+  return run(`docker compose -p eqemu -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" ${args} 2>&1`);
 }
 
 function jsonResponse(res, code, data) {
@@ -82,7 +92,7 @@ function doBackup(res) {
 
 function doPull(res) {
   log("POST /pull");
-  const output = run(`cd "${COMPOSE_DIR}" && docker compose -f docker-compose.release.yml pull web loginserver 2>&1`);
+  const output = compose("pull web loginserver");
   log("Pull complete");
   jsonResponse(res, 200, { ok: true, output: output.slice(0, 500) });
 }
@@ -125,64 +135,103 @@ function doRestart(res, service) {
     jsonResponse(res, 400, { error: `invalid service: ${service}` });
     return;
   }
-  run(`cd "${COMPOSE_DIR}" && docker compose -f docker-compose.release.yml up -d --force-recreate ${service} 2>&1`);
-  jsonResponse(res, 200, { ok: true, service });
+  const output = compose(`up -d --no-deps --force-recreate ${service}`);
+  // If we recreated web or loginserver, nginx needs a restart to pick up new container IPs
+  if (service === "web" || service === "loginserver") {
+    log("Restarting nginx to pick up new container IP");
+    run("docker restart eqemu-nginx 2>&1");
+  }
+  jsonResponse(res, 200, { ok: true, service, output: output.slice(0, 300) });
 }
 
-function doUpgrade(res) {
-  log("POST /upgrade — starting full upgrade");
+// Upgrade state — tracked so the dashboard can poll /upgrade/status
+let upgradeState = { running: false, step: "", error: "", result: null };
 
-  // Step 1: Backup
-  log("Step 1/4: Backing up database");
-  try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
-  const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
-  const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
-  try {
-    execSync(`docker exec eqemu-mariadb mysqldump -u root -p"${DB_ROOT_PASSWORD}" eqemu_login > "${backupFile}"`, { shell: true, timeout: 60000 });
-  } catch (err) {
-    try { fs.unlinkSync(backupFile); } catch {}
-    jsonResponse(res, 500, { error: "backup failed, upgrade aborted" });
+function doUpgrade(res) {
+  if (upgradeState.running) {
+    jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
     return;
   }
-  const backupSize = fs.statSync(backupFile).size;
-  log(`  ✓ Backup saved (${backupSize} bytes)`);
 
-  // Step 2: Pull new images
-  log("Step 2/4: Pulling new images");
-  run(`cd "${COMPOSE_DIR}" && docker compose -f docker-compose.release.yml pull web loginserver 2>&1`);
-  log("  ✓ Images pulled");
+  // Respond immediately — upgrade runs in background
+  upgradeState = { running: true, step: "starting", error: "", result: null };
+  jsonResponse(res, 202, { ok: true, started: true });
 
-  // Step 3: Run migrations from new image
-  log("Step 3/4: Running migrations");
-  let migCount = 0;
-  try {
-    const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
-    if (tempContainer && tempContainer.length > 10) {
-      try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
-      run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
-      run(`docker rm ${tempContainer} 2>/dev/null`);
+  // Run the actual upgrade asynchronously
+  setImmediate(() => {
+    try {
+      log("POST /upgrade — starting full upgrade");
+
+      // Step 1: Backup
+      upgradeState.step = "backup";
+      log("Step 1/5: Backing up database");
+      try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
+      const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
+      const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
+      try {
+        execSync(`docker exec eqemu-mariadb mysqldump -u root -p"${DB_ROOT_PASSWORD}" eqemu_login > "${backupFile}"`, { shell: true, timeout: 60000 });
+      } catch (err) {
+        try { fs.unlinkSync(backupFile); } catch {}
+        upgradeState = { running: false, step: "failed", error: "backup failed", result: null };
+        return;
+      }
+      const backupSize = fs.statSync(backupFile).size;
+      log(`  ✓ Backup saved (${backupSize} bytes)`);
+
+      // Step 2: Pull new images
+      upgradeState.step = "pull";
+      log("Step 2/5: Pulling new images");
+      compose("pull web loginserver");
+      log("  ✓ Images pulled");
+
+      // Step 3: Run migrations from new image
+      upgradeState.step = "migrate";
+      log("Step 3/5: Running migrations");
+      let migCount = 0;
+      try {
+        const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
+        if (tempContainer && tempContainer.length > 10) {
+          try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
+          run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
+          run(`docker rm ${tempContainer} 2>/dev/null`);
+        }
+        const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
+        for (const fname of files) {
+          run(`docker exec -i eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" eqemu_login < "${path.join(MIGRATIONS_DIR, fname)}" 2>&1`);
+          migCount++;
+        }
+      } catch {}
+      log(`  ✓ ${migCount} migrations applied`);
+
+      // Step 4: Restart services with new images
+      upgradeState.step = "restart";
+      log("Step 4/5: Restarting services");
+      compose("up -d --no-deps --force-recreate web loginserver");
+      log("  ✓ Services restarted");
+
+      // Step 5: Restart nginx to pick up new container IPs
+      upgradeState.step = "nginx";
+      log("Step 5/5: Restarting nginx");
+      run("docker restart eqemu-nginx 2>&1");
+      log("  ✓ Nginx restarted");
+
+      // Prune old backups (keep last 5)
+      try {
+        const files = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith("pre-upgrade-")).sort().reverse();
+        files.slice(5).forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+      } catch {}
+
+      log("Upgrade complete");
+      upgradeState = { running: false, step: "done", error: "", result: { backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount } };
+    } catch (err) {
+      log(`Upgrade failed: ${err.message}`);
+      upgradeState = { running: false, step: "failed", error: err.message, result: null };
     }
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
-    for (const fname of files) {
-      run(`docker exec -i eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" eqemu_login < "${path.join(MIGRATIONS_DIR, fname)}" 2>&1`);
-      migCount++;
-    }
-  } catch {}
-  log(`  ✓ ${migCount} migrations applied`);
+  });
+}
 
-  // Step 4: Restart services with new images
-  log("Step 4/4: Restarting services");
-  run(`cd "${COMPOSE_DIR}" && docker compose -f docker-compose.release.yml up -d --force-recreate web loginserver 2>&1`);
-  log("  ✓ Services restarted");
-
-  // Prune old backups (keep last 5)
-  try {
-    const files = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith("pre-upgrade-")).sort().reverse();
-    files.slice(5).forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
-  } catch {}
-
-  log("Upgrade complete");
-  jsonResponse(res, 200, { ok: true, backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount });
+function getUpgradeStatus(res) {
+  jsonResponse(res, 200, upgradeState);
 }
 
 // ── LSPX Watchdog ──
@@ -258,6 +307,7 @@ const server = http.createServer((req, res) => {
 
   if (method === "GET" && url === "/status") return getStatus(res);
   if (method === "GET" && url === "/version") return getVersion(res);
+  if (method === "GET" && url === "/upgrade/status") return getUpgradeStatus(res);
   if (method === "POST" && url === "/backup") return doBackup(res);
   if (method === "POST" && url === "/pull") return doPull(res);
   if (method === "POST" && url === "/migrate") return doMigrate(res);

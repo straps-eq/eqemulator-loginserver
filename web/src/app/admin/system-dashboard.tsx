@@ -57,12 +57,82 @@ export function SystemDashboard() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const stepLabels: Record<string, string> = {
+    starting: "Starting upgrade...",
+    backup: "Backing up database...",
+    pull: "Pulling new images...",
+    migrate: "Running migrations...",
+    restart: "Restarting services...",
+    nginx: "Restarting nginx...",
+    done: "Upgrade complete!",
+    failed: "Upgrade failed",
+  };
+
+  const pollUpgradeStatus = () => {
+    let retries = 0;
+    const poll = setInterval(async () => {
+      retries++;
+      try {
+        const r = await fetch("/api/admin/system", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "upgrade_status" }),
+        });
+        if (!r.ok) throw new Error("not ready");
+        const status = await r.json();
+
+        if (status.step === "done" && !status.running) {
+          clearInterval(poll);
+          setUpgradeProgress(null);
+          setActionLoading(null);
+          const res = status.result;
+          setActionResult({
+            text: res
+              ? `Upgraded successfully! Backup: ${res.backup} (${Math.round(res.backup_size / 1024)}KB), ${res.migrations} migrations applied.`
+              : "Upgrade completed successfully.",
+            type: "success",
+          });
+          fetchData();
+        } else if (status.step === "failed" && !status.running) {
+          clearInterval(poll);
+          setUpgradeProgress(null);
+          setActionLoading(null);
+          setActionResult({ text: `Upgrade failed: ${status.error || "unknown error"}`, type: "error" });
+        } else if (status.running) {
+          setUpgradeProgress(stepLabels[status.step] || `Step: ${status.step}...`);
+        }
+      } catch {
+        // Web is probably restarting — keep polling
+        if (retries > 120) {
+          clearInterval(poll);
+          setUpgradeProgress(null);
+          setActionLoading(null);
+          setActionResult({ text: "Lost connection during upgrade. Check server logs and refresh.", type: "error" });
+        } else {
+          setUpgradeProgress(`Waiting for services to come back... (${retries}s)`);
+        }
+      }
+    }, 2000);
+  };
+
   const doAction = async (action: string, extra?: Record<string, unknown>) => {
     setActionLoading(action);
     setActionResult(null);
 
     if (action === "upgrade") {
-      setUpgradeProgress("Backing up database...");
+      setUpgradeProgress("Starting upgrade...");
+      try {
+        await fetch("/api/admin/system", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "upgrade" }),
+        });
+      } catch {
+        // Expected — web may restart before response arrives
+      }
+      // Poll upgrade status regardless of whether the POST succeeded
+      pollUpgradeStatus();
+      return;
     }
 
     try {
@@ -73,43 +143,13 @@ export function SystemDashboard() {
       });
       const result = await res.json();
 
-      if (action === "upgrade" && result.ok) {
-        setUpgradeProgress("Upgrade complete! Waiting for services...");
-        // Poll until web is back
-        let retries = 0;
-        const poll = setInterval(async () => {
-          retries++;
-          try {
-            const r = await fetch("/api/admin/system");
-            if (r.ok) {
-              clearInterval(poll);
-              setUpgradeProgress(null);
-              setActionResult({
-                text: `Upgraded successfully! Backup: ${result.backup} (${Math.round(result.backup_size / 1024)}KB), ${result.migrations} migrations applied.`,
-                type: "success",
-              });
-              fetchData();
-            }
-          } catch {
-            if (retries > 60) {
-              clearInterval(poll);
-              setUpgradeProgress(null);
-              setActionResult({ text: "Upgrade completed but web took too long to restart. Refresh the page.", type: "error" });
-            } else {
-              setUpgradeProgress(`Waiting for services to restart... (${retries}s)`);
-            }
-          }
-        }, 1000);
-      } else if (result.error) {
-        setUpgradeProgress(null);
+      if (result.error) {
         setActionResult({ text: result.error, type: "error" });
       } else {
-        setUpgradeProgress(null);
         setActionResult({ text: result.message || "Done", type: "success" });
         fetchData();
       }
     } catch {
-      setUpgradeProgress(null);
       setActionResult({ text: "Request failed — is the upgrade agent running?", type: "error" });
     }
     setActionLoading(null);

@@ -97,6 +97,10 @@ export async function POST(request: NextRequest) {
       const result = await proxyToAgent("/upgrade", "POST");
       return NextResponse.json(result, { status: result.error ? 500 : 200 });
     }
+    case "upgrade_status": {
+      const result = await proxyToAgent("/upgrade/status");
+      return NextResponse.json(result);
+    }
     case "pull": {
       const result = await proxyToAgent("/pull", "POST");
       return NextResponse.json(result);
