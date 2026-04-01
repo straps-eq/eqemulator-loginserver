@@ -276,26 +276,17 @@ for f in web/migrations/*.sql; do
 done
 echo "  ✓ Migrations complete"
 
-# ── Verify services ──
+# ── Validate installation ──
 echo ""
-echo "── Verifying services ──"
-sleep 3
-SERVICES="eqemu-mariadb eqemu-loginserver eqemu-web eqemu-nginx eqemu-redis"
-ALL_OK=1
-for svc in $SERVICES; do
-  STATUS=$(docker inspect -f '{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
-  if [ "$STATUS" = "running" ]; then
-    echo "  ✓ $svc"
-  else
-    echo "  ✗ $svc ($STATUS)"
-    ALL_OK=0
-  fi
-done
-
-if [ "$ALL_OK" -eq 0 ]; then
+echo "── Validating installation ──"
+sleep 5
+if bash "$SCRIPT_DIR/validate.sh"; then
   echo ""
-  echo "  WARNING: Some services are not running."
-  echo "  Check logs: docker logs <container-name>"
+else
+  echo ""
+  echo "  Some checks failed. Review the output above."
+  echo "  Re-run validation anytime: ./scripts/validate.sh"
+  echo ""
 fi
 
 echo ""

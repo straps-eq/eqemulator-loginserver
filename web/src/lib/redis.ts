@@ -36,14 +36,29 @@ function getRedis(): Redis | null {
 // ── In-memory fallbacks ──
 
 const memCache = new Map<string, { value: string; expiresAt: number }>();
+const MEM_CACHE_MAX_SIZE = 10_000;
 
-// Prune expired in-memory entries every 60s
-setInterval(() => {
+/** Evict expired entries, then oldest if over capacity. */
+function pruneMemCache() {
   const now = Date.now();
   const expired: string[] = [];
   memCache.forEach((v, k) => { if (now > v.expiresAt) expired.push(k); });
   expired.forEach((k) => memCache.delete(k));
-}, 60_000);
+  // If still over capacity, evict oldest (Map iterates in insertion order)
+  if (memCache.size > MEM_CACHE_MAX_SIZE) {
+    const excess = memCache.size - MEM_CACHE_MAX_SIZE;
+    let removed = 0;
+    const toDelete: string[] = [];
+    memCache.forEach((_v, k) => {
+      if (removed < excess) { toDelete.push(k); removed++; }
+    });
+    toDelete.forEach((k) => memCache.delete(k));
+    console.warn(`[cache] in-memory cache pruned ${removed} entries (was ${memCache.size + removed}, cap ${MEM_CACHE_MAX_SIZE})`);
+  }
+}
+
+// Prune expired in-memory entries every 30s
+setInterval(pruneMemCache, 30_000);
 
 // ── Public API ──
 
@@ -56,6 +71,7 @@ export async function cacheSet(key: string, value: string, ttlSeconds: number): 
       return true;
     } catch { /* fall through to memory */ }
   }
+  if (memCache.size >= MEM_CACHE_MAX_SIZE) pruneMemCache();
   memCache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
   return true;
 }
@@ -105,6 +121,7 @@ export async function cacheIncr(key: string, ttlSeconds: number): Promise<number
   const entry = memCache.get(key);
   const now = Date.now();
   if (!entry || now > entry.expiresAt) {
+    if (memCache.size >= MEM_CACHE_MAX_SIZE) pruneMemCache();
     memCache.set(key, { value: "1", expiresAt: now + ttlSeconds * 1000 });
     return 1;
   }

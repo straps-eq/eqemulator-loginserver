@@ -13,11 +13,13 @@ const pool =
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
+    idleTimeout: 60_000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 30_000,
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.mysqlPool = pool;
-}
+// Store on globalThis in all environments to prevent duplicate pools
+globalForDb.mysqlPool = pool;
 
 export const db = drizzle(pool, { schema, mode: "default" });
 export { pool };
