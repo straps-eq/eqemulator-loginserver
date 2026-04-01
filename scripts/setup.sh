@@ -272,14 +272,8 @@ fi
 # ── Pull images ──
 echo ""
 echo "── Pulling Docker images ──"
-docker compose pull --ignore-buildable
+docker compose pull
 echo "  ✓ Images pulled"
-
-# ── Build local-only images ──
-echo ""
-echo "── Building upgrade-agent ──"
-docker compose build upgrade-agent
-echo "  ✓ upgrade-agent built"
 
 # ── Start services ──
 echo ""
