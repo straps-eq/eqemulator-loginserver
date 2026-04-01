@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `login_server_admins` (
   `email` varchar(100) NOT NULL,
   `registration_date` datetime NOT NULL,
   `registration_ip_address` varchar(80) NOT NULL,
+  `federation_source_node_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS `login_world_servers` (
   `login_server_admin_id` int(11) NOT NULL,
   `is_server_trusted` int(11) NOT NULL,
   `note` varchar(255) DEFAULT NULL,
+  `federation_source_node_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 

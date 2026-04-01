@@ -46,23 +46,29 @@ function autoTier(playersOnline: number, highMin: number, mediumMin: number): st
 }
 
 export async function GET() {
+  try {
   const now = Date.now();
   if (cachedResponse && now < cachedResponse.expires) {
     return NextResponse.json(cachedResponse.data);
   }
 
-  const [liveServers, dbServers, profiles, configRows] = await Promise.all([
+  const [liveServers, dbServers, profiles] = await Promise.all([
     getLiveServers(),
-    db.select().from(loginWorldServers),
-    db.select().from(serverProfiles),
-    db.select().from(platformConfig).where(
-      inArray(platformConfig.configKey, ["tier_high_min_players", "tier_medium_min_players"])
-    ),
+    db.select().from(loginWorldServers).catch(() => [] as any[]),
+    db.select().from(serverProfiles).catch(() => [] as any[]),
   ]);
 
-  const configMap = new Map(configRows.map((r) => [r.configKey, r.configValue]));
-  const highMin = parseInt(configMap.get("tier_high_min_players") || "400", 10);
-  const mediumMin = parseInt(configMap.get("tier_medium_min_players") || "100", 10);
+  // Tier thresholds — graceful fallback if platform_config table is missing
+  let highMin = 400;
+  let mediumMin = 100;
+  try {
+    const configRows = await db.select().from(platformConfig).where(
+      inArray(platformConfig.configKey, ["tier_high_min_players", "tier_medium_min_players"])
+    );
+    const configMap = new Map(configRows.map((r) => [r.configKey, r.configValue]));
+    highMin = parseInt(configMap.get("tier_high_min_players") || "400", 10);
+    mediumMin = parseInt(configMap.get("tier_medium_min_players") || "100", 10);
+  } catch {}
 
   const enriched = liveServers.map((live: any) => {
     const dbMatch = dbServers.find(
@@ -172,4 +178,8 @@ export async function GET() {
   }
 
   return NextResponse.json(allServers);
+  } catch (err) {
+    console.error("[/api/servers] Error:", err);
+    return NextResponse.json({ error: "Internal server error", detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 }

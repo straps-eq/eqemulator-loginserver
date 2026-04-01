@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Generate a random nonce for CSP
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-
-  // Build Content-Security-Policy with nonce (replaces unsafe-inline/unsafe-eval)
+  // Build Content-Security-Policy
+  // Note: 'unsafe-inline' is required for scripts because Next.js generates inline
+  // <script> tags for RSC payloads and pre-rendered pages can't use nonces.
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com`,
+    `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com`,
     `img-src 'self' data: blob: https:`,
@@ -18,13 +17,7 @@ export function middleware(request: NextRequest) {
     `form-action 'self'`,
   ].join("; ");
 
-  // Clone request headers and set nonce for downstream use
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const response = NextResponse.next();
 
   // Set security headers
   response.headers.set("Content-Security-Policy", csp);
