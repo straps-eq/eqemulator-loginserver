@@ -12,12 +12,12 @@ WORKDIR /build
 RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
     && /opt/vcpkg/bootstrap-vcpkg.sh
 
-# Clone EQEmu source
-RUN git clone --depth 1 https://github.com/EQEmu/Server.git /build/source
+# Clone EQEmu source (fork with federation server list + auth forwarding)
+RUN git clone --branch federation-server-list --depth 1 https://github.com/straps-eq/EQEmu.git /build/source
 WORKDIR /build/source
 RUN git submodule update --init --recursive
 
-# Patch: persist login_server_admin_id when world server authenticates with admin credentials
+# Apply the login_world_servers_repository.h patch (adds federation_source_node_id column support)
 COPY patches/login_world_servers_repository.h /build/source/common/repositories/login_world_servers_repository.h
 RUN sed -i '/w\.short_name.*=.*m_server_short_name;/a\\t\tw.login_server_admin_id     = c.admin_id;' \
         /build/source/loginserver/world_server.cpp \
@@ -25,7 +25,7 @@ RUN sed -i '/w\.short_name.*=.*m_server_short_name;/a\\t\tw.login_server_admin_i
         /build/source/loginserver/world_server.cpp \
  && echo "=== Verify patches ===" \
  && grep -n 'login_server_admin_id' /build/source/loginserver/world_server.cpp \
- && grep -n 'admin_id' /build/source/common/repositories/login_world_servers_repository.h || true
+ && grep -n 'Federation' /build/source/loginserver/world_server_manager.cpp || true
 
 # Build loginserver only
 RUN mkdir build && cd build \

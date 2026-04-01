@@ -462,6 +462,40 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         data: data.live_servers,
         expires: Date.now() + LIVE_CACHE_TTL_MS,
       });
+
+      // Write live data to federation_server_status for the loginserver binary
+      for (const ls of data.live_servers) {
+        try {
+          const shortName = ls.server_short_name as string;
+          if (!shortName) continue;
+          // Find the local synced server ID by short_name + source node
+          const [rows] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+            [shortName, sourceNodeId] as (string | number)[]
+          ) as unknown as [Array<{ id: number }>];
+          if (rows.length === 0) continue;
+
+          await conn.execute(
+            `INSERT INTO federation_server_status (world_server_id, remote_ip, players_online, server_status, zones_booted, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE
+               remote_ip = VALUES(remote_ip),
+               players_online = VALUES(players_online),
+               server_status = VALUES(server_status),
+               zones_booted = VALUES(zones_booted),
+               updated_at = NOW()`,
+            [
+              rows[0].id,
+              (ls.remote_ip as string) || '',
+              (ls.players_online as number) || 0,
+              (ls.server_status as number) || 0,
+              (ls.zones_booted as number) || 0,
+            ] as (string | number)[]
+          );
+        } catch (err) {
+          console.error(`[sync_data] federation_server_status upsert error:`, err);
+        }
+      }
     }
 
     console.log(`[sync_data] Applied ${applied} records from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);

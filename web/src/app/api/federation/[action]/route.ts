@@ -380,9 +380,9 @@ async function handleSyncData(req: NextRequest) {
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
-          // Strip sensitive IPs before sending over federation
+          // Strip local_ip (private LAN) but keep remote_ip (public, needed for client server list)
           const safe = (Array.isArray(json) ? json : []).map(
-            ({ local_ip, remote_ip, ...rest }: Record<string, unknown>) => rest
+            ({ local_ip, ...rest }: Record<string, unknown>) => rest
           );
           resolve(safe);
         } catch { resolve([]); }
@@ -401,6 +401,82 @@ async function handleSyncData(req: NextRequest) {
     live_servers: liveServers,
     timestamp: Date.now(),
   });
+}
+
+// ── Play Request (master side) ──
+async function handlePlayRequest(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const body = JSON.parse(bodyText);
+  const { server_short_name, account_id, account_name, login_key, loginserver_name, client_ip } = body;
+
+  if (!server_short_name || !account_id || !account_name || !login_key) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  // Find the local server ID by short_name (must be a live connected server, not federated)
+  const { pool } = await import("@/lib/db");
+  const [rows] = await pool.execute(
+    `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
+    [server_short_name]
+  ) as unknown as [Array<{ id: number }>];
+
+  if (rows.length === 0) {
+    return NextResponse.json({ error: `Server '${server_short_name}' not found locally` }, { status: 404 });
+  }
+
+  const serverId = rows[0].id;
+  console.log(`[play_request] Forwarding ClientAuth from node ${auth.node.id} for ${account_name} -> server ${server_short_name} (id=${serverId})`);
+
+  // Call the local loginserver API to send ClientAuth to the world server
+  const http = await import("http");
+  const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
+  const token = process.env.LOGINSERVER_API_TOKEN || "";
+
+  const lsPayload = JSON.stringify({
+    server_id: serverId,
+    account_id,
+    account_name,
+    login_key,
+    loginserver_name: loginserver_name || "eqemu",
+    client_ip: client_ip || "0.0.0.0",
+  });
+
+  const lsResult: { ok: boolean; status: number; body: string } = await new Promise((resolve) => {
+    const r = http.request(`${apiUrl}/v1/federation/auth_client`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk: string) => data += chunk);
+      res.on("end", () => {
+        resolve({ ok: res.statusCode === 200, status: res.statusCode || 500, body: data });
+      });
+    });
+    r.on("error", (err) => resolve({ ok: false, status: 502, body: err.message }));
+    r.setTimeout(10000, () => { r.destroy(); resolve({ ok: false, status: 504, body: "Timeout" }); });
+    r.write(lsPayload);
+    r.end();
+  });
+
+  if (lsResult.ok) {
+    console.log(`[play_request] ClientAuth sent successfully for ${account_name} -> ${server_short_name}`);
+    return NextResponse.json({ success: true, server_id: serverId });
+  } else {
+    console.error(`[play_request] Loginserver API returned ${lsResult.status}: ${lsResult.body}`);
+    return NextResponse.json(
+      { error: "Failed to send ClientAuth to world server" },
+      { status: lsResult.status }
+    );
+  }
 }
 
 // ── Sync ──
@@ -462,6 +538,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handleSync(req);
       case "password_sync":
         return await handlePasswordSync(req);
+      case "play_request":
+        return await handlePlayRequest(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
