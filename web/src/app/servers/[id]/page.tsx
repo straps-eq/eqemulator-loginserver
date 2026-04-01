@@ -8,6 +8,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -156,7 +157,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                     [&_a]:text-frost-400 [&_a]:no-underline hover:[&_a]:text-frost-300
                     [&_strong]:text-parchment-200 [&_li]:text-parchment-400
                     [&_ul]:pl-5 [&_ol]:pl-5 [&_p]:mb-3 [&_h1]:text-parchment-100 [&_h2]:text-parchment-100 [&_h3]:text-parchment-100"
-                  dangerouslySetInnerHTML={{ __html: profile.description }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(profile.description) }}
                 />
               ) : (
                 <p className="text-parchment-600 text-sm italic">

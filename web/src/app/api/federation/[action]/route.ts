@@ -341,33 +341,31 @@ async function handleSyncData(req: NextRequest) {
     .from(loginServerAdmins)
     .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
 
-  // Export server profiles joined with server short_name for reliable matching
-  const { serverProfiles } = await import("@/db/schema");
-  const { eq: eqOp } = await import("drizzle-orm");
-  const profileRows = await db
-    .select({
-      short_name: loginWorldServers.shortName,
-      description: serverProfiles.description,
-      website_url: serverProfiles.websiteUrl,
-      discord_url: serverProfiles.discordUrl,
-      banner_image_url: serverProfiles.bannerImageUrl,
-      expansion_era: serverProfiles.expansionEra,
-      custom_ruleset: serverProfiles.customRuleset,
-      tags: serverProfiles.tags,
-      display_tier: serverProfiles.displayTier,
-      show_player_count: serverProfiles.showPlayerCount,
-    })
-    .from(serverProfiles)
-    .innerJoin(loginWorldServers, eqOp(serverProfiles.worldServerId, loginWorldServers.id));
+  // Export server profiles — match by world_server_id OR login_server_admin_id fallback
+  const profileRows: Array<Record<string, unknown>> = await db.execute(
+    sql`SELECT lws.short_name, sp.description, sp.website_url, sp.discord_url,
+               sp.banner_image_url, sp.expansion_era, sp.custom_ruleset, sp.tags,
+               sp.display_tier, sp.show_player_count
+        FROM server_profiles sp
+        LEFT JOIN login_world_servers lws ON lws.id = sp.world_server_id
+        LEFT JOIN login_world_servers lws2 ON lws2.login_server_admin_id = sp.login_server_admin_id
+          AND sp.world_server_id = 0 AND sp.login_server_admin_id > 0
+        WHERE COALESCE(lws.id, lws2.id) IS NOT NULL
+          AND (COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) IS NULL
+               OR COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) = 0)`
+  ) as unknown as Array<Record<string, unknown>>;
 
   // Make relative banner URLs absolute so mesh nodes can display them
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || self.endpointUrl).replace(/\/$/, "");
-  const profiles = profileRows.map((p) => ({
-    ...p,
-    banner_image_url: p.banner_image_url && p.banner_image_url.startsWith("/")
-      ? `${siteUrl}${p.banner_image_url}`
-      : p.banner_image_url,
-  }));
+  const profiles = profileRows.map((p) => {
+    const banner = p.banner_image_url as string | null;
+    return {
+      ...p,
+      banner_image_url: banner && banner.startsWith("/")
+        ? `${siteUrl}${banner}`
+        : banner,
+    };
+  });
 
   // Export live server data (players online, status, zones) from loginserver API
   const http = await import("http");

@@ -71,6 +71,7 @@ services:
       - FEDERATION_KEY_ENCRYPTION_SECRET=${FEDERATION_KEY_ENCRYPTION_SECRET:-}
       - METRICS_BEARER_TOKEN=${METRICS_BEARER_TOKEN:-}
       - REDIS_URL=redis://redis:6379
+      - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
     networks:
       - internal
 
@@ -106,6 +107,26 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  upgrade-agent:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.upgrade-agent
+    image: eqemu-upgrade-agent:latest
+    container_name: eqemu-upgrade-agent
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.release.yml:/host/docker-compose.release.yml:ro
+      - ./.env:/host/.env:ro
+      - ./backups:/host/backups
+    environment:
+      - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
+      - COMPOSE_DIR=/host
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    working_dir: /host
+    networks:
+      - internal
 
   prometheus:
     image: prom/prometheus:latest

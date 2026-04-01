@@ -1,26 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Build Content-Security-Policy
-  // Note: 'unsafe-inline' is required for scripts because Next.js generates inline
-  // <script> tags for RSC payloads and pre-rendered pages can't use nonces.
-  const csp = [
-    `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com`,
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-    `font-src 'self' https://fonts.gstatic.com`,
-    `img-src 'self' data: blob: https:`,
-    `connect-src 'self'`,
-    `frame-src https://challenges.cloudflare.com`,
-    `frame-ancestors 'none'`,
-    `base-uri 'self'`,
-    `form-action 'self'`,
-  ].join("; ");
-
   const response = NextResponse.next();
 
-  // Set security headers
-  response.headers.set("Content-Security-Policy", csp);
+  // When behind Cloudflare proxy, skip our CSP — Cloudflare injects nonces which
+  // cause browsers to ignore 'unsafe-inline', breaking its own challenge scripts.
+  // Operators can configure CSP via Cloudflare dashboard instead.
+  const behindCloudflare = request.headers.has("cf-ray");
+
+  if (!behindCloudflare) {
+    const csp = [
+      `default-src 'self'`,
+      `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com`,
+      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+      `font-src 'self' https://fonts.gstatic.com`,
+      `img-src 'self' data: blob: https:`,
+      `connect-src 'self' https://cloudflareinsights.com`,
+      `frame-src https://challenges.cloudflare.com`,
+      `frame-ancestors 'none'`,
+      `base-uri 'self'`,
+      `form-action 'self'`,
+    ].join("; ");
+    response.headers.set("Content-Security-Policy", csp);
+  }
+
+  // Security headers that don't conflict with Cloudflare
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");

@@ -57,9 +57,4 @@ CREATE TABLE IF NOT EXISTS `federation_audit_log` (
   KEY `idx_fed_audit_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Grant permissions to web user
-GRANT ALL ON eqemu_login.federation_nodes TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.federation_config TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.federation_changelog TO 'eqemu_web'@'%';
-GRANT ALL ON eqemu_login.federation_audit_log TO 'eqemu_web'@'%';
-FLUSH PRIVILEGES;
+-- Grants handled by mariadb/init/04-grants.sh and upgrade agent

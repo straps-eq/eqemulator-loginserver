@@ -42,9 +42,10 @@ const ALLOWED_COLUMNS: Record<string, Set<string>> = {
     "last_name", "email", "registration_date",
   ]),
   server_profiles: new Set([
-    "id", "world_server_id", "server_description", "server_banner_url",
-    "server_rules", "server_website", "server_discord",
-    "tags", "claimed_by_admin_id", "created_at", "updated_at",
+    "id", "world_server_id", "description", "banner_image_url",
+    "custom_ruleset", "website_url", "discord_url",
+    "expansion_era", "tags", "display_tier", "show_player_count",
+    "claimed_by_admin_id", "created_at", "updated_at",
   ]),
 };
 
@@ -292,50 +293,104 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Delete old synced servers from this source, then insert fresh
-    await conn.execute(
-      `DELETE FROM login_world_servers WHERE federation_source_node_id = ?`,
-      [sourceNodeId]
-    );
-
+    // Upsert servers — match on (short_name, federation_source_node_id) to preserve stable IDs
+    const syncedShortNames = new Set<string>();
     for (const srv of data.servers) {
       try {
-        await conn.execute(
-          `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            srv.long_name, srv.short_name, srv.tag_description || "",
-            srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-            srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
-            srv.note || null, sourceNodeId,
-          ] as (string | number | null)[]
-        );
+        const [existingSrv] = await conn.execute(
+          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+          [srv.short_name, sourceNodeId] as (string | number)[]
+        ) as unknown as [Array<{ id: number }>];
+
+        if (existingSrv.length > 0) {
+          await conn.execute(
+            `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?, login_server_admin_id = ?, is_server_trusted = ?, note = ? WHERE id = ?`,
+            [
+              srv.long_name, srv.tag_description || "",
+              srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
+              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+              srv.note || null, existingSrv[0].id,
+            ] as (string | number | null)[]
+          );
+        } else {
+          await conn.execute(
+            `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              srv.long_name, srv.short_name, srv.tag_description || "",
+              srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
+              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+              srv.note || null, sourceNodeId,
+            ] as (string | number | null)[]
+          );
+        }
+        syncedShortNames.add(srv.short_name as string);
         applied++;
       } catch (err) {
         console.error(`[sync_data] server upsert error for ${srv.short_name}:`, err);
       }
     }
 
-    // Delete old synced admins from this source, then insert fresh
-    await conn.execute(
-      `DELETE FROM login_server_admins WHERE federation_source_node_id = ?`,
-      [sourceNodeId]
-    );
+    // Remove servers from this source that no longer exist on the peer
+    if (syncedShortNames.size > 0) {
+      const [existingRows] = await conn.execute(
+        `SELECT id, short_name FROM login_world_servers WHERE federation_source_node_id = ?`,
+        [sourceNodeId]
+      ) as unknown as [Array<{ id: number; short_name: string }>];
+      for (const row of existingRows) {
+        if (!syncedShortNames.has(row.short_name)) {
+          await conn.execute(`DELETE FROM server_profiles WHERE world_server_id = ?`, [row.id]);
+          await conn.execute(`DELETE FROM login_world_servers WHERE id = ?`, [row.id]);
+        }
+      }
+    }
 
+    // Upsert admins — match on (account_name, federation_source_node_id)
+    const syncedAdminNames = new Set<string>();
     for (const adm of data.admins) {
       try {
-        await conn.execute(
-          `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, registration_ip_address, federation_source_node_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            adm.account_name, adm.account_password || "",
-            adm.first_name || "", adm.last_name || "", adm.email || "",
-            toMySQLDatetime(adm.registration_date), "", sourceNodeId,
-          ] as (string | number)[]
-        );
+        const [existingAdm] = await conn.execute(
+          `SELECT id FROM login_server_admins WHERE account_name = ? AND federation_source_node_id = ? LIMIT 1`,
+          [adm.account_name, sourceNodeId] as (string | number)[]
+        ) as unknown as [Array<{ id: number }>];
+
+        if (existingAdm.length > 0) {
+          await conn.execute(
+            `UPDATE login_server_admins SET account_password = ?, first_name = ?, last_name = ?, email = ?, registration_date = ? WHERE id = ?`,
+            [
+              adm.account_password || "", adm.first_name || "",
+              adm.last_name || "", adm.email || "",
+              toMySQLDatetime(adm.registration_date), existingAdm[0].id,
+            ] as (string | number)[]
+          );
+        } else {
+          await conn.execute(
+            `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, registration_ip_address, federation_source_node_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              adm.account_name, adm.account_password || "",
+              adm.first_name || "", adm.last_name || "", adm.email || "",
+              toMySQLDatetime(adm.registration_date), "", sourceNodeId,
+            ] as (string | number)[]
+          );
+        }
+        syncedAdminNames.add(adm.account_name as string);
         applied++;
       } catch (err) {
         console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
+      }
+    }
+
+    // Remove admins from this source that no longer exist on the peer
+    if (syncedAdminNames.size > 0) {
+      const [existingAdmins] = await conn.execute(
+        `SELECT id, account_name FROM login_server_admins WHERE federation_source_node_id = ?`,
+        [sourceNodeId]
+      ) as unknown as [Array<{ id: number; account_name: string }>];
+      for (const row of existingAdmins) {
+        if (!syncedAdminNames.has(row.account_name)) {
+          await conn.execute(`DELETE FROM login_server_admins WHERE id = ?`, [row.id]);
+        }
       }
     }
 
@@ -385,6 +440,17 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
         }
       }
+    }
+
+    // Clean up orphaned profiles (from old DELETE+INSERT sync cycles)
+    try {
+      await conn.execute(
+        `DELETE sp FROM server_profiles sp
+         LEFT JOIN login_world_servers lws ON sp.world_server_id = lws.id
+         WHERE lws.id IS NULL`
+      );
+    } catch (err) {
+      console.error(`[sync_data] orphan profile cleanup error:`, err);
     }
 
     // Cache live server data for the servers API

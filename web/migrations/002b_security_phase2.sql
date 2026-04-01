@@ -17,6 +17,4 @@ CREATE TABLE IF NOT EXISTS `federation_origin_map` (
   KEY `idx_origin_node` (`origin_node_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Grant permissions to web user
--- GRANT SELECT, INSERT, UPDATE, DELETE ON eqemu_login.federation_origin_map TO 'eqemu_web'@'%';
--- FLUSH PRIVILEGES;
+-- Grants handled by mariadb/init/04-grants.sh and upgrade agent

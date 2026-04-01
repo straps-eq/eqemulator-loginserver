@@ -189,7 +189,26 @@ else
   fi
 fi
 
-# ── 6. SSL ──
+# ── 6. Loginserver config ──
+echo ""
+echo "── Loginserver config ──"
+if [ -f loginserver/login.json ]; then
+  JSON_PW=$(python3 -c "import json; print(json.load(open('loginserver/login.json'))['database']['password'])" 2>/dev/null || echo "")
+  ENV_PW="${DB_PASSWORD:-}"
+  if [ -z "$JSON_PW" ]; then
+    fail "loginserver/login.json: could not read database password"
+  elif [ -z "$ENV_PW" ]; then
+    warn "Cannot verify login.json password (DB_PASSWORD not in env)"
+  elif [ "$JSON_PW" = "$ENV_PW" ]; then
+    pass "login.json DB password matches .env"
+  else
+    fail "login.json DB password MISMATCH — re-run setup.sh or update loginserver/login.json"
+  fi
+else
+  fail "loginserver/login.json missing"
+fi
+
+# ── 7. SSL ──
 echo ""
 echo "── SSL ──"
 if [ -f "certbot/conf/live/${DOMAIN}/fullchain.pem" ]; then

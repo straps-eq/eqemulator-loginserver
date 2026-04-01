@@ -1,23 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Network, Server, KeyRound } from "lucide-react";
+import { Users, Network, Server, KeyRound, Settings } from "lucide-react";
 import { AdminDashboard } from "./admin-dashboard";
 import { FederationDashboard } from "./federation-dashboard";
 import { ServersDashboard } from "./servers-dashboard";
 import { LoginserverAccountsDashboard } from "./loginserver-accounts-dashboard";
+import { SystemDashboard } from "./system-dashboard";
 
-const tabs = [
-  { id: "accounts", label: "Accounts", icon: Users },
-  { id: "loginserver", label: "Loginserver", icon: KeyRound },
-  { id: "servers", label: "Servers", icon: Server },
-  { id: "federation", label: "Federation", icon: Network },
+const allTabs = [
+  { id: "accounts", label: "Accounts", icon: Users, adminOnly: false },
+  { id: "loginserver", label: "Loginserver", icon: KeyRound, adminOnly: false },
+  { id: "servers", label: "Servers", icon: Server, adminOnly: false },
+  { id: "federation", label: "Federation", icon: Network, adminOnly: false },
+  { id: "system", label: "System", icon: Settings, adminOnly: true },
 ] as const;
 
-type TabId = (typeof tabs)[number]["id"];
+type TabId = (typeof allTabs)[number]["id"];
 
 export function AdminTabs({ adminRole }: { adminRole: "admin" | "moderator" }) {
   const [activeTab, setActiveTab] = useState<TabId>("accounts");
+  const tabs = allTabs.filter((t) => !t.adminOnly || adminRole === "admin");
 
   return (
     <div className="space-y-6">
@@ -48,6 +51,7 @@ export function AdminTabs({ adminRole }: { adminRole: "admin" | "moderator" }) {
       {activeTab === "loginserver" && <LoginserverAccountsDashboard />}
       {activeTab === "servers" && <ServersDashboard />}
       {activeTab === "federation" && <FederationDashboard adminRole={adminRole} />}
+      {activeTab === "system" && <SystemDashboard />}
     </div>
   );
 }

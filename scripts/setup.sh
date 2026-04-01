@@ -2,16 +2,12 @@
 set -e
 
 # ──────────────────────────────────────────────
-# EQEmulator.dev — One-command node setup
-# Usage: ./scripts/setup.sh <domain> [email]
-# Example: ./scripts/setup.sh login.myserver.com admin@myserver.com
+# EQEmulator.dev — Idempotent node setup
+# Usage: ./scripts/setup.sh [domain] [email]
+#        ./scripts/setup.sh --reset    # regenerate all credentials
 #
-# This script:
-#   1. Generates all secrets and config files
-#   2. Obtains an SSL certificate via Let's Encrypt
-#   3. Starts all Docker services
-#   4. Runs database migrations
-#   5. Prints next steps (register + promote admin)
+# Safe to re-run: credentials are generated once and preserved.
+# All derived configs (login.json, nginx) are always rebuilt from .env.
 # ──────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,122 +20,146 @@ echo "  EQEmulator.dev — Node Setup"
 echo "════════════════════════════════════════════"
 echo ""
 
-# ── Get domain ──
-DOMAIN="${1:-}"
-EMAIL="${2:-}"
-
-if [ -z "$DOMAIN" ]; then
-  read -rp "  Enter your domain (e.g. login.myserver.com): " DOMAIN
-fi
-
-if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "eqemu.example.com" ]; then
-  echo ""
-  echo "  ERROR: A valid domain is required."
-  echo "  Usage: $0 <domain> [email]"
-  exit 1
-fi
-
-if [ -z "$EMAIL" ]; then
-  read -rp "  Enter your email (for Let's Encrypt SSL): " EMAIL
-fi
-
-if [ -z "$EMAIL" ]; then
-  echo "  ERROR: An email is required for Let's Encrypt."
-  exit 1
-fi
-
-echo ""
-echo "  Domain: $DOMAIN"
-echo "  Email:  $EMAIL"
-echo ""
-
-# ── Check dependencies ──
-echo "── Checking dependencies ──"
-for cmd in docker openssl; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "  ERROR: '$cmd' is required but not installed."
+# ── Handle --reset flag ──
+if [ "${1:-}" = "--reset" ]; then
+  if [ -f .env ]; then
+    BACKUP=".env.backup.$(date +%s)"
+    cp .env "$BACKUP"
+    rm .env
+    echo "  ⚠ Credentials will be regenerated (backup: $BACKUP)"
     echo ""
-    echo "  Install Docker:"
-    echo "    curl -fsSL https://get.docker.com | sh"
-    echo "    sudo usermod -aG docker \$USER"
-    echo "    # Log out and back in, then re-run this script"
-    exit 1
   fi
-done
-
-if ! docker compose version &>/dev/null; then
-  echo "  ERROR: 'docker compose v2' is required."
-  echo "  Install: https://docs.docker.com/compose/install/"
-  exit 1
-fi
-echo "  ✓ docker, openssl, docker compose"
-
-# ── Check ports ──
-echo ""
-echo "── Checking ports ──"
-PORTS_NEEDED="80 443 5998 5999 15900"
-PORTS_BUSY=""
-for port in $PORTS_NEEDED; do
-  if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
-     ss -ulnp 2>/dev/null | grep -q ":${port} "; then
-    PORTS_BUSY="$PORTS_BUSY $port"
-  fi
-done
-if [ -n "$PORTS_BUSY" ]; then
-  echo "  WARNING: These ports are already in use:$PORTS_BUSY"
-  echo "  The setup will continue, but services may fail to bind."
-  echo "  Stop conflicting services or adjust your firewall."
-  echo ""
-else
-  echo "  ✓ Ports 80, 443, 5998, 5999, 15900 available"
+  shift
 fi
 
-# ── Generate secrets ──
-echo ""
-echo "── Generating secrets ──"
+# ── Helper ──
 gen_secret() { openssl rand -hex "$1"; }
 
-DB_ROOT_PASSWORD=$(gen_secret 32)
-DB_PASSWORD=$(gen_secret 32)
-DB_WEB_PASSWORD=$(gen_secret 32)
-SESSION_SECRET=$(gen_secret 64)
-LOGINSERVER_API_TOKEN=$(gen_secret 32)
-FEDERATION_SYNC_SECRET=$(gen_secret 32)
-FEDERATION_KEY_ENCRYPTION_SECRET=$(gen_secret 32)
-METRICS_BEARER_TOKEN=$(gen_secret 32)
+# ══════════════════════════════════════════════
+# PHASE 1: CONFIGURE — generate or load .env, derive all configs
+# ══════════════════════════════════════════════
 
-# ── Optional: Resend email API ──
-echo ""
-echo "── Email Configuration (optional) ──"
-echo "  Resend (https://resend.com) enables email verification and MFA codes."
-echo "  Get a free API key at https://resend.com — the from-email domain must be verified there."
-echo "  Press Enter to skip if you don't have one yet."
-echo ""
-read -rp "  Resend API Key (or Enter to skip): " RESEND_API_KEY
-RESEND_API_KEY="${RESEND_API_KEY:-}"
-
-if [ -n "$RESEND_API_KEY" ]; then
-  echo "  ✓ Resend API key configured"
-  read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@eqemulator.dev]: " RESEND_FROM_EMAIL
-  RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@eqemulator.dev}"
-  echo "  ✓ From email: ${RESEND_FROM_EMAIL}"
-else
-  RESEND_FROM_EMAIL="noreply@${DOMAIN}"
-  echo "  · Skipped — emails disabled (can be added to .env later)"
-fi
-
-# ── Create .env ──
 if [ -f .env ]; then
-  echo "  WARNING: .env already exists — backing up to .env.backup"
-  cp .env .env.backup
-fi
+  # ── Existing installation: load credentials ──
+  echo "── Loading existing .env (credentials preserved) ──"
+  set -a; source .env; set +a
 
-cat > .env <<EOF
+  # Allow overriding domain/email from CLI args
+  DOMAIN="${1:-$DOMAIN}"
+  EMAIL="${2:-${EMAIL:-}}"
+
+  if [ -z "$DOMAIN" ]; then
+    echo "  ERROR: DOMAIN not set in .env and not provided as argument."
+    exit 1
+  fi
+  echo "  ✓ Loaded .env (domain: $DOMAIN)"
+else
+  # ── First run: prompt and generate everything ──
+  DOMAIN="${1:-}"
+  EMAIL="${2:-}"
+
+  if [ -z "$DOMAIN" ]; then
+    read -rp "  Enter your domain (e.g. login.myserver.com): " DOMAIN
+  fi
+
+  if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "eqemu.example.com" ]; then
+    echo ""
+    echo "  ERROR: A valid domain is required."
+    echo "  Usage: $0 <domain> [email]"
+    exit 1
+  fi
+
+  if [ -z "$EMAIL" ]; then
+    read -rp "  Enter your email (for Let's Encrypt SSL): " EMAIL
+  fi
+
+  if [ -z "$EMAIL" ]; then
+    echo "  ERROR: An email is required for Let's Encrypt."
+    exit 1
+  fi
+
+  # ── Check dependencies ──
+  echo "── Checking dependencies ──"
+  for cmd in docker openssl; do
+    if ! command -v "$cmd" &>/dev/null; then
+      echo "  ERROR: '$cmd' is required but not installed."
+      echo ""
+      echo "  Install Docker:"
+      echo "    curl -fsSL https://get.docker.com | sh"
+      echo "    sudo usermod -aG docker \$USER"
+      echo "    # Log out and back in, then re-run this script"
+      exit 1
+    fi
+  done
+
+  if ! docker compose version &>/dev/null; then
+    echo "  ERROR: 'docker compose v2' is required."
+    echo "  Install: https://docs.docker.com/compose/install/"
+    exit 1
+  fi
+  echo "  ✓ docker, openssl, docker compose"
+
+  # ── Check ports ──
+  echo ""
+  echo "── Checking ports ──"
+  PORTS_NEEDED="80 443 5998 5999 15900"
+  PORTS_BUSY=""
+  for port in $PORTS_NEEDED; do
+    if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
+       ss -ulnp 2>/dev/null | grep -q ":${port} "; then
+      PORTS_BUSY="$PORTS_BUSY $port"
+    fi
+  done
+  if [ -n "$PORTS_BUSY" ]; then
+    echo "  WARNING: These ports are already in use:$PORTS_BUSY"
+    echo "  The setup will continue, but services may fail to bind."
+    echo ""
+  else
+    echo "  ✓ Ports 80, 443, 5998, 5999, 15900 available"
+  fi
+
+  # ── Generate secrets (only on first run) ──
+  echo ""
+  echo "── Generating secrets ──"
+  DB_ROOT_PASSWORD=$(gen_secret 32)
+  DB_PASSWORD=$(gen_secret 32)
+  DB_WEB_PASSWORD=$(gen_secret 32)
+  SESSION_SECRET=$(gen_secret 64)
+  LOGINSERVER_API_TOKEN=$(gen_secret 32)
+  FEDERATION_SYNC_SECRET=$(gen_secret 32)
+  FEDERATION_KEY_ENCRYPTION_SECRET=$(gen_secret 32)
+  METRICS_BEARER_TOKEN=$(gen_secret 32)
+  UPGRADE_AGENT_TOKEN=$(gen_secret 32)
+  echo "  ✓ All secrets generated"
+
+  # ── Optional: Resend email API ──
+  echo ""
+  echo "── Email Configuration (optional) ──"
+  echo "  Resend (https://resend.com) enables email verification and MFA codes."
+  echo "  Press Enter to skip if you don't have one yet."
+  echo ""
+  read -rp "  Resend API Key (or Enter to skip): " RESEND_API_KEY
+  RESEND_API_KEY="${RESEND_API_KEY:-}"
+
+  if [ -n "$RESEND_API_KEY" ]; then
+    echo "  ✓ Resend API key configured"
+    read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@eqemulator.dev]: " RESEND_FROM_EMAIL
+    RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@eqemulator.dev}"
+    echo "  ✓ From email: ${RESEND_FROM_EMAIL}"
+  else
+    RESEND_FROM_EMAIL="noreply@${DOMAIN}"
+    echo "  · Skipped — emails disabled (can be added to .env later)"
+  fi
+
+  # ── Write .env ──
+  cat > .env <<EOF
 # ──────────────────────────────────────────────
 # EQEmulator.dev — Generated $(date -u +"%Y-%m-%d %H:%M UTC")
+# DO NOT DELETE — credentials are not regenerated on re-run
 # ──────────────────────────────────────────────
 
 DOMAIN=${DOMAIN}
+EMAIL=${EMAIL}
 
 # ── MariaDB ──
 DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
@@ -170,38 +190,53 @@ FEDERATION_KEY_ENCRYPTION_SECRET=${FEDERATION_KEY_ENCRYPTION_SECRET}
 
 # ── Monitoring ──
 METRICS_BEARER_TOKEN=${METRICS_BEARER_TOKEN}
+
+# ── Upgrade Agent ──
+UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
 EOF
 
-echo "  ✓ Generated .env"
-
-# ── Create login.json ──
-if [ ! -f loginserver/login.json ]; then
-  sed "s/CHANGE_ME_DB_PASSWORD/${DB_PASSWORD}/" \
-    loginserver/login.json.example > loginserver/login.json
-  echo "  ✓ Generated loginserver/login.json"
-else
-  echo "  · loginserver/login.json already exists (skipped)"
+  echo "  ✓ Generated .env"
 fi
 
-# ── Create nginx config with domain ──
+echo ""
+echo "  Domain: $DOMAIN"
+echo ""
+
+# ── Always rebuild derived configs from .env ──
+echo "── Building configs from .env ──"
+
+# login.json — always rebuild (single source of truth: .env)
+mkdir -p loginserver
+# Remove if it was accidentally created as a directory
+if [ -d "loginserver/login.json" ]; then
+  rm -rf loginserver/login.json
+fi
+sed "s/CHANGE_ME_DB_PASSWORD/${DB_PASSWORD}/" \
+  loginserver/login.json.example > loginserver/login.json
+echo "  ✓ loginserver/login.json"
+
+# nginx config — always rebuild
 mkdir -p nginx/conf.d
 sed "s/YOURDOMAIN.COM/${DOMAIN}/g" \
   nginx/conf.d/default.conf.example > nginx/conf.d/default.conf
-echo "  ✓ Generated nginx/conf.d/default.conf"
+echo "  ✓ nginx/conf.d/default.conf"
 
-# ── Create data directories ──
+# Data directories
 mkdir -p mariadb/data backups certbot/conf certbot/www
-echo "  ✓ Created data directories"
+echo "  ✓ Data directories"
+
+# ══════════════════════════════════════════════
+# PHASE 2: DEPLOY — SSL, pull, start, migrate, validate
+# ══════════════════════════════════════════════
 
 # ── Get SSL certificate ──
 echo ""
-echo "── Obtaining SSL certificate ──"
-echo "  Port 80 must be open and your DNS must point to this server."
-echo ""
+echo "── SSL certificate ──"
 if [ -d "certbot/conf/live/${DOMAIN}" ]; then
   echo "  · SSL cert already exists for ${DOMAIN} (skipped)"
 else
-  # Stop anything on port 80 first
+  echo "  Port 80 must be open and DNS must point to this server."
+  echo ""
   docker stop eqemu-nginx 2>/dev/null || true
 
   if docker run --rm -p 80:80 \
@@ -218,8 +253,8 @@ else
     echo "    - Port 80 is blocked by firewall or another process"
     echo "    - Let's Encrypt rate limit (try again in an hour)"
     echo ""
-    echo "  You can re-run this script after fixing the issue."
-    echo "  The .env and config files have been saved."
+    echo "  Re-run this script after fixing the issue."
+    echo "  Your .env and configs are saved — credentials will be reused."
     exit 1
   fi
 fi
@@ -237,13 +272,19 @@ fi
 # ── Pull images ──
 echo ""
 echo "── Pulling Docker images ──"
-docker compose -f docker-compose.release.yml pull
+docker compose pull --ignore-buildable
 echo "  ✓ Images pulled"
+
+# ── Build local-only images ──
+echo ""
+echo "── Building upgrade-agent ──"
+docker compose build upgrade-agent
+echo "  ✓ upgrade-agent built"
 
 # ── Start services ──
 echo ""
 echo "── Starting services ──"
-docker compose -f docker-compose.release.yml up -d
+docker compose up -d
 echo "  ✓ All services started"
 
 # ── Wait for MariaDB ──
@@ -265,11 +306,19 @@ if [ "$READY" -eq 0 ]; then
 fi
 echo "  ✓ MariaDB is ready"
 
+# ── Sync DB passwords (handles credential drift after re-runs) ──
+echo ""
+echo "── Syncing database credentials ──"
+docker exec eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" -e "
+  ALTER USER 'eqemu_ls'@'%' IDENTIFIED BY '${DB_PASSWORD}';
+  ALTER USER 'eqemu_web'@'%' IDENTIFIED BY '${DB_WEB_PASSWORD}';
+  FLUSH PRIVILEGES;
+" 2>/dev/null && echo "  ✓ DB user passwords synced with .env" || echo "  · DB users not yet created (first init — will be created by MariaDB entrypoint)"
+
 # ── Run migrations ──
 echo ""
 echo "── Running database migrations ──"
 for f in web/migrations/*.sql; do
-  # Suppress harmless errors (duplicate column, table exists)
   docker exec -i eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" eqemu_login < "$f" 2>&1 | \
     grep -v "Duplicate column\|Duplicate key\|already exists" || true
   echo "  ✓ $(basename "$f")"

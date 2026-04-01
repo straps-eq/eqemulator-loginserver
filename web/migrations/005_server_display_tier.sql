@@ -1,6 +1,6 @@
 -- Add display_tier column to server_profiles for web-only tier display
 -- NULL = auto-computed from population rules; set value = admin override
-ALTER TABLE `server_profiles` ADD COLUMN `display_tier` ENUM('legends', 'preferred', 'standard') DEFAULT NULL AFTER `claimed_by_admin_id`;
+ALTER TABLE `server_profiles` ADD COLUMN IF NOT EXISTS `display_tier` ENUM('legends', 'preferred', 'standard') DEFAULT NULL AFTER `claimed_by_admin_id`;
 
 -- Platform config table for tier population thresholds and other settings
 CREATE TABLE IF NOT EXISTS `platform_config` (
@@ -15,6 +15,4 @@ INSERT INTO `platform_config` (`config_key`, `config_value`) VALUES
   ('tier_preferred_min_players', '25')
 ON DUPLICATE KEY UPDATE `config_value` = VALUES(`config_value`);
 
--- Grant access
-GRANT ALL PRIVILEGES ON `eqemu_login`.`platform_config` TO 'eqemu_web'@'%';
-FLUSH PRIVILEGES;
+-- Grants handled by mariadb/init/04-grants.sh and upgrade agent

@@ -1,3 +1,10 @@
+# ──────────────────────────────────────────────
+# EQEmulator.dev — Unified Docker Compose
+#
+# Default:  docker compose up -d          (uses pre-built GHCR images)
+# Dev:      docker compose up -d --build  (builds from local source)
+# ──────────────────────────────────────────────
+
 services:
   mariadb:
     image: mariadb:10.11
@@ -5,8 +12,8 @@ services:
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MARIADB_DATABASE: ${DB_NAME}
-      MARIADB_USER: ${DB_USER}
+      MARIADB_DATABASE: ${DB_NAME:-eqemu_login}
+      MARIADB_USER: ${DB_USER:-eqemu_ls}
       MARIADB_PASSWORD: ${DB_PASSWORD}
       DB_WEB_PASSWORD: ${DB_WEB_PASSWORD}
       LOGINSERVER_API_TOKEN: ${LOGINSERVER_API_TOKEN}
@@ -25,6 +32,7 @@ services:
     build:
       context: ./loginserver
       dockerfile: Dockerfile
+    image: ghcr.io/straps-eq/eqemu-loginserver:latest
     container_name: eqemu-loginserver
     restart: always
     depends_on:
@@ -33,8 +41,6 @@ services:
     environment:
       - DB_PASSWORD=${DB_PASSWORD}
       - LSPX=1
-    security_opt:
-      - no-new-privileges:true
     volumes:
       - ./loginserver/login.json:/opt/loginserver/login.json:ro
       - loginserver-data:/opt/loginserver/data
@@ -52,6 +58,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+    image: ghcr.io/straps-eq/eqemu-web:latest
     container_name: eqemu-web
     restart: always
     depends_on:
@@ -60,36 +67,34 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DATABASE_URL=mysql://${DB_WEB_USER:-eqemu_web}:${DB_WEB_PASSWORD}@mariadb:3306/${DB_NAME:-eqemu_login}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NEXT_PUBLIC_SITE_URL=https://${DOMAIN}
+      - NEXT_PUBLIC_APP_URL=https://${DOMAIN}
       - LOGINSERVER_API_URL=http://loginserver:6000
       - LOGINSERVER_API_TOKEN=${LOGINSERVER_API_TOKEN}
-      - DATABASE_URL=mysql://${DB_WEB_USER}:${DB_WEB_PASSWORD}@mariadb:3306/${DB_NAME}
-      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
-      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - NEXT_PUBLIC_APP_URL=https://${DOMAIN}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
+      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      - FEDERATION_SYNC_SECRET=${FEDERATION_SYNC_SECRET:-}
+      - FEDERATION_KEY_ENCRYPTION_SECRET=${FEDERATION_KEY_ENCRYPTION_SECRET:-}
+      - METRICS_BEARER_TOKEN=${METRICS_BEARER_TOKEN:-}
       - PROMETHEUS_URL=http://prometheus:9090
       - REDIS_URL=redis://redis:6379
+      - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
     networks:
       - internal
-    expose:
-      - "3000"
 
   redis:
     image: redis:7-alpine
     container_name: eqemu-redis
     restart: always
     command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
     networks:
       - internal
-    expose:
-      - "6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
 
   nginx:
     image: nginx:alpine
@@ -102,7 +107,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     networks:
       - internal
@@ -115,12 +120,30 @@ services:
       - ./certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
+  upgrade-agent:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.upgrade-agent
+    image: eqemu-upgrade-agent:latest
+    container_name: eqemu-upgrade-agent
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/host/docker-compose.yml:ro
+      - ./.env:/host/.env:ro
+      - ./backups:/host/backups
+    environment:
+      - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
+      - COMPOSE_DIR=/host
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    working_dir: /host
+    networks:
+      - internal
+
   prometheus:
     image: prom/prometheus:latest
     container_name: eqemu-prometheus
     restart: always
-    depends_on:
-      - web
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -131,8 +154,6 @@ services:
       - "--web.enable-lifecycle"
     networks:
       - internal
-    expose:
-      - "9090"
 
 networks:
   internal:
@@ -140,4 +161,5 @@ networks:
 
 volumes:
   loginserver-data:
+  redis-data:
   prometheus-data:
