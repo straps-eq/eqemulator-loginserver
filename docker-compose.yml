@@ -129,12 +129,12 @@ services:
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/host/docker-compose.yml:ro
-      - ./.env:/host/.env:ro
+      - .:/host:ro
       - ./backups:/host/backups
     environment:
       - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
       - COMPOSE_DIR=/host
+      - HOST_PROJECT_DIR=${HOST_PROJECT_DIR:-/opt/eqemu}
       - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
     working_dir: /host
     networks:

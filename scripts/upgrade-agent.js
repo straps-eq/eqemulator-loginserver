@@ -37,8 +37,11 @@ function run(cmd, opts = {}) {
 
 // Helper: run docker compose with correct file, env, and project name.
 // Project name must match the host's (derived from directory name "eqemu").
+// HOST_PROJECT_DIR is the real host path (e.g. /opt/eqemu) so Docker resolves
+// bind mount paths correctly (COMPOSE_DIR=/host is only visible inside this container).
+const HOST_DIR = process.env.HOST_PROJECT_DIR || "/opt/eqemu";
 function compose(args) {
-  return run(`docker compose -p eqemu -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" ${args} 2>&1`);
+  return run(`docker compose -p eqemu --project-directory "${HOST_DIR}" -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" ${args} 2>&1`);
 }
 
 function jsonResponse(res, code, data) {
