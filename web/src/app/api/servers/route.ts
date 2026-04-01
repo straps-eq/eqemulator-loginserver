@@ -141,7 +141,14 @@ export async function GET() {
       };
     });
 
-  const allServers = [...enriched, ...federatedServers];
+  // Deduplicate by short_name — live entries come first so they take priority
+  const seen = new Set<string>();
+  const allServers = [...enriched, ...federatedServers].filter((s) => {
+    const key = s.server_short_name?.toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   // Cache the response
   cachedResponse = { data: allServers, expires: now + CACHE_TTL_MS };

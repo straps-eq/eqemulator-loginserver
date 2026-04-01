@@ -130,7 +130,7 @@ Players update their `eqhost.txt`:
 Host=login.yourdomain.com:5999
 ```
 
-> **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d` with the default `docker-compose.yml`.
+> **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d --build`.
 
 ### Troubleshooting
 
@@ -140,19 +140,29 @@ Host=login.yourdomain.com:5999
 | nginx restart-looping | SSL cert missing — run setup.sh again or check `certbot/conf/live/` |
 | MariaDB not ready | Wait 60s on first boot (init scripts run once), check `docker logs eqemu-mariadb` |
 | 500 errors in admin | Run migrations: `source .env && for f in web/migrations/*.sql; do docker exec -i eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f" 2>/dev/null; done` |
-| Web app shows "No RESEND_API_KEY" | Email features are optional; set `RESEND_API_KEY` in `.env` then `docker compose -f docker-compose.release.yml up -d web` |
+| Bad gateway (502) after upgrade | Restart nginx to pick up new container IPs: `docker restart eqemu-nginx` |
+| Web app shows "No RESEND_API_KEY" | Email features are optional; set `RESEND_API_KEY` in `.env` then `docker compose up -d web` |
 
 ## Upgrading
+
+**Option A — Admin Dashboard (recommended):**
+
+Go to **Admin → System** and click **Upgrade**. The upgrade agent handles everything automatically: backup → pull → migrate → restart → nginx reload.
+
+**Option B — Manual:**
 
 ```bash
 cd eqemulator-loginserver
 
 # Pull latest code and images
 git pull origin main
-docker compose -f docker-compose.release.yml pull
+docker compose pull
 
 # Restart services
-docker compose -f docker-compose.release.yml up -d
+docker compose up -d
+
+# Restart nginx to pick up new container IPs
+docker restart eqemu-nginx
 
 # Run any new database migrations
 source .env

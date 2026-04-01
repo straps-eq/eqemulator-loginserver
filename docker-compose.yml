@@ -124,7 +124,7 @@ services:
     build:
       context: ./scripts
       dockerfile: Dockerfile.upgrade-agent
-    image: eqemu-upgrade-agent:latest
+    image: ghcr.io/straps-eq/eqemu-upgrade-agent:latest
     container_name: eqemu-upgrade-agent
     restart: always
     volumes:
