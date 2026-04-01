@@ -399,6 +399,9 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     if (data.profiles && data.profiles.length > 0) {
       for (const prof of data.profiles) {
         try {
+          // Skip malformed profiles (e.g. from old export bug)
+          if (!prof.short_name) continue;
+
           // Find the local server by short_name (synced from this federation source)
           const [rows] = await conn.execute(
             `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
@@ -423,14 +426,14 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
                  updated_at = NOW()`,
               [
                 localServerId,
-                prof.description || null,
-                prof.website_url || null,
-                prof.discord_url || null,
-                prof.banner_image_url || null,
-                prof.expansion_era || null,
-                prof.custom_ruleset || null,
+                prof.description ?? null,
+                prof.website_url ?? null,
+                prof.discord_url ?? null,
+                prof.banner_image_url ?? null,
+                prof.expansion_era ?? null,
+                prof.custom_ruleset ?? null,
                 prof.tags ? JSON.stringify(prof.tags) : null,
-                prof.display_tier || null,
+                prof.display_tier ?? null,
                 prof.show_player_count ?? 1,
               ] as (string | number | null)[]
             );

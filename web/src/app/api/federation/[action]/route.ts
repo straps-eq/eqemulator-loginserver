@@ -342,7 +342,7 @@ async function handleSyncData(req: NextRequest) {
     .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
 
   // Export server profiles — match by world_server_id OR login_server_admin_id fallback
-  const profileRows: Array<Record<string, unknown>> = await db.execute(
+  const [profileRows] = await db.execute(
     sql`SELECT lws.short_name, sp.description, sp.website_url, sp.discord_url,
                sp.banner_image_url, sp.expansion_era, sp.custom_ruleset, sp.tags,
                sp.display_tier, sp.show_player_count
@@ -353,7 +353,7 @@ async function handleSyncData(req: NextRequest) {
         WHERE COALESCE(lws.id, lws2.id) IS NOT NULL
           AND (COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) IS NULL
                OR COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) = 0)`
-  ) as unknown as Array<Record<string, unknown>>;
+  ) as unknown as [Array<Record<string, unknown>>];
 
   // Make relative banner URLs absolute so mesh nodes can display them
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || self.endpointUrl).replace(/\/$/, "");
