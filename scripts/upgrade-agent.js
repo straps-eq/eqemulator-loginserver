@@ -185,6 +185,65 @@ function doUpgrade(res) {
   jsonResponse(res, 200, { ok: true, backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount });
 }
 
+// ── LSPX Watchdog ──
+// Monitors loginserver logs for stale LSPX proxy connections.
+// If all recent LSPX attempts failed (≥3 attempts, 0 successes in last window),
+// the loginserver likely has a stale connection to login.eqemulator.net and needs a restart.
+
+const LSPX_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const LSPX_MIN_UNIQUE_FAILURES = 5; // At least 5 distinct users must fail
+let lspxLastRestart = 0;
+const LSPX_RESTART_COOLDOWN = 15 * 60 * 1000; // Don't restart more than once per 15 min
+
+function checkLspxHealth() {
+  try {
+    const logs = run("docker logs eqemu-loginserver --since 10m 2>&1 | tail -500");
+    if (!logs) return;
+
+    const lines = logs.split("\n");
+    const failedUsers = new Set();
+    let lspxSuccesses = 0;
+    let localSuccesses = 0;
+
+    for (const line of lines) {
+      // Track unique users whose LSPX proxy failed
+      const failMatch = line.match(/External authentication failed for user \[([^\]]+)\]/);
+      if (failMatch) {
+        failedUsers.add(failMatch[1].toLowerCase());
+      }
+      // Track LSPX successes (account created via proxy)
+      if (line.includes("LSPX") && (line.includes("success") || line.includes("account created"))) {
+        lspxSuccesses++;
+      }
+      // Track normal successful logins (proves loginserver is healthy, just LSPX is stale)
+      if (line.includes("Successful login [true]")) {
+        localSuccesses++;
+      }
+    }
+
+    // Only restart if:
+    // 1. Multiple distinct users failed LSPX (not just one person with a bad password)
+    // 2. Zero LSPX successes (every proxy attempt failed)
+    // 3. Local logins are working (loginserver itself is healthy)
+    if (failedUsers.size >= LSPX_MIN_UNIQUE_FAILURES && lspxSuccesses === 0 && localSuccesses > 0) {
+      const now = Date.now();
+      if (now - lspxLastRestart < LSPX_RESTART_COOLDOWN) {
+        log(`LSPX watchdog: ${failedUsers.size} unique users failed but restart cooldown active`);
+        return;
+      }
+      log(`LSPX watchdog: ${failedUsers.size} unique users failed LSPX proxy (0 successes, ${localSuccesses} local OK) — restarting loginserver`);
+      run(`docker restart eqemu-loginserver 2>&1`);
+      lspxLastRestart = now;
+      log("LSPX watchdog: loginserver restarted");
+    }
+  } catch (err) {
+    // Don't crash the agent on watchdog errors
+  }
+}
+
+setInterval(checkLspxHealth, LSPX_CHECK_INTERVAL);
+log("LSPX watchdog enabled (check every 5m, restart on ≥5 unique user failures)");
+
 // ── HTTP Server ──
 const server = http.createServer((req, res) => {
   // Auth check

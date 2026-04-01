@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create platform account (no loginserver account — that's separate)
+    // Create platform account (no loginserver account — that's handled by LSPX proxy)
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
