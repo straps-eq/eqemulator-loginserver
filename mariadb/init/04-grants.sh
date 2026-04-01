@@ -10,11 +10,11 @@ mysql -u root -p"${MARIADB_ROOT_PASSWORD}" "${MARIADB_DATABASE:-eqemu_login}" <<
 -- Create web application DB user
 CREATE USER IF NOT EXISTS 'eqemu_web'@'%' IDENTIFIED BY '${DB_WEB_PASSWORD}';
 
--- Read-only on loginserver tables
-GRANT SELECT ON eqemu_login.login_accounts TO 'eqemu_web'@'%';
-GRANT SELECT ON eqemu_login.login_world_servers TO 'eqemu_web'@'%';
+-- Loginserver tables: SELECT always, plus write access for federation sync
+GRANT SELECT, INSERT, UPDATE, DELETE ON eqemu_login.login_accounts TO 'eqemu_web'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON eqemu_login.login_world_servers TO 'eqemu_web'@'%';
 GRANT SELECT ON eqemu_login.login_server_list_types TO 'eqemu_web'@'%';
-GRANT SELECT ON eqemu_login.login_server_admins TO 'eqemu_web'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON eqemu_login.login_server_admins TO 'eqemu_web'@'%';
 GRANT SELECT ON eqemu_login.login_api_tokens TO 'eqemu_web'@'%';
 
 -- Full access on platform tables
