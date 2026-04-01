@@ -97,7 +97,7 @@ jobs:
             chmod +x scripts/setup.sh
             ./scripts/setup.sh
             # Edit .env with your domain
-            docker compose -f docker-compose.release.yml up -d
+            docker compose up -d
             ```
 
             ### Docker Images
