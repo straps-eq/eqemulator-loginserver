@@ -35,7 +35,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 |-----------|---------|
 | **Next.js 15** | Web application (App Router, server components) |
 | **MariaDB** | Account data, server profiles, federation state |
-| **EQEmu Loginserver** | Handles EQ client connections (Titanium/SoD+/Larion) |
+| **EQEmu Loginserver** | Handles EQ client connections (Titanium/SoD+/Larion) — [packet flow & architecture](LOGINSERVER.md) · [C++ fork](https://github.com/straps-eq/EQEmu/tree/federation-server-list) |
 | **Redis** | Rate limiting, MFA code storage (optional) |
 | **nginx** | Reverse proxy with Let's Encrypt SSL |
 | **Prometheus** | Metrics collection (optional) |
