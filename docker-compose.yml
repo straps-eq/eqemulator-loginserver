@@ -58,6 +58,10 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-localhost}
+        NEXT_PUBLIC_APP_URL: https://${DOMAIN:-localhost}
     image: ghcr.io/straps-eq/eqemu-web:latest
     container_name: eqemu-web
     restart: always
@@ -69,6 +73,8 @@ services:
       - PORT=3000
       - DATABASE_URL=mysql://${DB_WEB_USER:-eqemu_web}:${DB_WEB_PASSWORD}@mariadb:3306/${DB_NAME:-eqemu_login}
       - SESSION_SECRET=${SESSION_SECRET}
+      # NEXT_PUBLIC_ vars: inlined at build time for client code, but still
+      # needed at runtime for server-side code (e.g. email links, federation)
       - NEXT_PUBLIC_SITE_URL=https://${DOMAIN}
       - NEXT_PUBLIC_APP_URL=https://${DOMAIN}
       - LOGINSERVER_API_URL=http://loginserver:6000

@@ -392,8 +392,14 @@ async function handleSyncData(req: NextRequest) {
     r.setTimeout(5000, () => { r.destroy(); resolve([]); });
   });
 
+  // Compute a content hash so receivers can skip processing when data is unchanged
+  const crypto = await import("crypto");
+  const hashInput = JSON.stringify({ accounts, servers, admins, profiles });
+  const dataHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 16);
+
   return NextResponse.json({
     node_id: self.id,
+    data_hash: dataHash,
     accounts,
     servers,
     admins,

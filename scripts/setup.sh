@@ -176,7 +176,8 @@ LOGINSERVER_API_TOKEN=${LOGINSERVER_API_TOKEN}
 SESSION_SECRET=${SESSION_SECRET}
 
 # ── Cloudflare Turnstile (optional — registration captcha) ──
-TURNSTILE_SITE_KEY=
+# Get keys from https://dash.cloudflare.com → Turnstile → Add Site
+# NEXT_PUBLIC_ vars are inlined at build time — rebuild web after changing
 TURNSTILE_SECRET_KEY=
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 

@@ -96,6 +96,7 @@ interface ChangesResponse {
 
 interface SyncDataResponse {
   node_id: number;
+  data_hash?: string;
   accounts: Array<Record<string, unknown>>;
   servers: Array<Record<string, unknown>>;
   admins: Array<Record<string, unknown>>;
@@ -107,6 +108,9 @@ interface SyncDataResponse {
 /** Cached live server data from federation peers — keyed by source node ID. */
 const federatedLiveCache = new Map<number, { data: Array<Record<string, unknown>>; expires: number }>();
 const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
+
+/** Track last sync_data hash per peer to skip unchanged data. */
+const lastSyncDataHash = new Map<number, string>();
 
 /** Get cached live servers from all federation peers. */
 export function getFederatedLiveServers(): Array<Record<string, unknown>> {
@@ -263,6 +267,47 @@ function toMySQLDatetime(val: unknown): string {
 
 /** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
 async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
+  // Skip processing if data hasn't changed (hash match) — still update live servers
+  if (data.data_hash && lastSyncDataHash.get(sourceNodeId) === data.data_hash) {
+    // Only update live server cache (changes frequently)
+    if (data.live_servers && data.live_servers.length > 0) {
+      federatedLiveCache.set(sourceNodeId, {
+        data: data.live_servers,
+        expires: Date.now() + LIVE_CACHE_TTL_MS,
+      });
+      const conn = await pool.getConnection();
+      try {
+        for (const ls of data.live_servers) {
+          const shortName = ls.server_short_name as string;
+          if (!shortName) continue;
+          const [rows] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+            [shortName, sourceNodeId] as (string | number)[]
+          ) as unknown as [Array<{ id: number }>];
+          if (rows.length === 0) continue;
+          await conn.execute(
+            `INSERT INTO federation_server_status (world_server_id, remote_ip, players_online, server_status, zones_booted, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE
+               remote_ip = VALUES(remote_ip),
+               players_online = VALUES(players_online),
+               server_status = VALUES(server_status),
+               zones_booted = VALUES(zones_booted),
+               updated_at = NOW()`,
+            [
+              rows[0].id,
+              (ls.remote_ip as string) || '',
+              (ls.players_online as number) || 0,
+              (ls.server_status as number) || 0,
+              (ls.zones_booted as number) || 0,
+            ] as (string | number)[]
+          );
+        }
+      } finally { conn.release(); }
+    }
+    return 0;
+  }
+
   const conn = await pool.getConnection();
   let applied = 0;
 
@@ -346,7 +391,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             ] as string[]
           );
         }
-        applied++;
+        const [acctResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+        if (acctResult[0].c > 0) applied++;
       } catch (err) {
         console.error(`[sync_data] account upsert error for ${acct.account_name}:`, err);
       }
@@ -384,7 +430,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           );
         }
         syncedShortNames.add(srv.short_name as string);
-        applied++;
+        const [srvResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+        if (srvResult[0].c > 0) applied++;
       } catch (err) {
         console.error(`[sync_data] server upsert error for ${srv.short_name}:`, err);
       }
@@ -434,7 +481,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           );
         }
         syncedAdminNames.add(adm.account_name as string);
-        applied++;
+        const [admResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+        if (admResult[0].c > 0) applied++;
       } catch (err) {
         console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
       }
@@ -496,7 +544,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
                 prof.show_player_count ?? 1,
               ] as (string | number | null)[]
             );
-            applied++;
+            const [profResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+            if (profResult[0].c > 0) applied++;
           }
         } catch (err) {
           console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
@@ -557,7 +606,14 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    console.log(`[sync_data] Applied ${applied} records from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
+    // Cache the hash for future skip detection
+    if (data.data_hash) {
+      lastSyncDataHash.set(sourceNodeId, data.data_hash);
+    }
+
+    if (applied > 0) {
+      console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
+    }
   } finally {
     conn.release();
   }
