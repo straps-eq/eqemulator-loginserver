@@ -1,10 +1,16 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { Shield, Lock, Eye, Key, Server, CheckCircle, AlertTriangle } from "lucide-react";
 
-export const metadata = {
-  title: "Security — EQEmulator",
-  description: "How EQEmulator.dev protects your account and data across the federated network.",
+export const metadata: Metadata = {
+  title: "Security — How We Protect Your Account",
+  description:
+    "How EQEmulator.dev protects your EverQuest account and data. Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
+  openGraph: {
+    title: "Security — How EQEmulator.dev Protects Your Account",
+    description: "Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
+  },
 };
 
 export default async function SecurityPage() {

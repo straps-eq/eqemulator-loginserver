@@ -1,8 +1,19 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, FileText, Play, RefreshCw } from "lucide-react";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "How to Play EverQuest on Private Servers",
+  description:
+    "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Download the client, update eqhost.txt, and start playing in minutes.",
+  openGraph: {
+    title: "How to Play EverQuest on Private Servers",
+    description: "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev.",
+  },
+};
 
 export default async function GettingStartedPage() {
   const session = await getSession();

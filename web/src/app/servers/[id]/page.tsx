@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
@@ -11,6 +12,30 @@ import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id: rawId } = await params;
+  const numId = parseInt(decodeURIComponent(rawId), 10);
+  try {
+    const [server] = await db
+      .select({ longName: loginWorldServers.longName, tagDescription: loginWorldServers.tagDescription })
+      .from(loginWorldServers)
+      .where(isNaN(numId) ? eq(loginWorldServers.shortName, decodeURIComponent(rawId)) : eq(loginWorldServers.id, numId))
+      .limit(1);
+    if (server) {
+      const title = `${server.longName} — EverQuest Private Server`;
+      const description = server.tagDescription
+        ? `${server.longName}: ${server.tagDescription}. Live player counts, population history, and server details on EQEmulator.dev.`
+        : `${server.longName} — live player counts, population history, and server details on EQEmulator.dev.`;
+      return {
+        title,
+        description,
+        openGraph: { title, description },
+      };
+    }
+  } catch {}
+  return { title: "Server Details" };
+}
 
 async function getServer(idOrSlug: string) {
   const numId = parseInt(idOrSlug, 10);
@@ -93,8 +118,30 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     getLiveData(server.shortName, server.longName),
   ]);
 
+  const serverJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "GameServer",
+    name: server.longName,
+    url: `https://eqemulator.dev/servers/${server.id}`,
+    description: profile?.description
+      ? profile.description.replace(/<[^>]*>/g, "").slice(0, 200)
+      : server.tagDescription || `${server.longName} — EverQuest private server on EQEmulator.dev`,
+    game: {
+      "@type": "VideoGame",
+      name: "EverQuest",
+    },
+    ...(liveData?.players_online !== undefined && {
+      numberOfPlayers: liveData.players_online,
+      serverStatus: liveData.server_status ? "Online" : "Offline",
+    }),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(serverJsonLd) }}
+      />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 
       <div className="relative min-h-screen">

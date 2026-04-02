@@ -1,8 +1,19 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { ServerList } from "./server-list";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "EverQuest Private Server List — Live Player Counts",
+  description:
+    "Browse active EverQuest private servers with real-time player counts, population tiers, and server profiles. Find your next EQ adventure.",
+  openGraph: {
+    title: "EverQuest Private Server List — Live Player Counts",
+    description: "Browse active EverQuest private servers with real-time player counts and server profiles.",
+  },
+};
 
 async function getServers() {
   const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";

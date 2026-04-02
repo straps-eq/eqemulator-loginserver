@@ -216,6 +216,21 @@ async function getDbStats() {
 }
 
 export async function GET() {
+  // Check if status page is disabled for public visitors
+  try {
+    const { db } = await import("@/lib/db");
+    const { platformConfig } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [config] = await db.select().from(platformConfig).where(eq(platformConfig.configKey, "status_page_public"));
+    if (config && config.configValue === "false") {
+      const { getSession } = await import("@/lib/session");
+      const session = await getSession();
+      if (!session.isLoggedIn || !session.isAdmin) {
+        return NextResponse.json({ error: "Status page is not publicly available" }, { status: 403 });
+      }
+    }
+  } catch {}
+
   const [lsResult, database] = await Promise.all([
     checkLoginserver(),
     checkDatabase(),
@@ -228,11 +243,12 @@ export async function GET() {
   const connectedWorlds = servers.length;
   const totalPlayers = servers.reduce((sum: number, s: any) => sum + (s.players_online ?? 0), 0);
 
-  // Public response: service health + player summary only
+  // Public response: service health + player summary
   const publicResponse: Record<string, unknown> = {
     overall: allUp ? "operational" : "degraded",
     loginserver: loginserver.status,
     database: database.status,
+    services,
     summary: {
       connectedWorlds,
       totalPlayers,
@@ -240,13 +256,12 @@ export async function GET() {
     checkedAt: new Date().toISOString(),
   };
 
-  // Admin-only: system metrics, service latencies, DB stats
+  // Admin-only: system metrics, DB stats
   try {
     const { getSession } = await import("@/lib/session");
     const session = await getSession();
     if (session.isLoggedIn && session.isAdmin) {
       const dbStats = await getDbStats();
-      publicResponse.services = services;
       publicResponse.system = {
         cpu: getCpuUsage(),
         memory: getMemory(),

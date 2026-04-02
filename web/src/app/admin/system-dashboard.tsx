@@ -32,6 +32,7 @@ interface SystemData {
   publishedAt: string | null;
   services: Record<string, ServiceInfo> | null;
   agentConnected: boolean;
+  statusPagePublic: boolean;
 }
 
 export function SystemDashboard() {
@@ -392,6 +393,45 @@ export function SystemDashboard() {
           </div>
         </div>
       )}
+
+      {/* Settings */}
+      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-5">
+        <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-3">
+          Settings
+        </h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm text-parchment-300">Public Status Page</span>
+            <p className="text-xs text-parchment-600 mt-0.5">
+              When disabled, the <code className="text-parchment-500">/status</code> page is only visible to admins.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const next = !data.statusPagePublic;
+              try {
+                const res = await fetch("/api/admin/system", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "toggle_status_page", enabled: next }),
+                });
+                if (res.ok) {
+                  setData((prev) => prev ? { ...prev, statusPagePublic: next } : prev);
+                }
+              } catch {}
+            }}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              data.statusPagePublic ? "bg-emerald-400/30 border border-emerald-400/40" : "bg-[#151b2a] border border-frost-400/10"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full transition-transform ${
+                data.statusPagePublic ? "translate-x-6 bg-emerald-400" : "translate-x-1 bg-parchment-600"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
 
       {/* Action Result */}
       {actionResult && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Database, Server, CheckCircle2, XCircle, Clock, Cpu, HardDrive, MemoryStick, Wifi, Timer, Users, Globe } from "lucide-react";
+import { Activity, Database, Server, CheckCircle2, XCircle, Clock, Cpu, HardDrive, MemoryStick, Wifi, Timer, Users, Globe, Shield } from "lucide-react";
 import Link from "next/link";
 
 interface ServiceStatus {
@@ -59,6 +59,7 @@ function UsageBar({ percent, color = "frost" }: { percent: number; color?: strin
 export function StatusDashboard() {
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState(false);
+  const [disabled, setDisabled] = useState(false);
   const [lastChecked, setLastChecked] = useState<string>("");
 
   useEffect(() => {
@@ -69,6 +70,10 @@ export function StatusDashboard() {
           const json = await res.json();
           setData(json);
           setLastChecked(new Date().toLocaleTimeString());
+          setError(false);
+          setDisabled(false);
+        } else if (res.status === 403) {
+          setDisabled(true);
           setError(false);
         } else {
           setError(true);
@@ -116,6 +121,18 @@ export function StatusDashboard() {
         Real-time health and telemetry of the EQEmulator.dev login infrastructure.
       </p>
 
+      {/* Disabled message */}
+      {disabled && (
+        <div className="rounded-lg border border-frost-400/10 bg-[#0a0e16]/80 p-8 text-center">
+          <Shield className="h-8 w-8 text-parchment-600 mx-auto mb-3" />
+          <h2 className="font-display text-lg font-semibold text-parchment-200 mb-2">Status Page Unavailable</h2>
+          <p className="text-parchment-500 text-sm">
+            The public status page has been disabled by the administrator.
+          </p>
+        </div>
+      )}
+
+      {!disabled && (<>
       {/* Overall status banner */}
       <div className={`rounded-lg border p-5 mb-8 ${
         error
@@ -145,7 +162,7 @@ export function StatusDashboard() {
       {/* Service cards */}
       <div className="space-y-3 mb-8">
         <h2 className="font-display text-xs tracking-[0.2em] uppercase text-parchment-500 mb-2">Service Health</h2>
-        {data?.services.map((service) => {
+        {data?.services?.map((service) => {
           const Icon = serviceIcon(service.name);
           const isUp = service.status === "up";
           return (
@@ -366,6 +383,7 @@ export function StatusDashboard() {
           &larr; Back to Home
         </Link>
       </div>
+      </>)}
     </div>
   );
 }

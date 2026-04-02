@@ -1,8 +1,19 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Server, Settings, Shield, Plus, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "List Your EverQuest Server — Operator Guide",
+  description:
+    "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing with live player counts, server profiles, and operator tools.",
+  openGraph: {
+    title: "List Your EverQuest Server — Operator Guide",
+    description: "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing.",
+  },
+};
 
 export default async function ServerOperatorsPage() {
   const session = await getSession();

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { db } from "@/lib/db";
+import { platformConfig } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -63,13 +66,15 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [release, services] = await Promise.all([
+  const [release, services, statusPageConfig] = await Promise.all([
     getLatestRelease(),
     proxyToAgent("/status"),
+    db.select().from(platformConfig).where(eq(platformConfig.configKey, "status_page_public")),
   ]);
 
   const latestVersion = release?.tag_name?.replace(/^v/, "") || null;
   const updateAvailable = latestVersion ? compareVersions(CURRENT_VERSION, latestVersion) : false;
+  const statusPagePublic = statusPageConfig.length > 0 ? statusPageConfig[0].configValue === "true" : true;
 
   return NextResponse.json({
     currentVersion: CURRENT_VERSION,
@@ -80,6 +85,7 @@ export async function GET() {
     publishedAt: release?.published_at || null,
     services: services?.services || null,
     agentConnected: !services?.error,
+    statusPagePublic,
   });
 }
 
@@ -120,6 +126,17 @@ export async function POST(request: NextRequest) {
       }
       const result = await proxyToAgent(`/restart/${service}`, "POST");
       return NextResponse.json(result);
+    }
+    case "toggle_status_page": {
+      const { enabled } = body;
+      if (typeof enabled !== "boolean") {
+        return NextResponse.json({ error: "enabled (boolean) required" }, { status: 400 });
+      }
+      await db
+        .insert(platformConfig)
+        .values({ configKey: "status_page_public", configValue: String(enabled), updatedAt: new Date() })
+        .onDuplicateKeyUpdate({ set: { configValue: String(enabled), updatedAt: new Date() } });
+      return NextResponse.json({ success: true, statusPagePublic: enabled });
     }
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });

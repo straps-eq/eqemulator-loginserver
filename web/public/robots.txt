@@ -2,3 +2,9 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /account/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /verify-email
+
+Sitemap: https://eqemulator.dev/sitemap.xml

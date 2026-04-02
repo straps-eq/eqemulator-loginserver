@@ -5,11 +5,28 @@ import { Compass, Shield, Activity, Settings } from "lucide-react";
 import { LiveStats } from "./live-stats";
 import { StatusIndicator } from "./status-indicator";
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "EQEmulator.dev",
+  url: "https://eqemulator.dev",
+  description: "EverQuest private server directory and community login infrastructure with live player counts.",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: "https://eqemulator.dev/servers?q={search_term_string}",
+    "query-input": "required name=search_term_string",
+  },
+};
+
 export default async function HomePage() {
   const session = await getSession();
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 
       {/* Hero */}

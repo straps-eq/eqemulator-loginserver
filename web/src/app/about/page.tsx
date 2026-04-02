@@ -1,10 +1,16 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { Globe, Shield, Server, Users, Zap, Network } from "lucide-react";
 
-export const metadata = {
-  title: "About — EQEmulator",
-  description: "What EQEmulator.dev is, how the federated mesh works, and why it matters for the EverQuest community.",
+export const metadata: Metadata = {
+  title: "About — EverQuest Emulator Community Infrastructure",
+  description:
+    "What EQEmulator.dev is, how the federated login mesh works, and why it matters for the EverQuest private server community.",
+  openGraph: {
+    title: "About EQEmulator.dev — EverQuest Emulator Community Infrastructure",
+    description: "What EQEmulator.dev is, how the federated login mesh works, and why it matters for the EQ community.",
+  },
 };
 
 export default async function AboutPage() {
