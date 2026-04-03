@@ -112,6 +112,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
 
   const adminId = server.loginServerAdminId || 0;
   const isClaimed = adminId > 0;
+  const isTrusted = !!server.isServerTrusted || isClaimed;
 
   const [profile, liveData] = await Promise.all([
     getProfile(server.id, adminId),
@@ -158,7 +159,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               longName: server.longName,
               shortName: server.shortName,
               ipAddress: server.lastIpAddress || "",
-              isTrusted: !!server.isServerTrusted,
+              isTrusted,
               isClaimed,
               tagDescription: server.tagDescription || "",
               websiteUrl: profile?.websiteUrl,

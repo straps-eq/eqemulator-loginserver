@@ -110,6 +110,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                 {/* Server rows */}
                 {tierServers.map((server, i) => {
                   const isOnline = server.server_status > 0;
+                  const isLocked = server.server_status === -2;
                   const hideCount = server.show_player_count === false;
 
                   return (
@@ -121,7 +122,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                       onClick={() => server.server_short_name && router.push(`/servers/${encodeURIComponent(server.server_short_name)}`, { scroll: false })}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`h-2 w-2 rounded-full flex-shrink-0 ${isOnline ? "bg-forest-500" : "bg-parchment-800"}`} />
+                        <div className={`h-2 w-2 rounded-full flex-shrink-0 ${isOnline ? "bg-forest-500" : isLocked ? "bg-amber-400" : "bg-parchment-800"}`} />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-display text-sm font-semibold text-parchment-100 truncate">
@@ -146,9 +147,9 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                         )}
                       </div>
                       <div className="text-center hidden sm:block">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-display ${isOnline ? "text-forest-400" : "text-red-400/70"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-forest-400" : "bg-red-400/70"}`} />
-                          {isOnline ? "Online" : "Offline"}
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-display ${isOnline ? "text-forest-400" : isLocked ? "text-amber-400" : "text-red-400/70"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-forest-400" : isLocked ? "bg-amber-400" : "bg-red-400/70"}`} />
+                          {isOnline ? "Online" : isLocked ? "Locked" : "Offline"}
                         </span>
                       </div>
                     </div>

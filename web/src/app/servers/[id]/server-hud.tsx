@@ -134,11 +134,12 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
   }, [serverId, info.shortName, info.longName]);
 
   const isOnline = status > 0;
+  const isLocked = status === -2;
 
   return (
     <div className={`relative overflow-hidden rounded-lg border transition-all duration-700 ${
       mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-    } ${isOnline ? "border-frost-400/15" : "border-obsidian-600/50"}`}>
+    } ${isOnline ? "border-frost-400/15" : isLocked ? "border-amber-400/15" : "border-obsidian-600/50"}`}>
       {/* Animated background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#0c1019] via-[#111825] to-[#0e1420]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(52,187,250,0.06)_0%,_transparent_50%)]" />
@@ -168,13 +169,16 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
           <div>
             <div className="flex items-center gap-3 mb-1">
               <div className="relative">
-                <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? "bg-forest-500" : "bg-red-500/60"}`} />
+                <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? "bg-forest-500" : isLocked ? "bg-amber-400" : "bg-red-500/60"}`} />
                 {isOnline && (
                   <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-forest-500 animate-ping opacity-40" />
                 )}
+                {isLocked && (
+                  <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse opacity-40" />
+                )}
               </div>
-              <span className={`font-display text-[10px] tracking-[0.25em] uppercase ${isOnline ? "text-forest-400" : "text-red-400/60"}`}>
-                {isOnline ? "Systems Online" : "Offline"}
+              <span className={`font-display text-[10px] tracking-[0.25em] uppercase ${isOnline ? "text-forest-400" : isLocked ? "text-amber-400" : "text-red-400/60"}`}>
+                {isOnline ? "Systems Online" : isLocked ? "Locked" : "Offline"}
               </span>
             </div>
             <h1 className="font-display text-xl sm:text-2xl font-bold text-parchment-100 mt-2">
