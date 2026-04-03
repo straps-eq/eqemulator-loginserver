@@ -42,6 +42,7 @@ export function SystemDashboard() {
   const [actionResult, setActionResult] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string | null>(null);
+  const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -62,6 +63,7 @@ export function SystemDashboard() {
     starting: "Starting upgrade...",
     backup: "Backing up database...",
     pull: "Pulling new images...",
+    config_sync: "Syncing config files...",
     migrate: "Running migrations...",
     restart: "Restarting services...",
     nginx: "Restarting nginx...",
@@ -270,13 +272,66 @@ export function SystemDashboard() {
                 <RefreshCw className="h-4 w-4 animate-spin text-frost-400" />
                 <span className="text-sm text-frost-300">{upgradeProgress}</span>
               </div>
+            ) : showUpgradeConfirm ? (
+              <div className="space-y-4">
+                <div className="rounded bg-[#060a12] border border-frost-400/10 p-4 space-y-3">
+                  <h4 className="text-xs font-display uppercase tracking-wider text-parchment-400">Upgrade to v{data.latestVersion}</h4>
+
+                  <div>
+                    <p className="text-[10px] font-display uppercase tracking-wider text-amber-400/80 mb-1.5">What this upgrade does</p>
+                    <ul className="text-xs text-parchment-400 space-y-1">
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">1.</span> Backs up your database (saved to <code className="text-parchment-300">backups/</code>)</li>
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">2.</span> Pulls new Docker images for web, loginserver, and upgrade-agent</li>
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">3.</span> Syncs config files (see below)</li>
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">4.</span> Runs database migrations</li>
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">5.</span> Restarts web + loginserver containers</li>
+                      <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">6.</span> Restarts nginx</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-t border-frost-400/6 pt-3">
+                    <p className="text-[10px] font-display uppercase tracking-wider text-amber-400/80 mb-1.5">Files overwritten <span className="text-parchment-600 normal-case tracking-normal">(backup saved as .bak)</span></p>
+                    <ul className="text-xs text-parchment-400 space-y-1">
+                      <li><code className="text-parchment-300">docker-compose.yml</code> — updated volume mounts, env vars, build args</li>
+                      <li><code className="text-parchment-300">nginx/conf.d/default.conf</code> — re-rendered from template using your domain</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-t border-frost-400/6 pt-3">
+                    <p className="text-[10px] font-display uppercase tracking-wider text-emerald-400/80 mb-1.5">Never touched</p>
+                    <ul className="text-xs text-parchment-400 space-y-1">
+                      <li><code className="text-parchment-300">.env</code> — your credentials, domain, API keys</li>
+                      <li><code className="text-parchment-300">loginserver/login.json</code> — your loginserver config</li>
+                      <li><code className="text-parchment-300">mariadb/data/</code> — your database</li>
+                      <li><code className="text-parchment-300">uploads/</code> — your uploaded banners</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-t border-frost-400/6 pt-3">
+                    <p className="text-xs text-parchment-500">The site will be briefly unavailable during the restart (~10–30 seconds).</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setShowUpgradeConfirm(false); doAction("upgrade"); }}
+                    disabled={!!actionLoading || !data.agentConnected}
+                    className="flex items-center gap-2 rounded bg-amber-500/20 border border-amber-500/30 px-4 py-2 text-sm font-display text-amber-300 hover:bg-amber-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-4 w-4" />
+                    Confirm Upgrade
+                  </button>
+                  <button
+                    onClick={() => setShowUpgradeConfirm(false)}
+                    className="text-xs text-parchment-600 hover:text-parchment-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
               <button
-                onClick={() => {
-                  if (confirm(`Upgrade to v${data.latestVersion}?\n\nThis will:\n1. Back up the database\n2. Pull new Docker images\n3. Run migrations\n4. Restart web + loginserver\n\nThe site will be briefly unavailable.`)) {
-                    doAction("upgrade");
-                  }
-                }}
+                onClick={() => setShowUpgradeConfirm(true)}
                 disabled={!!actionLoading || !data.agentConnected}
                 className="flex items-center gap-2 rounded bg-amber-500/20 border border-amber-500/30 px-4 py-2 text-sm font-display text-amber-300 hover:bg-amber-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

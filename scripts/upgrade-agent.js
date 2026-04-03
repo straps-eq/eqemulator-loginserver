@@ -181,15 +181,60 @@ function doUpgrade(res) {
       const backupSize = fs.statSync(backupFile).size;
       log(`  ✓ Backup saved (${backupSize} bytes)`);
 
-      // Step 2: Pull new images
+      // Step 2: Pull new images (including upgrade-agent itself)
       upgradeState.step = "pull";
-      log("Step 2/5: Pulling new images");
-      compose("pull web loginserver");
+      log("Step 2/6: Pulling new images");
+      compose("pull web loginserver upgrade-agent");
       log("  ✓ Images pulled");
 
-      // Step 3: Run migrations from new image
+      // Step 3: Sync config files from new upgrade-agent image
+      // ─────────────────────────────────────────────────────────────────
+      // This step updates infrastructure configs that ship with each release.
+      // It does NOT touch: .env, login.json, game server data, or player data.
+      //
+      // Files OVERWRITTEN (backup saved as .bak):
+      //   - docker-compose.yml  — adds new volume mounts, env vars, build args
+      //                           (all site-specific values come from your .env)
+      //   - nginx/conf.d/default.conf — rendered from template using your DOMAIN
+      //                                  (adds new location blocks, rate limits, etc.)
+      //
+      // Files NEVER touched:
+      //   - .env                — your credentials, domain, API keys
+      //   - loginserver/login.json — your loginserver config
+      //   - mariadb/data/*      — your database
+      //   - uploads/*           — your uploaded banners
+      // ─────────────────────────────────────────────────────────────────
+      upgradeState.step = "config_sync";
+      log("Step 3/6: Syncing config files");
+      try {
+        const agentImg = "ghcr.io/straps-eq/eqemu-upgrade-agent:latest";
+        const tmpCfg = run(`docker create ${agentImg} 2>/dev/null`).trim();
+        if (tmpCfg && tmpCfg.length > 10) {
+          // Sync docker-compose.yml (backup existing first)
+          try { fs.copyFileSync(`${COMPOSE_DIR}/docker-compose.yml`, `${COMPOSE_DIR}/docker-compose.yml.bak`); } catch {}
+          run(`docker cp ${tmpCfg}:/config/docker-compose.yml ${COMPOSE_DIR}/docker-compose.yml 2>/dev/null`);
+          log("  ✓ docker-compose.yml updated (old saved as docker-compose.yml.bak)");
+          // Sync nginx template — render with DOMAIN from .env
+          const domain = run(`grep "^DOMAIN=" ${COMPOSE_DIR}/.env | cut -d= -f2`).trim();
+          if (domain) {
+            run(`docker cp ${tmpCfg}:/config/nginx-default.conf.template /tmp/nginx.template 2>/dev/null`);
+            try {
+              const tmpl = fs.readFileSync("/tmp/nginx.template", "utf8");
+              const rendered = tmpl.replace(/__DOMAIN__/g, domain);
+              const nginxDir = path.join(COMPOSE_DIR, "nginx", "conf.d");
+              fs.mkdirSync(nginxDir, { recursive: true });
+              try { fs.copyFileSync(path.join(nginxDir, "default.conf"), path.join(nginxDir, "default.conf.bak")); } catch {}
+              fs.writeFileSync(path.join(nginxDir, "default.conf"), rendered);
+              log(`  ✓ nginx config updated for ${domain} (old saved as default.conf.bak)`);
+            } catch (e) { log(`  ⚠ nginx template render failed: ${e.message}`); }
+          }
+          run(`docker rm ${tmpCfg} 2>/dev/null`);
+        }
+      } catch (e) { log(`  ⚠ Config sync skipped: ${e.message}`); }
+
+      // Step 4: Run migrations from new image
       upgradeState.step = "migrate";
-      log("Step 3/5: Running migrations");
+      log("Step 4/6: Running migrations");
       let migCount = 0;
       try {
         const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
@@ -206,15 +251,15 @@ function doUpgrade(res) {
       } catch {}
       log(`  ✓ ${migCount} migrations applied`);
 
-      // Step 4: Restart services with new images
+      // Step 5: Restart services with new images
       upgradeState.step = "restart";
-      log("Step 4/5: Restarting services");
+      log("Step 5/6: Restarting services");
       compose("up -d --no-deps --force-recreate web loginserver");
       log("  ✓ Services restarted");
 
-      // Step 5: Restart nginx to pick up new container IPs
+      // Step 6: Restart nginx to pick up new container IPs
       upgradeState.step = "nginx";
-      log("Step 5/5: Restarting nginx");
+      log("Step 6/6: Restarting nginx");
       run("docker restart eqemu-nginx 2>&1");
       log("  ✓ Nginx restarted");
 

@@ -89,6 +89,8 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - REDIS_URL=redis://redis:6379
       - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
+    volumes:
+      - ./uploads:/app/public/uploads
     networks:
       - internal
 
@@ -115,6 +117,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
+      - ./uploads:/var/www/uploads:ro
     networks:
       - internal
 
@@ -128,14 +131,14 @@ services:
 
   upgrade-agent:
     build:
-      context: ./scripts
-      dockerfile: Dockerfile.upgrade-agent
+      context: .
+      dockerfile: scripts/Dockerfile.upgrade-agent
     image: ghcr.io/straps-eq/eqemu-upgrade-agent:latest
     container_name: eqemu-upgrade-agent
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - .:/host:ro
+      - .:/host
       - ./backups:/host/backups
     environment:
       - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}

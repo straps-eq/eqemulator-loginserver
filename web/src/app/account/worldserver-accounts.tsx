@@ -133,7 +133,17 @@ function AccountCard({
   async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setBannerMsg("File too large (max 5MB)"); return; }
+    if (file.size > 5 * 1024 * 1024) {
+      setBannerMsg(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB — max 5MB)`);
+      e.target.value = "";
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      setBannerMsg(`Invalid file type: ${file.type || "unknown"}. Use JPEG, PNG, WebP, or GIF.`);
+      e.target.value = "";
+      return;
+    }
     setBannerUploading(true);
     setBannerMsg("");
     try {
@@ -143,16 +153,29 @@ function AccountCard({
         method: "POST",
         body: form,
       });
-      const data = await res.json();
       if (res.ok) {
+        const data = await res.json();
         setBannerUrl(`${data.bannerUrl}?t=${Date.now()}`);
         setBannerMsg("Banner uploaded.");
         setTimeout(() => { setBannerMsg(""); onRefresh(); }, 3000);
       } else {
-        setBannerMsg(data.error || "Upload failed");
+        let errorMsg = `Upload failed (${res.status})`;
+        try {
+          const data = await res.json();
+          if (data.error) errorMsg = data.error;
+        } catch {
+          if (res.status === 413) errorMsg = "File too large — server rejected the upload";
+          else if (res.status === 401) errorMsg = "Not authenticated — please log in again";
+          else if (res.status === 403) errorMsg = "Not authorized to upload for this server";
+        }
+        setBannerMsg(errorMsg);
       }
-    } catch { setBannerMsg("Error uploading banner"); }
-    finally { setBannerUploading(false); e.target.value = ""; }
+    } catch (err) {
+      setBannerMsg(`Upload error: ${err instanceof Error ? err.message : "network failure"}`);
+    } finally {
+      setBannerUploading(false);
+      e.target.value = "";
+    }
   }
 
   const configPassword = acct.password || "YOUR_PASSWORD";
@@ -301,7 +324,7 @@ function AccountCard({
                 <div className="relative rounded overflow-hidden border border-frost-400/10">
                   <img src={bannerUrl} alt="Server banner" className="w-full h-32 object-cover" />
                   <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                    <span className="text-[9px] text-parchment-500 bg-[#0a0e17]/70 rounded px-1.5 py-0.5">1200 × 400</span>
+                    <span className="text-[9px] text-parchment-500 bg-[#0a0e17]/70 rounded px-1.5 py-0.5">1200 &times; 400</span>
                     <label className="flex items-center gap-1.5 text-[10px] text-parchment-300 bg-[#0a0e17]/80 border border-frost-400/10 rounded px-2 py-1 cursor-pointer hover:bg-[#0a0e17] transition-colors">
                       <ImagePlus className="h-3 w-3" />
                       Replace
@@ -310,15 +333,19 @@ function AccountCard({
                   </div>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center h-24 rounded border border-dashed border-frost-400/15 bg-[#0a0e17]/40 cursor-pointer hover:border-frost-400/30 transition-colors">
+                <label className="flex flex-col items-center justify-center h-28 rounded border border-dashed border-frost-400/15 bg-[#0a0e17]/40 cursor-pointer hover:border-frost-400/30 transition-colors">
                   <ImagePlus className="h-5 w-5 text-parchment-600 mb-1" />
-                  <span className="text-[10px] text-parchment-600">Upload banner image</span>
-                  <span className="text-[9px] text-parchment-700">Recommended: 1200 × 400px &middot; Max 5MB &middot; JPG, PNG, WebP, or GIF</span>
+                  <span className="text-[10px] text-parchment-600">Click to upload banner image</span>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleBannerUpload} className="hidden" />
                 </label>
               )}
               {bannerUploading && <p className="text-xs text-parchment-500 mt-1">Uploading...</p>}
               {bannerMsg && <p className={`text-xs mt-1 ${bannerMsg === "Banner uploaded." ? "text-forest-400" : "text-burgundy-400"}`}>{bannerMsg}</p>}
+              <div className="mt-1.5 text-[10px] text-parchment-700 space-y-0.5">
+                <p><span className="text-parchment-600">Dimensions:</span> Images are auto-resized to 1200 &times; 400px (3:1 ratio)</p>
+                <p><span className="text-parchment-600">Max size:</span> 5 MB</p>
+                <p><span className="text-parchment-600">Formats:</span> JPEG, PNG, WebP, or GIF</p>
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -339,10 +366,11 @@ function AccountCard({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your server — rules, features, community. HTML is supported."
+                placeholder="Describe your server — rules, features, community..."
                 rows={5}
                 className="w-full rounded border border-frost-400/10 bg-[#151b2a]/80 px-3 py-2 text-xs text-parchment-200 placeholder-obsidian-500 focus:border-frost-400/30 focus:outline-none focus:ring-1 focus:ring-frost-400/15 transition-all duration-200 resize-y"
               />
+              <p className="text-[10px] text-parchment-700 mt-1">Basic HTML is allowed: <code className="text-parchment-600">&lt;b&gt;</code> <code className="text-parchment-600">&lt;i&gt;</code> <code className="text-parchment-600">&lt;a&gt;</code> <code className="text-parchment-600">&lt;br&gt;</code> <code className="text-parchment-600">&lt;ul&gt;</code> <code className="text-parchment-600">&lt;li&gt;</code> <code className="text-parchment-600">&lt;p&gt;</code></p>
             </div>
             <div className="flex items-center gap-3">
               <Button onClick={handleSaveProfile} disabled={profileSaving} size="sm">

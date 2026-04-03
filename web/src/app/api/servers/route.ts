@@ -141,9 +141,51 @@ export async function GET() {
       };
     });
 
+  // Include local DB servers that have profiles but aren't currently live
+  const offlineLocal = dbServers
+    .filter((d) => !d.federationSourceNodeId || d.federationSourceNodeId === 0)
+    .filter((d) => {
+      // Skip servers already in live results
+      const isLive = liveServers.some(
+        (l: any) => l.server_short_name === d.shortName || l.server_long_name === d.longName
+      );
+      return !isLive;
+    })
+    .filter((d) => {
+      // Only include servers that have a profile (claimed/configured)
+      const adminId = d.loginServerAdminId || 0;
+      return profiles.some((p) => p.worldServerId === d.id || (adminId > 0 && p.loginServerAdminId === adminId));
+    })
+    .map((d) => {
+      const adminId = d.loginServerAdminId || 0;
+      const profile = profiles.find(
+        (p) => p.worldServerId === d.id || (adminId > 0 && p.loginServerAdminId === adminId)
+      );
+      const manualTier = profile?.displayTier;
+      const effectiveTier = manualTier || "low";
+      const showPlayerCount = profile?.showPlayerCount ?? 1;
+      return {
+        server_long_name: d.longName,
+        server_short_name: d.shortName,
+        server_list_type_id: d.loginServerListTypeId,
+        server_status: 0,
+        zones_booted: 0,
+        players_online: showPlayerCount ? 0 : undefined,
+        world_id: 0,
+        db_id: d.id,
+        is_trusted: d.isServerTrusted ? true : false,
+        tag_description: d.tagDescription || null,
+        is_claimed: adminId > 0,
+        display_tier: effectiveTier,
+        tier_override: manualTier ? true : false,
+        show_player_count: !!showPlayerCount,
+        is_offline: true,
+      };
+    });
+
   // Deduplicate by short_name — live entries come first so they take priority
   const seen = new Set<string>();
-  const allServers = [...enriched, ...federatedServers].filter((s) => {
+  const allServers = [...enriched, ...federatedServers, ...offlineLocal].filter((s) => {
     const key = s.server_short_name?.toLowerCase();
     if (!key || seen.has(key)) return false;
     seen.add(key);

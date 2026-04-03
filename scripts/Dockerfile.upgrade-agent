@@ -1,4 +1,9 @@
 FROM node:20-alpine
 RUN apk add --no-cache docker-cli docker-cli-compose
-COPY upgrade-agent.js /agent/upgrade-agent.js
+COPY scripts/upgrade-agent.js /agent/upgrade-agent.js
+
+# Include config files so the agent can sync them to the host during upgrades
+COPY docker-compose.yml /config/docker-compose.yml
+COPY nginx/default.conf.template /config/nginx-default.conf.template
+
 ENTRYPOINT ["node", "/agent/upgrade-agent.js"]

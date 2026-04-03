@@ -65,19 +65,35 @@ export async function POST(
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Resize to banner dimensions, convert to webp for efficiency
-    const resized = await sharp(buffer)
-      .resize(BANNER_MAX_WIDTH, BANNER_MAX_HEIGHT, {
-        fit: "cover",
-        position: "center",
-      })
-      .webp({ quality: 85 })
-      .toBuffer();
+    let resized: Buffer;
+    try {
+      resized = await sharp(buffer)
+        .resize(BANNER_MAX_WIDTH, BANNER_MAX_HEIGHT, {
+          fit: "cover",
+          position: "center",
+        })
+        .webp({ quality: 85 })
+        .toBuffer();
+    } catch (err) {
+      console.error(`[banner] Image processing failed for admin ${adminId}:`, err);
+      return NextResponse.json({ error: "Failed to process image — file may be corrupted or unsupported" }, { status: 400 });
+    }
 
     // Save to disk
-    await mkdir(UPLOAD_DIR, { recursive: true });
+    try {
+      await mkdir(UPLOAD_DIR, { recursive: true });
+    } catch (err) {
+      console.error(`[banner] Failed to create upload dir ${UPLOAD_DIR}:`, err);
+      return NextResponse.json({ error: "Server storage error — unable to create upload directory" }, { status: 500 });
+    }
     const filename = `banner-${adminId}-${Date.now()}.webp`;
     const filepath = path.join(UPLOAD_DIR, filename);
-    await writeFile(filepath, resized);
+    try {
+      await writeFile(filepath, resized);
+    } catch (err) {
+      console.error(`[banner] Failed to write file ${filepath}:`, err);
+      return NextResponse.json({ error: "Server storage error — unable to save file" }, { status: 500 });
+    }
 
     const bannerUrl = `/uploads/banners/${filename}`;
 
@@ -123,7 +139,8 @@ export async function POST(
 
     return NextResponse.json({ bannerUrl });
   } catch (error) {
-    console.error("Banner upload error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[banner] Unexpected error:`, error);
+    return NextResponse.json({ error: `Upload failed: ${msg}` }, { status: 500 });
   }
 }
