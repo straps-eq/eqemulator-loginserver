@@ -8,8 +8,9 @@ import {
   worldServerAdminLinks,
   serverProfiles,
   loginServerAdmins,
+  platformOauthLinks,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 async function requireAdmin() {
   const session = await getSession();
@@ -87,6 +88,22 @@ export async function PUT(
           createdAt: new Date(),
         });
       }
+      return NextResponse.json({ success: true });
+    }
+
+    if (body.action === "delete_oauth_link") {
+      const linkId = body.linkId;
+      if (!linkId || typeof linkId !== "number") {
+        return NextResponse.json({ error: "Invalid link ID" }, { status: 400 });
+      }
+      await db
+        .delete(platformOauthLinks)
+        .where(
+          and(
+            eq(platformOauthLinks.id, linkId),
+            eq(platformOauthLinks.platformAccountId, accountId)
+          )
+        );
       return NextResponse.json({ success: true });
     }
 

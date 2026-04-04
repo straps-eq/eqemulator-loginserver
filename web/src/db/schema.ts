@@ -66,13 +66,29 @@ export const platformAccounts = mysqlTable("platform_accounts", {
   id: int("id").primaryKey().autoincrement(),
   username: varchar("username", { length: 50 }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   emailVerified: tinyint("email_verified").notNull().default(0),
   verificationToken: varchar("verification_token", { length: 128 }),
   verificationExpiresAt: datetime("verification_expires_at"),
   createdAt: datetime("created_at"),
   updatedAt: datetime("updated_at"),
 });
+
+export const platformOauthLinks = mysqlTable(
+  "platform_oauth_links",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    platformAccountId: int("platform_account_id").notNull(),
+    provider: mysqlEnum("provider", ["google", "discord"]).notNull(),
+    providerUserId: varchar("provider_user_id", { length: 255 }).notNull(),
+    providerEmail: varchar("provider_email", { length: 255 }),
+    createdAt: datetime("created_at"),
+  },
+  (table) => ({
+    providerUserIdx: uniqueIndex("uq_provider_user").on(table.provider, table.providerUserId),
+    platformIdx: index("idx_oauth_platform").on(table.platformAccountId),
+  })
+);
 
 export const accountLoginLinks = mysqlTable(
   "account_login_links",

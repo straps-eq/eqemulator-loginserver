@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
       `frame-src https://challenges.cloudflare.com`,
       `frame-ancestors 'none'`,
       `base-uri 'self'`,
-      `form-action 'self'`,
+      `form-action 'self' https://accounts.google.com https://discord.com`,
     ].join("; ");
     response.headers.set("Content-Security-Policy", csp);
   }

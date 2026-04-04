@@ -101,6 +101,9 @@ interface SyncDataResponse {
   servers: Array<Record<string, unknown>>;
   admins: Array<Record<string, unknown>>;
   profiles: Array<Record<string, unknown>>;
+  platform_accounts?: Array<Record<string, unknown>>;
+  oauth_links?: Array<Record<string, unknown>>;
+  login_links?: Array<Record<string, unknown>>;
   live_servers: Array<Record<string, unknown>>;
   timestamp: number;
 }
@@ -549,6 +552,79 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           }
         } catch (err) {
           console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
+        }
+      }
+    }
+
+    // Upsert platform_accounts (identity anchors)
+    if (data.platform_accounts && data.platform_accounts.length > 0) {
+      for (const pa of data.platform_accounts) {
+        try {
+          await conn.execute(
+            `INSERT INTO platform_accounts (id, username, email, email_verified, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               username = VALUES(username),
+               email = VALUES(email),
+               email_verified = VALUES(email_verified),
+               updated_at = VALUES(updated_at)`,
+            [
+              pa.id, pa.username, pa.email, pa.email_verified || 0,
+              toMySQLDatetime(pa.created_at),
+              toMySQLDatetime(pa.updated_at),
+            ] as (string | number)[]
+          );
+          const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+          if (r[0].c > 0) applied++;
+        } catch (err) {
+          console.error(`[sync_data] platform_accounts upsert error for id ${pa.id}:`, err);
+        }
+      }
+    }
+
+    // Upsert platform_oauth_links
+    if (data.oauth_links && data.oauth_links.length > 0) {
+      for (const ol of data.oauth_links) {
+        try {
+          await conn.execute(
+            `INSERT INTO platform_oauth_links (id, platform_account_id, provider, provider_user_id, provider_email, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               platform_account_id = VALUES(platform_account_id),
+               provider_email = VALUES(provider_email)`,
+            [
+              ol.id, ol.platform_account_id, ol.provider,
+              ol.provider_user_id, ol.provider_email || null,
+              toMySQLDatetime(ol.created_at),
+            ] as (string | number | null)[]
+          );
+          const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+          if (r[0].c > 0) applied++;
+        } catch (err) {
+          console.error(`[sync_data] oauth_links upsert error for id ${ol.id}:`, err);
+        }
+      }
+    }
+
+    // Upsert account_login_links
+    if (data.login_links && data.login_links.length > 0) {
+      for (const ll of data.login_links) {
+        try {
+          await conn.execute(
+            `INSERT INTO account_login_links (id, platform_account_id, login_account_id, linked_at)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               platform_account_id = VALUES(platform_account_id),
+               login_account_id = VALUES(login_account_id)`,
+            [
+              ll.id, ll.platform_account_id, ll.login_account_id,
+              toMySQLDatetime(ll.linked_at),
+            ] as (string | number)[]
+          );
+          const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+          if (r[0].c > 0) applied++;
+        } catch (err) {
+          console.error(`[sync_data] login_links upsert error for id ${ll.id}:`, err);
         }
       }
     }

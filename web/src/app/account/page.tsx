@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { User, Globe, Shield } from "lucide-react";
+import { User, Globe, Shield, Link2 } from "lucide-react";
 import { ChangePasswordButton } from "./change-password-form";
 import { AccountNav } from "./account-nav";
 import { WorldServerAccounts } from "./worldserver-accounts";
+import { ConnectedProviders } from "./connected-providers";
 
 export default async function AccountPage() {
   const session = await getSession();
@@ -46,6 +47,19 @@ export default async function AccountPage() {
                   </dl>
                   <ChangePasswordButton />
                 </div>
+              </div>
+            </section>
+
+            {/* Connected Providers */}
+            <section id="providers">
+              <div className="flex items-center gap-2 mb-4">
+                <Link2 className="h-4 w-4 text-frost-400/70" />
+                <h2 className="font-display text-sm font-semibold text-parchment-200 uppercase tracking-wider">
+                  Connected Accounts
+                </h2>
+              </div>
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 sm:p-6">
+                <ConnectedProviders />
               </div>
             </section>
 

@@ -284,7 +284,7 @@ async function handleSyncData(req: NextRequest) {
   const { getSelfNode } = await import("@/lib/federation/node");
   const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const { db } = await import("@/lib/db");
-  const { loginAccounts, loginWorldServers, loginServerAdmins } = await import("@/db/schema");
+  const { loginAccounts, loginWorldServers, loginServerAdmins, platformAccounts, platformOauthLinks, accountLoginLinks } = await import("@/db/schema");
 
   const self = await getSelfNode();
   if (!self) {
@@ -392,9 +392,43 @@ async function handleSyncData(req: NextRequest) {
     r.setTimeout(5000, () => { r.destroy(); resolve([]); });
   });
 
+  // Export platform accounts (identity anchors)
+  const platAccounts = await db
+    .select({
+      id: platformAccounts.id,
+      username: platformAccounts.username,
+      email: platformAccounts.email,
+      email_verified: platformAccounts.emailVerified,
+      created_at: platformAccounts.createdAt,
+      updated_at: platformAccounts.updatedAt,
+    })
+    .from(platformAccounts);
+
+  // Export OAuth links
+  const oauthLinks = await db
+    .select({
+      id: platformOauthLinks.id,
+      platform_account_id: platformOauthLinks.platformAccountId,
+      provider: platformOauthLinks.provider,
+      provider_user_id: platformOauthLinks.providerUserId,
+      provider_email: platformOauthLinks.providerEmail,
+      created_at: platformOauthLinks.createdAt,
+    })
+    .from(platformOauthLinks);
+
+  // Export account-login links
+  const loginLinks = await db
+    .select({
+      id: accountLoginLinks.id,
+      platform_account_id: accountLoginLinks.platformAccountId,
+      login_account_id: accountLoginLinks.loginAccountId,
+      linked_at: accountLoginLinks.linkedAt,
+    })
+    .from(accountLoginLinks);
+
   // Compute a content hash so receivers can skip processing when data is unchanged
   const crypto = await import("crypto");
-  const hashInput = JSON.stringify({ accounts, servers, admins, profiles });
+  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks });
   const dataHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 16);
 
   return NextResponse.json({
@@ -404,6 +438,9 @@ async function handleSyncData(req: NextRequest) {
     servers,
     admins,
     profiles,
+    platform_accounts: platAccounts,
+    oauth_links: oauthLinks,
+    login_links: loginLinks,
     live_servers: liveServers,
     timestamp: Date.now(),
   });

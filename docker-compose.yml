@@ -89,6 +89,11 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - REDIS_URL=redis://redis:6379
       - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
+      - NEXT_PUBLIC_BASE_URL=https://${DOMAIN}
     volumes:
       - ./uploads:/app/public/uploads
     networks:

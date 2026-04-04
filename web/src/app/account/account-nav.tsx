@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Globe, Shield } from "lucide-react";
+import { User, Link2, Globe, Shield } from "lucide-react";
 
 const sections = [
   { id: "platform", label: "Platform Account", icon: User },
+  { id: "providers", label: "Connected Accounts", icon: Link2 },
   { id: "worldserver", label: "World Server Accounts", icon: Globe },
   { id: "client-setup", label: "EQ Client Setup", icon: Shield },
 ];

@@ -8,6 +8,7 @@ import {
   worldServerAdminLinks,
   loginWorldServers,
   loginServerAdmins,
+  platformOauthLinks,
 } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -101,11 +102,34 @@ export async function GET() {
       })
       .from(loginWorldServers);
 
+    // Get OAuth links
+    const oauthLinks = await db
+      .select({
+        id: platformOauthLinks.id,
+        platformAccountId: platformOauthLinks.platformAccountId,
+        provider: platformOauthLinks.provider,
+        providerEmail: platformOauthLinks.providerEmail,
+        createdAt: platformOauthLinks.createdAt,
+      })
+      .from(platformOauthLinks);
+    const oauthMap = new Map<number, typeof oauthLinks>();
+    for (const link of oauthLinks) {
+      const arr = oauthMap.get(link.platformAccountId) || [];
+      arr.push(link);
+      oauthMap.set(link.platformAccountId, arr);
+    }
+
     // Enrich accounts
     const enriched = accounts.map((acct) => ({
       ...acct,
       role: adminMap.get(acct.id) || null,
       linkedLoginAccounts: loginLinkMap.get(acct.id)?.length || 0,
+      oauthLinks: (oauthMap.get(acct.id) || []).map((l) => ({
+        id: l.id,
+        provider: l.provider,
+        providerEmail: l.providerEmail,
+        createdAt: l.createdAt,
+      })),
       worldServerAdmins: (wsLinkMap.get(acct.id) || []).map((adminId) => ({
         adminId,
         accountName: wsAdminMap.get(adminId) || "unknown",

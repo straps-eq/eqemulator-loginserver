@@ -17,12 +17,21 @@ import {
   CheckCircle2,
   XCircle,
   Globe,
+  Link2,
+  Unlink,
 } from "lucide-react";
 
 interface WorldServerAdmin {
   adminId: number;
   accountName: string;
   servers: { id: number; longName: string; shortName: string }[];
+}
+
+interface OAuthLink {
+  id: number;
+  provider: string;
+  providerEmail: string | null;
+  createdAt: string | null;
 }
 
 interface Account {
@@ -33,6 +42,7 @@ interface Account {
   createdAt: string | null;
   role: string | null;
   linkedLoginAccounts: number;
+  oauthLinks: OAuthLink[];
   worldServerAdmins: WorldServerAdmin[];
 }
 
@@ -478,6 +488,55 @@ function AccountRow({
               </button>
             ))}
           </div>
+
+          {/* OAuth Providers */}
+          {account.oauthLinks.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
+                Connected OAuth Providers
+              </span>
+              {account.oauthLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between rounded border border-frost-400/8 bg-[#080b12]/50 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-3 w-3 text-frost-400/50" />
+                    <span className="text-xs text-parchment-300 font-medium capitalize">
+                      {link.provider}
+                    </span>
+                    {link.providerEmail && (
+                      <span className="text-[10px] text-parchment-600">
+                        ({link.providerEmail})
+                      </span>
+                    )}
+                    <span className="text-[10px] text-parchment-700">
+                      {link.createdAt
+                        ? new Date(link.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : ""}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onAction(account.id, "PUT", {
+                        action: "delete_oauth_link",
+                        linkId: link.id,
+                      })
+                    }
+                    disabled={actionLoading === `${account.id}-delete_oauth_link`}
+                    className="p-1 rounded text-parchment-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    title={`Unlink ${link.provider}`}
+                  >
+                    <Unlink className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* World Server Admins */}
           {account.worldServerAdmins.length > 0 && (

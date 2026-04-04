@@ -49,6 +49,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
+    if (!accounts[0].passwordHash) {
+      return NextResponse.json(
+        { error: "This account uses OAuth sign-in and has no password to change" },
+        { status: 400 }
+      );
+    }
+
     if (!verifyPassword(currentPassword, accounts[0].passwordHash)) {
       return NextResponse.json(
         { error: "Current password is incorrect" },

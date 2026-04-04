@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
 
     const account = accounts[0];
 
+    if (!account.passwordHash) {
+      return NextResponse.json(
+        { error: "This account uses Google or Discord sign-in. Please use the OAuth buttons above." },
+        { status: 400 }
+      );
+    }
+
     if (!verifyPassword(password, account.passwordHash)) {
       return NextResponse.json(
         { error: "Invalid username or password" },
