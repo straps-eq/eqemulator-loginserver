@@ -3,7 +3,8 @@ import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { loginAccounts, accountLoginLinks } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { verifyScryptHash } from "@/lib/scrypt-verify";
+import { verifyScryptHash, createScryptHash } from "@/lib/scrypt-verify";
+import { validateCredentials, validateExternalCredentials } from "@/lib/loginserver-api";
 import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const rl = await rateLimit(`link:${ip}`, 5, 15 * 60 * 1000);
+    const rl = await rateLimit(`link:${ip}`, 15, 15 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(
         { error: "Too many attempts. Try again later." },
@@ -31,31 +32,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the loginserver account
-    const lsAccounts = await db
+    // Find the loginserver account locally first
+    let lsAccounts = await db
       .select()
       .from(loginAccounts)
       .where(eq(loginAccounts.accountName, username));
 
-    if (lsAccounts.length === 0) {
-      return NextResponse.json(
-        { error: "Loginserver account not found" },
-        { status: 404 }
-      );
+    let matched = null;
+
+    if (lsAccounts.length > 0) {
+      // Verify password against stored hash
+      for (const acct of lsAccounts) {
+        if (await verifyScryptHash(password, acct.accountPassword)) {
+          matched = acct;
+          break;
+        }
+      }
     }
 
-    // Verify password against stored hash
-    let matched = null;
-    for (const acct of lsAccounts) {
-      if (await verifyScryptHash(password, acct.accountPassword)) {
-        matched = acct;
-        break;
+    // If not found locally, try the loginserver API (checks source_loginserver='local')
+    if (!matched) {
+      const localResult = await validateCredentials(username, password);
+      if (localResult.ok && localResult.data?.data?.account_id) {
+        lsAccounts = await db
+          .select()
+          .from(loginAccounts)
+          .where(eq(loginAccounts.accountName, username));
+
+        if (lsAccounts.length > 0) {
+          matched = lsAccounts[0];
+        }
+      }
+    }
+
+    // If still not found, try external/LSPX upstream (login.eqemulator.net)
+    // This simulates what the EQ client does — authenticates via the upstream
+    // loginserver over TCP. If valid, we cache the account locally.
+    if (!matched) {
+      const extResult = await validateExternalCredentials(username, password);
+      if (extResult.ok && extResult.data?.data?.account_id) {
+        const upstreamId = extResult.data.data.account_id;
+
+        // Cache the account locally with a scrypt hash of the password
+        const hash = await createScryptHash(password);
+        try {
+          await db.insert(loginAccounts).values({
+            id: upstreamId,
+            accountName: username,
+            accountPassword: hash,
+            accountEmail: "",
+            sourceLoginserver: "eqemu",
+            lastIpAddress: "",
+            lastLoginDate: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        } catch (insertErr: unknown) {
+          // ID conflict — account may already exist with different name or was just synced
+          const msg = insertErr instanceof Error ? insertErr.message : "";
+          if (!msg.includes("Duplicate")) throw insertErr;
+        }
+
+        const cached = await db
+          .select()
+          .from(loginAccounts)
+          .where(eq(loginAccounts.id, upstreamId))
+          .limit(1);
+
+        if (cached.length > 0) {
+          matched = cached[0];
+        }
       }
     }
 
     if (!matched) {
       return NextResponse.json(
-        { error: "Invalid password for that loginserver account" },
+        { error: "Invalid username or password" },
         { status: 401 }
       );
     }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Link2, Plus, Server } from "lucide-react";
+import { Link2, Server } from "lucide-react";
 
 interface LoginServerAccount {
   id: number;
@@ -18,13 +18,12 @@ interface LoginServerAccount {
 export function LoginServerAccounts() {
   const [accounts, setAccounts] = useState<LoginServerAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<"idle" | "create" | "link">("idle");
+  const [mode, setMode] = useState<"idle" | "link">("idle");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
 
   async function fetchAccounts() {
     try {
@@ -46,9 +45,7 @@ export function LoginServerAccounts() {
     setSuccess("");
     setSubmitting(true);
 
-    const endpoint = mode === "create"
-      ? "/api/account/create-loginserver"
-      : "/api/account/link-loginserver";
+    const endpoint = "/api/account/link-loginserver";
 
     try {
       const res = await fetch(endpoint, {
@@ -64,9 +61,7 @@ export function LoginServerAccounts() {
         return;
       }
 
-      const msg = mode === "create"
-        ? `Loginserver account "${data.loginAccountName}" created and linked.`
-        : `Loginserver account "${data.loginAccountName}" linked.${data.converted ? " LSPX account converted to local." : ""}`;
+      const msg = `Loginserver account "${data.loginAccountName}" claimed and linked.${data.converted ? " LSPX account converted to local." : ""}`;
 
       setSuccess(msg);
       setUsername("");
@@ -133,33 +128,23 @@ export function LoginServerAccounts() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => { setMode("create"); setError(""); setSuccess(""); setConfirmed(false); }}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Create New
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
             onClick={() => { setMode("link"); setError(""); setSuccess(""); }}
           >
             <Link2 className="h-3.5 w-3.5 mr-1.5" />
-            Link Existing
+            Claim Existing Account
           </Button>
         </div>
       )}
 
-      {/* Create / Link form */}
+      {/* Claim form */}
       {mode !== "idle" && (
-        <div className="space-y-4 mt-4">
+        <form className="space-y-4 mt-4" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <div className="rounded bg-frost-400/[0.03] border border-frost-400/8 p-4">
             <h4 className="font-display text-xs font-semibold text-parchment-300 uppercase tracking-wider mb-3">
-              {mode === "create" ? "Create New Loginserver Account" : "Link Existing Loginserver Account"}
+              Claim Existing Loginserver Account
             </h4>
             <p className="text-[11px] text-parchment-500 mb-4">
-              {mode === "create"
-                ? "Create a brand new game login. If you already have an account on eqemulator.net, use 'Link Existing' instead — creating a new account with the same name will cause conflicts."
-                : "Enter the username and password of your existing loginserver account (e.g. eqemulator.net credentials). LSPX accounts will be converted to local."}
+              Enter the username and password of your existing loginserver account (e.g. eqemulator.net credentials) to link it to your platform account.
             </p>
             <div className="space-y-3">
               <div>
@@ -168,56 +153,42 @@ export function LoginServerAccounts() {
                 </label>
                 <Input
                   type="text"
+                  name="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={mode === "create" ? "Choose a game username" : "Your existing username"}
-                  autoComplete="off"
+                  placeholder="Your existing username"
+                  autoComplete="username"
                 />
               </div>
               <div>
                 <label className="block text-xs font-display font-medium text-parchment-400 uppercase tracking-wider mb-1.5">
-                  {mode === "create" ? "Loginserver Password" : "Current Password"}
+                  Current Password
                 </label>
                 <Input
                   type="password"
+                  name="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "create" ? "Choose a game password" : "Your existing password"}
-                  autoComplete="off"
+                  placeholder="Your existing password"
+                  autoComplete="current-password"
                 />
               </div>
             </div>
           </div>
-          {mode === "create" && (
-            <label className="flex items-start gap-2.5 rounded bg-gold-400/[0.04] border border-gold-400/15 p-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
-                className="mt-0.5 accent-gold-400"
-              />
-              <span className="text-[11px] text-parchment-400 leading-relaxed">
-                I confirm this is a <strong className="text-parchment-200">new username</strong> that does not exist on eqemulator.net. I understand that creating a duplicate will cause login conflicts.
-              </span>
-            </label>
-          )}
           <div className="flex gap-3">
-            <Button size="sm" disabled={submitting || (mode === "create" && !confirmed)} onClick={handleSubmit}>
-              {submitting
-                ? "Working..."
-                : mode === "create"
-                  ? "Create & Link"
-                  : "Verify & Link"}
+            <Button type="submit" size="sm" disabled={submitting}>
+              {submitting ? "Verifying..." : "Verify & Claim"}
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
-              onClick={() => { setMode("idle"); setUsername(""); setPassword(""); setError(""); setConfirmed(false); }}
+              onClick={() => { setMode("idle"); setUsername(""); setPassword(""); setError(""); }}
             >
               Cancel
             </Button>
           </div>
-        </div>
+        </form>
       )}
     </div>
   );

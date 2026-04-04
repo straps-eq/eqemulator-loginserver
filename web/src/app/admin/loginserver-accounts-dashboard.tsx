@@ -11,6 +11,7 @@ import {
   Link2,
   Unlink,
   Lock,
+  Upload,
 } from "lucide-react";
 
 interface LinkedPlatform {
@@ -45,6 +46,8 @@ export function LoginserverAccountsDashboard() {
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [page, setPage] = useState(0);
+  const pageSize = 250;
 
   const fetchData = async () => {
     try {
@@ -99,6 +102,10 @@ export function LoginserverAccountsDashboard() {
     return matchesSearch && matchesSource;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const paginated = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -140,7 +147,7 @@ export function LoginserverAccountsDashboard() {
             type="text"
             placeholder="Search by name, email, or ID..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 py-2 pl-10 pr-3 text-sm text-parchment-300 placeholder:text-parchment-700 focus:border-frost-400/30 focus:outline-none"
           />
         </div>
@@ -148,7 +155,7 @@ export function LoginserverAccountsDashboard() {
           {(["all", "eqemu", "local"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setSourceFilter(f)}
+              onClick={() => { setSourceFilter(f); setPage(0); }}
               className={`rounded-md px-3 py-2 text-xs font-display uppercase tracking-wider transition-colors ${
                 sourceFilter === f
                   ? "bg-frost-400/15 text-frost-300 border border-frost-400/30"
@@ -170,7 +177,7 @@ export function LoginserverAccountsDashboard() {
 
       {/* Count */}
       <p className="text-xs text-parchment-600">
-        Showing {filtered.length} of {accounts.length} accounts
+        Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length} accounts{filtered.length !== accounts.length ? ` (${accounts.length} total)` : ""}
       </p>
 
       {/* Table */}
@@ -188,7 +195,7 @@ export function LoginserverAccountsDashboard() {
             </tr>
           </thead>
           <tbody className="divide-y divide-frost-400/5">
-            {filtered.map((acct) => (
+            {paginated.map((acct) => (
               <tr key={acct.id} className="hover:bg-obsidian-800/50 transition-colors">
                 <td className="px-3 py-2 text-parchment-500 font-mono text-xs">{acct.id}</td>
                 <td className="px-3 py-2">
@@ -293,6 +300,123 @@ export function LoginserverAccountsDashboard() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setPage(Math.max(0, safePage - 1))}
+            disabled={safePage === 0}
+            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-500 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Previous
+          </button>
+          <span className="text-xs text-parchment-600">
+            Page {safePage + 1} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+            disabled={safePage >= totalPages - 1}
+            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-500 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      )}
+
+      {/* Import section */}
+      <ImportAccounts onImported={fetchData} />
+    </div>
+  );
+}
+
+function ImportAccounts({ onImported }: { onImported: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const handleImport = async () => {
+    setImporting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/import-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setResult({
+          type: "success",
+          text: `Imported ${json.imported}, skipped ${json.skipped} (of ${json.total} unique rows)${json.parseErrors ? ` — ${json.parseErrors.length} parse errors` : ""}`,
+        });
+        setData("");
+        onImported();
+      } else {
+        setResult({ type: "error", text: json.error || "Import failed" });
+      }
+    } catch {
+      setResult({ type: "error", text: "Request failed" });
+    }
+    setImporting(false);
+  };
+
+  return (
+    <div className="rounded-lg border border-frost-400/8 bg-obsidian-900/50 p-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-xs font-display uppercase tracking-wider text-parchment-400 hover:text-parchment-200 transition-colors w-full"
+      >
+        <Upload className="h-3.5 w-3.5" />
+        Import Account Names
+        <span className="ml-auto text-parchment-700">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          <p className="text-[11px] text-parchment-500 leading-relaxed">
+            Paste the output of this query from a world server database:
+          </p>
+          <pre className="rounded bg-obsidian-900 border border-frost-400/8 px-3 py-2 text-[11px] text-frost-300 font-mono overflow-x-auto">
+{`SELECT DISTINCT lsaccount_id, name
+FROM account
+WHERE ls_id = 'eqemu' AND lsaccount_id > 0
+ORDER BY name;`}
+          </pre>
+          <p className="text-[11px] text-parchment-600">
+            Format: TSV or CSV with columns <code className="text-frost-300">lsaccount_id, name</code>. Existing accounts are skipped.
+          </p>
+          <textarea
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            placeholder={"lsaccount_id\tname\n312782\tenine\n160814\tmoguay3"}
+            rows={8}
+            className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 px-3 py-2 text-xs text-parchment-300 font-mono placeholder:text-parchment-700 focus:border-frost-400/30 focus:outline-none resize-y"
+          />
+          {result && (
+            <div
+              className={`rounded-md px-3 py-2 text-xs ${
+                result.type === "success"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  : "bg-red-500/10 text-red-400 border border-red-500/20"
+              }`}
+            >
+              {result.text}
+            </div>
+          )}
+          <button
+            onClick={handleImport}
+            disabled={importing || !data.trim()}
+            className="rounded-md bg-frost-400/15 px-4 py-2 text-xs font-display uppercase tracking-wider text-frost-300 hover:bg-frost-400/25 disabled:opacity-50 transition-colors"
+          >
+            {importing ? "Importing..." : "Import"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

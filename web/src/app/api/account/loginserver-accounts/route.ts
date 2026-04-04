@@ -45,6 +45,8 @@ export async function GET() {
       }
     }
 
+    accounts.sort((a, b) => a.accountName.localeCompare(b.accountName, undefined, { sensitivity: "base" }));
+
     return NextResponse.json(accounts);
   } catch (error) {
     console.error("List loginserver accounts error:", error);

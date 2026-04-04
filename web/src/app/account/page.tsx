@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { User, Globe, Shield, Link2 } from "lucide-react";
+import { User, Globe, Shield, Link2, Server } from "lucide-react";
 import { ChangePasswordButton } from "./change-password-form";
 import { AccountNav } from "./account-nav";
 import { WorldServerAccounts } from "./worldserver-accounts";
 import { ConnectedProviders } from "./connected-providers";
+import { LoginServerAccounts } from "./loginserver-accounts";
 
 export default async function AccountPage() {
   const session = await getSession();
@@ -60,6 +61,19 @@ export default async function AccountPage() {
               </div>
               <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 sm:p-6">
                 <ConnectedProviders />
+              </div>
+            </section>
+
+            {/* Login Server Accounts */}
+            <section id="loginserver">
+              <div className="flex items-center gap-2 mb-4">
+                <Server className="h-4 w-4 text-frost-400/70" />
+                <h2 className="font-display text-sm font-semibold text-parchment-200 uppercase tracking-wider">
+                  Login Server Accounts
+                </h2>
+              </div>
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 sm:p-6">
+                <LoginServerAccounts />
               </div>
             </section>
 

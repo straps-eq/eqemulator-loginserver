@@ -88,6 +88,14 @@ export async function validateCredentials(username: string, password: string) {
   );
 }
 
+export async function validateExternalCredentials(username: string, password: string) {
+  return apiRequest<ValidateResult>(
+    "POST",
+    "/v1/account/credentials/validate/external",
+    { username, password }
+  );
+}
+
 export async function updatePassword(username: string, newPassword: string) {
   return apiRequest("POST", "/v1/account/credentials/update/local", {
     username,
