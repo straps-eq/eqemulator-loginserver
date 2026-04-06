@@ -105,6 +105,7 @@ interface SyncDataResponse {
   oauth_links?: Array<Record<string, unknown>>;
   login_links?: Array<Record<string, unknown>>;
   platform_admins?: Array<Record<string, unknown>>;
+  ws_admin_links?: Array<Record<string, unknown>>;
   live_servers: Array<Record<string, unknown>>;
   timestamp: number;
 }
@@ -820,6 +821,29 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           if (r[0].c > 0) applied++;
         } catch (err) {
           console.error(`[sync_data] platform_admins upsert error for id ${pa.id}:`, err);
+        }
+      }
+    }
+
+    // Upsert world_server_admin_links
+    if (!isMasterNode && data.ws_admin_links && data.ws_admin_links.length > 0) {
+      for (const wl of data.ws_admin_links) {
+        try {
+          await conn.execute(
+            `INSERT INTO world_server_admin_links (id, platform_account_id, login_server_admin_id, linked_at)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               platform_account_id = VALUES(platform_account_id),
+               login_server_admin_id = VALUES(login_server_admin_id)`,
+            [
+              wl.id, wl.platform_account_id, wl.login_server_admin_id,
+              toMySQLDatetime(wl.linked_at),
+            ] as (string | number | null)[]
+          );
+          const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+          if (r[0].c > 0) applied++;
+        } catch (err) {
+          console.error(`[sync_data] ws_admin_links upsert error for id ${wl.id}:`, err);
         }
       }
     }

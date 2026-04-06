@@ -284,7 +284,7 @@ async function handleSyncData(req: NextRequest) {
   const { getSelfNode } = await import("@/lib/federation/node");
   const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const { db } = await import("@/lib/db");
-  const { loginAccounts, loginWorldServers, loginServerAdmins, platformAccounts, platformOauthLinks, accountLoginLinks, platformAdmins } = await import("@/db/schema");
+  const { loginAccounts, loginWorldServers, loginServerAdmins, platformAccounts, platformOauthLinks, accountLoginLinks, platformAdmins, worldServerAdminLinks } = await import("@/db/schema");
 
   const self = await getSelfNode();
   if (!self) {
@@ -426,6 +426,16 @@ async function handleSyncData(req: NextRequest) {
     })
     .from(accountLoginLinks);
 
+  // Export world server admin links
+  const wsAdminLinks = await db
+    .select({
+      id: worldServerAdminLinks.id,
+      platform_account_id: worldServerAdminLinks.platformAccountId,
+      login_server_admin_id: worldServerAdminLinks.loginServerAdminId,
+      linked_at: worldServerAdminLinks.linkedAt,
+    })
+    .from(worldServerAdminLinks);
+
   // Export platform admins
   const platAdmins = await db
     .select({
@@ -438,7 +448,7 @@ async function handleSyncData(req: NextRequest) {
 
   // Compute a content hash so receivers can skip processing when data is unchanged
   const crypto = await import("crypto");
-  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks, platAdmins });
+  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks, wsAdminLinks, platAdmins });
   const dataHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 16);
 
   return NextResponse.json({
@@ -451,6 +461,7 @@ async function handleSyncData(req: NextRequest) {
     platform_accounts: platAccounts,
     oauth_links: oauthLinks,
     login_links: loginLinks,
+    ws_admin_links: wsAdminLinks,
     platform_admins: platAdmins,
     live_servers: liveServers,
     timestamp: Date.now(),
