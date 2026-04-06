@@ -160,7 +160,9 @@ export async function POST(request: NextRequest) {
         if (!node) {
           return NextResponse.json({ error: "Node not found" }, { status: 404 });
         }
+        console.log(`[remote_upgrade] Triggering upgrade on node ${nodeId} (${node.endpointUrl})`);
         const result = await federationPost(node.endpointUrl, "/api/federation/remote_upgrade", {}, node.tlsCertHash);
+        console.log(`[remote_upgrade] Result: ok=${result.ok} status=${result.status} data=${JSON.stringify(result.data)} error=${result.error}`);
         return NextResponse.json(result.ok ? result.data : { error: result.error }, { status: result.ok ? 200 : (result.status || 502) });
       } catch (err) {
         return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
@@ -179,6 +181,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Node not found" }, { status: 404 });
         }
         const result = await federationGet(node.endpointUrl, "/api/federation/remote_upgrade_status", node.tlsCertHash);
+        console.log(`[remote_upgrade_status] Node ${nodeId}: ok=${result.ok} data=${JSON.stringify(result.data)} error=${result.error}`);
         return NextResponse.json(result.ok ? result.data : { error: result.error });
       } catch (err) {
         return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });

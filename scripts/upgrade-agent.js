@@ -313,10 +313,19 @@ function doImageUpgrade(res) {
       const backupSize = fs.statSync(backupFile).size;
       log(`  ✓ Backup saved (${backupSize} bytes)`);
 
-      // Step 2: Pull web image only
+      // Step 2: Pull web image (always pull :latest, re-tag if compose uses a pinned version)
       upgradeState.step = "pull";
       log("Step 2/4: Pulling web image");
-      compose("pull web");
+      const latestImage = "ghcr.io/straps-eq/eqemu-web:latest";
+      run(`docker pull ${latestImage}`);
+      // Detect what image tag the compose file uses for 'web'
+      try {
+        const composeImage = run(`docker compose config --format json 2>/dev/null | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');const c=JSON.parse(d);const w=c.services&&c.services.web;if(w&&w.image)console.log(w.image);"`).trim();
+        if (composeImage && composeImage !== latestImage) {
+          run(`docker tag ${latestImage} ${composeImage}`);
+          log(`  ✓ Re-tagged ${latestImage} -> ${composeImage}`);
+        }
+      } catch (e) { log(`  ⚠ Could not detect compose image tag: ${e.message}`); }
       log("  ✓ Web image pulled");
 
       // Step 3: Run migrations
@@ -353,6 +362,14 @@ function doImageUpgrade(res) {
 
       log("Image-only upgrade complete");
       upgradeState = { running: false, step: "done", error: "", result: { backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount } };
+
+      // Self-update: pull new agent image and recreate (restart: always brings it back)
+      try {
+        run("docker pull ghcr.io/straps-eq/eqemu-upgrade-agent:latest 2>&1");
+        log("  ✓ Upgrade-agent image pulled, self-updating...");
+        // This will kill us, but restart policy brings back the new version
+        run("docker compose up -d --no-deps --force-recreate upgrade-agent 2>&1 &");
+      } catch (e) { log(`  ⚠ Agent self-update skipped: ${e.message}`); }
     } catch (err) {
       log(`Image upgrade failed: ${err.message}`);
       upgradeState = { running: false, step: "failed", error: err.message, result: null };
