@@ -503,6 +503,34 @@ export function SystemDashboard() {
                         <span>{remoteUpgradeProgress || 'Upgrading...'}</span>
                       </div>
                     ) : (
+                      <>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Restart loginserver on ${node.name}?\n\nThis will restart the loginserver container, dropping all connected world servers temporarily.`)) return;
+                          setActionResult(null);
+                          try {
+                            const r = await fetch('/api/admin/system', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'remote_restart', node_id: node.id, service: 'loginserver' }),
+                            });
+                            const s = await r.json();
+                            if (r.ok) {
+                              setActionResult({ text: `${node.name} loginserver restarted`, type: 'success' });
+                            } else {
+                              setActionResult({ text: `${node.name}: ${s.error || 'restart failed'}`, type: 'error' });
+                            }
+                          } catch {
+                            setActionResult({ text: `Failed to reach ${node.name}`, type: 'error' });
+                          }
+                        }}
+                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
+                        className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`Restart loginserver on ${node.name}`}
+                      >
+                        <Power className="h-3 w-3" />
+                        Restart LS
+                      </button>
                       <button
                         onClick={async () => {
                           if (!confirm(`Trigger image upgrade on ${node.name}?\n\nThis will: backup DB, pull web image, run migrations, restart web.\nIt will NOT touch their docker-compose.yml or .env.`)) return;
@@ -563,6 +591,7 @@ export function SystemDashboard() {
                         <Download className="h-3 w-3" />
                         Upgrade
                       </button>
+                      </>
                     )}
                   </div>
                 </div>

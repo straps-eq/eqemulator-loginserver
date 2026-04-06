@@ -662,6 +662,40 @@ async function handleSync(req: NextRequest) {
   return NextResponse.json(result);
 }
 
+// ── Remote Restart (master restarts a service on this node) ──
+async function handleRemoteRestart(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  if (!auth.node.isMaster) {
+    return NextResponse.json({ error: "Only master nodes can trigger remote restarts" }, { status: 403 });
+  }
+
+  const body = bodyText ? JSON.parse(bodyText) : {};
+  const service = body.service || "loginserver";
+  const allowed = ["loginserver", "web", "nginx"];
+  if (!allowed.includes(service)) {
+    return NextResponse.json({ error: `Service must be one of: ${allowed.join(", ")}` }, { status: 400 });
+  }
+
+  console.log(`[federation] remote_restart ${service} from ${auth.node.name}`);
+
+  const token = process.env.UPGRADE_AGENT_TOKEN || "";
+  try {
+    const agentRes = await fetch(`http://upgrade-agent:9090/restart/${service}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await agentRes.json();
+    return NextResponse.json(result, { status: agentRes.status });
+  } catch (err) {
+    return NextResponse.json({ error: "Upgrade agent not reachable" }, { status: 502 });
+  }
+}
+
 // ── Route dispatcher ──
 
 export async function GET(req: NextRequest, ctx: RouteContext) {
@@ -705,6 +739,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handleNotifySync(req);
       case "remote_upgrade":
         return await handleRemoteUpgrade(req);
+      case "remote_restart":
+        return await handleRemoteRestart(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

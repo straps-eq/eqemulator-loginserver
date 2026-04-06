@@ -168,6 +168,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
       }
     }
+    case "remote_restart": {
+      const nodeId = body.node_id;
+      const service = body.service || "loginserver";
+      if (!nodeId) {
+        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+      }
+      try {
+        const { federationPost } = await import("@/lib/federation/client");
+        const { federationNodes } = await import("@/db/schema");
+        const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
+        if (!node) {
+          return NextResponse.json({ error: "Node not found" }, { status: 404 });
+        }
+        console.log(`[remote_restart] Restarting ${service} on node ${nodeId} (${node.endpointUrl})`);
+        const result = await federationPost(node.endpointUrl, "/api/federation/remote_restart", { service }, node.tlsCertHash);
+        console.log(`[remote_restart] Result: ok=${result.ok} status=${result.status} data=${JSON.stringify(result.data)} error=${result.error}`);
+        return NextResponse.json(result.ok ? result.data : { error: result.error }, { status: result.ok ? 200 : (result.status || 502) });
+      } catch (err) {
+        return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
+      }
+    }
     case "remote_upgrade_status": {
       const nodeId = body.node_id;
       if (!nodeId) {
