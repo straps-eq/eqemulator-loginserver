@@ -282,6 +282,84 @@ function getUpgradeStatus(res) {
   jsonResponse(res, 200, upgradeState);
 }
 
+// Image-only upgrade: pull + migrate + restart web — NO config sync.
+// Safe for peer nodes with custom docker-compose.yml and .env files.
+function doImageUpgrade(res) {
+  if (upgradeState.running) {
+    jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
+    return;
+  }
+
+  upgradeState = { running: true, step: "starting", error: "", result: null };
+  jsonResponse(res, 202, { ok: true, started: true });
+
+  setImmediate(() => {
+    try {
+      log("POST /image_upgrade — image-only upgrade (no config sync)");
+
+      // Step 1: Backup
+      upgradeState.step = "backup";
+      log("Step 1/4: Backing up database");
+      try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
+      const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
+      const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
+      try {
+        execSync(`docker exec eqemu-mariadb mysqldump -u root -p"${DB_ROOT_PASSWORD}" eqemu_login > "${backupFile}"`, { shell: true, timeout: 60000 });
+      } catch (err) {
+        try { fs.unlinkSync(backupFile); } catch {}
+        upgradeState = { running: false, step: "failed", error: "backup failed", result: null };
+        return;
+      }
+      const backupSize = fs.statSync(backupFile).size;
+      log(`  ✓ Backup saved (${backupSize} bytes)`);
+
+      // Step 2: Pull web image only
+      upgradeState.step = "pull";
+      log("Step 2/4: Pulling web image");
+      compose("pull web");
+      log("  ✓ Web image pulled");
+
+      // Step 3: Run migrations
+      upgradeState.step = "migrate";
+      log("Step 3/4: Running migrations");
+      let migCount = 0;
+      try {
+        const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
+        if (tempContainer && tempContainer.length > 10) {
+          try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
+          run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
+          run(`docker rm ${tempContainer} 2>/dev/null`);
+        }
+        const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
+        for (const fname of files) {
+          run(`docker exec -i eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" eqemu_login < "${path.join(MIGRATIONS_DIR, fname)}" 2>&1`);
+          migCount++;
+        }
+      } catch {}
+      log(`  ✓ ${migCount} migrations applied`);
+
+      // Step 4: Restart web only (preserves their docker-compose, env, other services)
+      upgradeState.step = "restart";
+      log("Step 4/4: Restarting web");
+      compose("up -d --no-deps --force-recreate web");
+      run("docker restart eqemu-nginx 2>&1");
+      log("  ✓ Web restarted");
+
+      // Prune old backups
+      try {
+        const files = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith("pre-upgrade-")).sort().reverse();
+        files.slice(5).forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+      } catch {}
+
+      log("Image-only upgrade complete");
+      upgradeState = { running: false, step: "done", error: "", result: { backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount } };
+    } catch (err) {
+      log(`Image upgrade failed: ${err.message}`);
+      upgradeState = { running: false, step: "failed", error: err.message, result: null };
+    }
+  });
+}
+
 // ── LSPX Watchdog ──
 // Monitors loginserver logs for stale LSPX proxy connections.
 // If all recent LSPX attempts failed (≥3 attempts, 0 successes in last window),
@@ -360,6 +438,7 @@ const server = http.createServer((req, res) => {
   if (method === "POST" && url === "/pull") return doPull(res);
   if (method === "POST" && url === "/migrate") return doMigrate(res);
   if (method === "POST" && url === "/upgrade") return doUpgrade(res);
+  if (method === "POST" && url === "/image_upgrade") return doImageUpgrade(res);
   if (method === "POST" && url.startsWith("/restart/")) {
     const svc = url.replace("/restart/", "");
     return doRestart(res, svc);

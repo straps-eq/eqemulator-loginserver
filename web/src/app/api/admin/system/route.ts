@@ -127,6 +127,43 @@ export async function POST(request: NextRequest) {
       const result = await proxyToAgent(`/restart/${service}`, "POST");
       return NextResponse.json(result);
     }
+    case "remote_upgrade": {
+      // Trigger image-only upgrade on a peer federation node
+      const nodeId = body.node_id;
+      if (!nodeId) {
+        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+      }
+      try {
+        const { federationPost } = await import("@/lib/federation/client");
+        const { federationNodes } = await import("@/db/schema");
+        const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
+        if (!node) {
+          return NextResponse.json({ error: "Node not found" }, { status: 404 });
+        }
+        const result = await federationPost(node.endpointUrl, "/api/federation/remote_upgrade", {}, node.tlsCertHash);
+        return NextResponse.json(result.ok ? result.data : { error: result.error }, { status: result.ok ? 200 : (result.status || 502) });
+      } catch (err) {
+        return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
+      }
+    }
+    case "remote_upgrade_status": {
+      const nodeId = body.node_id;
+      if (!nodeId) {
+        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+      }
+      try {
+        const { federationGet } = await import("@/lib/federation/client");
+        const { federationNodes } = await import("@/db/schema");
+        const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
+        if (!node) {
+          return NextResponse.json({ error: "Node not found" }, { status: 404 });
+        }
+        const result = await federationGet(node.endpointUrl, "/api/federation/remote_upgrade_status", node.tlsCertHash);
+        return NextResponse.json(result.ok ? result.data : { error: result.error });
+      } catch (err) {
+        return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
+      }
+    }
     case "toggle_status_page": {
       const { enabled } = body;
       if (typeof enabled !== "boolean") {

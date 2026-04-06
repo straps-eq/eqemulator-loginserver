@@ -533,6 +533,55 @@ async function handlePlayRequest(req: NextRequest) {
   }
 }
 
+// ── Remote Upgrade (master triggers image-only upgrade on this node) ──
+async function handleRemoteUpgrade(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  // Only allow master nodes to trigger remote upgrades
+  if (!auth.node.isMaster) {
+    return NextResponse.json({ error: "Only master nodes can trigger remote upgrades" }, { status: 403 });
+  }
+
+  console.log(`[federation] remote_upgrade (image-only) from ${auth.node.name}`);
+
+  // Proxy to local upgrade agent — use image_upgrade (no config sync)
+  const token = process.env.UPGRADE_AGENT_TOKEN || "";
+  try {
+    const agentRes = await fetch("http://upgrade-agent:9090/image_upgrade", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await agentRes.json();
+    return NextResponse.json(result, { status: agentRes.status });
+  } catch (err) {
+    return NextResponse.json({ error: "Upgrade agent not reachable" }, { status: 502 });
+  }
+}
+
+async function handleRemoteUpgradeStatus(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const auth = await authenticateFederationRequest(req, "");
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const token = process.env.UPGRADE_AGENT_TOKEN || "";
+  try {
+    const agentRes = await fetch("http://upgrade-agent:9090/upgrade/status", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await agentRes.json();
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json({ error: "Upgrade agent not reachable" }, { status: 502 });
+  }
+}
+
 // ── Notify Sync (peer tells us to re-sync now) ──
 let pendingNotifySync = false;
 
@@ -616,6 +665,8 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
         return await handleChangesGet(req);
       case "sync_data":
         return await handleSyncData(req);
+      case "remote_upgrade_status":
+        return await handleRemoteUpgradeStatus(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -641,6 +692,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handlePlayRequest(req);
       case "notify_sync":
         return await handleNotifySync(req);
+      case "remote_upgrade":
+        return await handleRemoteUpgrade(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
