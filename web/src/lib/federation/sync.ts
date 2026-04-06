@@ -104,6 +104,7 @@ interface SyncDataResponse {
   platform_accounts?: Array<Record<string, unknown>>;
   oauth_links?: Array<Record<string, unknown>>;
   login_links?: Array<Record<string, unknown>>;
+  platform_admins?: Array<Record<string, unknown>>;
   live_servers: Array<Record<string, unknown>>;
   timestamp: number;
 }
@@ -114,6 +115,9 @@ const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
 
 /** Track last sync_data hash per peer to skip unchanged data. */
 const lastSyncDataHash = new Map<number, string>();
+
+/** Track our own local server list hash to detect when new servers join. */
+let lastLocalServerHash: string | null = null;
 
 /** Get cached live servers from all federation peers. */
 export function getFederatedLiveServers(): Array<Record<string, unknown>> {
@@ -257,6 +261,75 @@ export async function runSyncCycle(): Promise<{
     errors.push(`audit prune failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  // Reclaim servers that reconnected to the local loginserver.
+  // If a server was adopted as federated (federation_source_node_id set) but is
+  // now directly connected here, clear the flag so it's treated as local again.
+  try {
+    const http = await import("http");
+    const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
+    const token = process.env.LOGINSERVER_API_TOKEN || "";
+    const localLive: Array<{ server_short_name: string }> = await new Promise((resolve) => {
+      const r = http.get(`${apiUrl}/v1/servers/list`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }, (res: any) => {
+        let d = "";
+        res.on("data", (c: string) => d += c);
+        res.on("end", () => {
+          try { resolve(JSON.parse(d)); } catch { resolve([]); }
+        });
+      });
+      r.on("error", () => resolve([]));
+      r.setTimeout(5000, () => { r.destroy(); resolve([]); });
+    });
+
+    if (localLive.length > 0) {
+      const liveShortNames = localLive.map((s) => s.server_short_name);
+      for (const shortName of liveShortNames) {
+        try {
+          const [rows] = await pool.execute(
+            `SELECT id, federation_source_node_id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id > 0 LIMIT 1`,
+            [shortName]
+          ) as unknown as [Array<{ id: number; federation_source_node_id: number }>];
+          if (rows.length > 0) {
+            await pool.execute(`UPDATE login_world_servers SET federation_source_node_id = NULL WHERE id = ?`, [rows[0].id]);
+            await pool.execute(`DELETE FROM federation_server_status WHERE world_server_id = ?`, [rows[0].id]);
+            console.log(`[sync_data] reclaimed server "${shortName}" (id ${rows[0].id}) as local — reconnected directly`);
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    errors.push(`reclaim check failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Check if our own local data changed (e.g. new world server connected).
+  // If so, broadcast notify_sync to all peers so they pull fresh data immediately.
+  try {
+    const { db } = await import("@/lib/db");
+    const { loginWorldServers } = await import("@/db/schema");
+    const { sql } = await import("drizzle-orm");
+    const localServers = await db
+      .select({ id: loginWorldServers.id, shortName: loginWorldServers.shortName })
+      .from(loginWorldServers)
+      .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
+
+    const crypto = await import("crypto");
+    const currentHash = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(localServers))
+      .digest("hex")
+      .slice(0, 16);
+
+    if (lastLocalServerHash !== null && currentHash !== lastLocalServerHash) {
+      console.log("[federation] local server list changed, notifying peers");
+      const { broadcastSyncNotification } = await import("./client");
+      await broadcastSyncNotification("server_list_changed");
+    }
+    lastLocalServerHash = currentHash;
+  } catch (err) {
+    errors.push(`local hash check failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   return { peersChecked: peers.length, changesApplied, errors };
 }
 
@@ -283,10 +356,28 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         for (const ls of data.live_servers) {
           const shortName = ls.server_short_name as string;
           if (!shortName) continue;
-          const [rows] = await conn.execute(
+
+          let [rows] = await conn.execute(
             `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
             [shortName, sourceNodeId] as (string | number)[]
           ) as unknown as [Array<{ id: number }>];
+
+          // Also check for local servers (LB routing case)
+          if (rows.length === 0) {
+            const [localRows] = await conn.execute(
+              `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
+              [shortName] as string[]
+            ) as unknown as [Array<{ id: number }>];
+            if (localRows.length > 0) {
+              await conn.execute(
+                `UPDATE login_world_servers SET federation_source_node_id = ? WHERE id = ?`,
+                [sourceNodeId, localRows[0].id] as number[]
+              );
+              console.log(`[sync_data] adopted local server "${shortName}" (id ${localRows[0].id}) as live on node ${sourceNodeId}`);
+              rows = localRows;
+            }
+          }
+
           if (rows.length === 0) continue;
           await conn.execute(
             `INSERT INTO federation_server_status (world_server_id, remote_ip, players_online, server_status, zones_booted, updated_at)
@@ -421,16 +512,37 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             ] as (string | number | null)[]
           );
         } else {
-          await conn.execute(
-            `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              srv.long_name, srv.short_name, srv.tag_description || "",
-              srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
-              srv.note || null, sourceNodeId,
-            ] as (string | number | null)[]
-          );
+          // Check if this server already exists locally with no federation source
+          // (e.g. it was registered before federation was set up). If so, adopt it
+          // as federated rather than inserting a duplicate row.
+          const [orphanSrv] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
+            [srv.short_name] as string[]
+          ) as unknown as [Array<{ id: number }>];
+
+          if (orphanSrv.length > 0) {
+            await conn.execute(
+              `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?, login_server_admin_id = ?, is_server_trusted = ?, note = ?, federation_source_node_id = ? WHERE id = ?`,
+              [
+                srv.long_name, srv.tag_description || "",
+                srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
+                srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+                srv.note || null, sourceNodeId, orphanSrv[0].id,
+              ] as (string | number | null)[]
+            );
+            console.log(`[sync_data] adopted orphan server "${srv.short_name}" (id ${orphanSrv[0].id}) as federated from node ${sourceNodeId}`);
+          } else {
+            await conn.execute(
+              `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                srv.long_name, srv.short_name, srv.tag_description || "",
+                srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
+                srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+                srv.note || null, sourceNodeId,
+              ] as (string | number | null)[]
+            );
+          }
         }
         syncedShortNames.add(srv.short_name as string);
         const [srvResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
@@ -556,10 +668,45 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Upsert platform_accounts (identity anchors)
-    if (data.platform_accounts && data.platform_accounts.length > 0) {
+    // Platform tables (platform_accounts, oauth_links, login_links, platform_admins)
+    // flow one-way: master → peers. The master never imports these from peers.
+    const { getSelfNode } = await import("./node");
+    const selfNode = await getSelfNode();
+    const isMasterNode = selfNode?.isMaster ?? false;
+
+    // Upsert platform_accounts (identity anchors) — with ID conflict resolution.
+    // Mesh nodes may have locally-created accounts whose IDs collide with the
+    // master's IDs. Before upserting, detect and relocate any conflicting local
+    // account to a high ID, then update all FK references.
+    if (!isMasterNode && data.platform_accounts && data.platform_accounts.length > 0) {
       for (const pa of data.platform_accounts) {
         try {
+          if (pa.id) {
+            // Check if this ID is occupied by a DIFFERENT local account
+            const [existing] = await conn.execute(
+              `SELECT id, username, email FROM platform_accounts WHERE id = ? LIMIT 1`,
+              [pa.id] as number[]
+            ) as unknown as [Array<{ id: number; username: string; email: string }>];
+
+            if (existing.length > 0 && existing[0].email !== pa.email) {
+              // ID collision — relocate the local account to a high ID
+              const [maxRow] = await conn.execute(
+                `SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM platform_accounts WHERE id >= 100000`,
+                [] as string[]
+              ) as unknown as [Array<{ next_id: number }>];
+              const newId = Math.max(maxRow[0].next_id, 100000);
+
+              // Update all FK references to the old ID
+              try { await conn.execute(`UPDATE world_server_admin_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
+              try { await conn.execute(`UPDATE account_login_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
+              try { await conn.execute(`UPDATE platform_oauth_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
+              try { await conn.execute(`UPDATE platform_admins SET login_account_id = ? WHERE login_account_id = ?`, [newId, pa.id] as number[]); } catch {}
+
+              await conn.execute(`UPDATE platform_accounts SET id = ? WHERE id = ?`, [newId, pa.id] as number[]);
+              console.log(`[sync_data] relocated local platform_account "${existing[0].username}" id ${pa.id} -> ${newId}`);
+            }
+          }
+
           await conn.execute(
             `INSERT INTO platform_accounts (id, username, email, email_verified, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?)
@@ -580,10 +727,30 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           console.error(`[sync_data] platform_accounts upsert error for id ${pa.id}:`, err);
         }
       }
+
+      // Bump AUTO_INCREMENT on platform tables so locally-created records
+      // never collide with synced master IDs. Uses max(synced ID) + 100000
+      // as the floor, but only if current AUTO_INCREMENT is lower.
+      try {
+        const maxSyncedId = Math.max(...data.platform_accounts.map((p) => (p.id as number) || 0));
+        const aiFloor = maxSyncedId + 100000;
+        for (const tbl of ['platform_accounts', 'platform_oauth_links', 'account_login_links', 'platform_admins']) {
+          const [curAi] = await conn.execute(
+            `SELECT AUTO_INCREMENT as ai FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+            [tbl] as string[]
+          ) as unknown as [Array<{ ai: number }>];
+          if (curAi.length > 0 && curAi[0].ai < aiFloor) {
+            await conn.execute(`ALTER TABLE \`${tbl}\` AUTO_INCREMENT = ${aiFloor}`);
+            console.log(`[sync_data] bumped ${tbl} AUTO_INCREMENT to ${aiFloor}`);
+          }
+        }
+      } catch (err) {
+        console.error(`[sync_data] AUTO_INCREMENT bump error:`, err);
+      }
     }
 
     // Upsert platform_oauth_links
-    if (data.oauth_links && data.oauth_links.length > 0) {
+    if (!isMasterNode && data.oauth_links && data.oauth_links.length > 0) {
       for (const ol of data.oauth_links) {
         try {
           await conn.execute(
@@ -607,7 +774,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     }
 
     // Upsert account_login_links
-    if (data.login_links && data.login_links.length > 0) {
+    if (!isMasterNode && data.login_links && data.login_links.length > 0) {
       for (const ll of data.login_links) {
         try {
           await conn.execute(
@@ -625,6 +792,29 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           if (r[0].c > 0) applied++;
         } catch (err) {
           console.error(`[sync_data] login_links upsert error for id ${ll.id}:`, err);
+        }
+      }
+    }
+
+    // Upsert platform_admins
+    if (!isMasterNode && data.platform_admins && data.platform_admins.length > 0) {
+      for (const pa of data.platform_admins) {
+        try {
+          await conn.execute(
+            `INSERT INTO platform_admins (id, login_account_id, role, created_at)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               login_account_id = VALUES(login_account_id),
+               role = VALUES(role)`,
+            [
+              pa.id, pa.login_account_id, pa.role,
+              toMySQLDatetime(pa.created_at),
+            ] as (string | number)[]
+          );
+          const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+          if (r[0].c > 0) applied++;
+        } catch (err) {
+          console.error(`[sync_data] platform_admins upsert error for id ${pa.id}:`, err);
         }
       }
     }
@@ -647,16 +837,39 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         expires: Date.now() + LIVE_CACHE_TTL_MS,
       });
 
-      // Write live data to federation_server_status for the loginserver binary
+      // Write live data to federation_server_status for the loginserver binary.
+      // Also adopt local servers that are live on a peer (LB routing case):
+      // set their federation_source_node_id so the C++ loginserver shows them.
       for (const ls of data.live_servers) {
         try {
           const shortName = ls.server_short_name as string;
           if (!shortName) continue;
-          // Find the local synced server ID by short_name + source node
-          const [rows] = await conn.execute(
+
+          // First try: match by (short_name, federation_source_node_id)
+          let [rows] = await conn.execute(
             `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
             [shortName, sourceNodeId] as (string | number)[]
           ) as unknown as [Array<{ id: number }>];
+
+          // Second try: match a local server with NULL federation_source_node_id.
+          // This handles LB routing — server registered here but connected to peer.
+          if (rows.length === 0) {
+            const [localRows] = await conn.execute(
+              `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
+              [shortName] as string[]
+            ) as unknown as [Array<{ id: number }>];
+
+            if (localRows.length > 0) {
+              // Adopt as federated so the C++ loginserver binary includes it
+              await conn.execute(
+                `UPDATE login_world_servers SET federation_source_node_id = ? WHERE id = ?`,
+                [sourceNodeId, localRows[0].id] as number[]
+              );
+              console.log(`[sync_data] adopted local server "${shortName}" (id ${localRows[0].id}) as live on node ${sourceNodeId}`);
+              rows = localRows;
+            }
+          }
+
           if (rows.length === 0) continue;
 
           await conn.execute(

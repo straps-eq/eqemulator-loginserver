@@ -284,7 +284,7 @@ async function handleSyncData(req: NextRequest) {
   const { getSelfNode } = await import("@/lib/federation/node");
   const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const { db } = await import("@/lib/db");
-  const { loginAccounts, loginWorldServers, loginServerAdmins, platformAccounts, platformOauthLinks, accountLoginLinks } = await import("@/db/schema");
+  const { loginAccounts, loginWorldServers, loginServerAdmins, platformAccounts, platformOauthLinks, accountLoginLinks, platformAdmins } = await import("@/db/schema");
 
   const self = await getSelfNode();
   if (!self) {
@@ -426,9 +426,19 @@ async function handleSyncData(req: NextRequest) {
     })
     .from(accountLoginLinks);
 
+  // Export platform admins
+  const platAdmins = await db
+    .select({
+      id: platformAdmins.id,
+      login_account_id: platformAdmins.loginAccountId,
+      role: platformAdmins.role,
+      created_at: platformAdmins.createdAt,
+    })
+    .from(platformAdmins);
+
   // Compute a content hash so receivers can skip processing when data is unchanged
   const crypto = await import("crypto");
-  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks });
+  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks, platAdmins });
   const dataHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 16);
 
   return NextResponse.json({
@@ -441,6 +451,7 @@ async function handleSyncData(req: NextRequest) {
     platform_accounts: platAccounts,
     oauth_links: oauthLinks,
     login_links: loginLinks,
+    platform_admins: platAdmins,
     live_servers: liveServers,
     timestamp: Date.now(),
   });
@@ -522,6 +533,51 @@ async function handlePlayRequest(req: NextRequest) {
   }
 }
 
+// ── Notify Sync (peer tells us to re-sync now) ──
+let pendingNotifySync = false;
+
+async function handleNotifySync(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  let reason = "unknown";
+  try {
+    const body = JSON.parse(bodyText);
+    reason = body.reason || "unknown";
+  } catch {}
+
+  console.log(`[federation] notify_sync from ${auth.node.name}: ${reason}`);
+
+  // Debounce: if a sync is already pending from a recent notification, skip
+  if (pendingNotifySync) {
+    return NextResponse.json({ queued: false, reason: "sync already pending" });
+  }
+
+  // Trigger a sync in the background (don't block the response).
+  // Use the internal sync endpoint so the existing lock/guard applies.
+  pendingNotifySync = true;
+  const port = process.env.PORT || "3000";
+  const syncSecret = process.env.FEDERATION_SYNC_SECRET || "";
+  setTimeout(async () => {
+    try {
+      await fetch(`http://localhost:${port}/api/federation/sync`, {
+        method: "POST",
+        headers: { "x-sync-secret": syncSecret },
+      });
+    } catch (err) {
+      console.error("[federation] notify_sync triggered sync failed:", err);
+    } finally {
+      pendingNotifySync = false;
+    }
+  }, 1000); // 1s delay to batch rapid notifications
+
+  return NextResponse.json({ queued: true, reason });
+}
+
 // ── Sync ──
 async function handleSync(req: NextRequest) {
   const { getSelfNode } = await import("@/lib/federation/node");
@@ -583,6 +639,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handlePasswordSync(req);
       case "play_request":
         return await handlePlayRequest(req);
+      case "notify_sync":
+        return await handleNotifySync(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

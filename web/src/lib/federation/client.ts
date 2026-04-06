@@ -118,6 +118,45 @@ async function federationFetch<T>(
   }
 }
 
+/**
+ * Broadcast a sync notification to all active peers, telling them to
+ * pull fresh data immediately (instead of waiting for their next 60s cycle).
+ * Called when local data changes — e.g. a new world server connects.
+ */
+export async function broadcastSyncNotification(
+  reason: string = "data_changed"
+): Promise<{ notified: number; errors: string[] }> {
+  const self = await getSelfNode();
+  if (!self) return { notified: 0, errors: ["Not initialized"] };
+
+  const peers = await getActivePeers();
+  let notified = 0;
+  const errors: string[] = [];
+
+  for (const peer of peers) {
+    try {
+      const res = await federationPost(
+        peer.endpointUrl,
+        "/api/federation/notify_sync",
+        { reason },
+        peer.tlsCertHash
+      );
+      if (res.ok) {
+        notified++;
+      } else {
+        errors.push(`${peer.name}: ${res.error}`);
+      }
+    } catch (err) {
+      errors.push(`${peer.name}: ${err instanceof Error ? err.message : "failed"}`);
+    }
+  }
+
+  if (notified > 0) {
+    console.log(`[federation] broadcast sync notification (${reason}) to ${notified} peer(s)`);
+  }
+  return { notified, errors };
+}
+
 // Only scrypt ($7$) and argon2id ($argon2id$) hashes are allowed across the federation.
 const STRONG_HASH_PREFIXES = ["$7$", "$argon2id$"];
 

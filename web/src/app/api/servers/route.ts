@@ -142,6 +142,7 @@ export async function GET() {
     });
 
   // Include local DB servers that have profiles but aren't currently live
+  // (or are live on a peer loginserver via load-balanced DNS)
   const offlineLocal = dbServers
     .filter((d) => !d.federationSourceNodeId || d.federationSourceNodeId === 0)
     .filter((d) => {
@@ -161,17 +162,24 @@ export async function GET() {
       const profile = profiles.find(
         (p) => p.worldServerId === d.id || (adminId > 0 && p.loginServerAdminId === adminId)
       );
+      // Check federated live cache — the server may be connected to a peer
+      // loginserver via load-balanced DNS instead of this one
+      const liveFed = federatedLive.find(
+        (l: any) => l.server_short_name === d.shortName || l.server_long_name === d.longName
+      ) as Record<string, any> | undefined;
+      const isLiveOnPeer = liveFed && (liveFed.server_status > 0 || liveFed.zones_booted > 0);
+      const playersOnline = liveFed?.players_online ?? 0;
       const manualTier = profile?.displayTier;
-      const effectiveTier = manualTier || "low";
+      const effectiveTier = manualTier || (isLiveOnPeer ? autoTier(playersOnline, highMin, mediumMin) : "low");
       const showPlayerCount = profile?.showPlayerCount ?? 1;
       return {
         server_long_name: d.longName,
         server_short_name: d.shortName,
         server_list_type_id: d.loginServerListTypeId,
-        server_status: 0,
-        zones_booted: 0,
-        players_online: showPlayerCount ? 0 : undefined,
-        world_id: 0,
+        server_status: liveFed?.server_status ?? 0,
+        zones_booted: liveFed?.zones_booted ?? 0,
+        players_online: showPlayerCount ? playersOnline : undefined,
+        world_id: liveFed?.world_id ?? 0,
         db_id: d.id,
         is_trusted: d.isServerTrusted ? true : adminId > 0,
         tag_description: d.tagDescription || null,
@@ -179,7 +187,7 @@ export async function GET() {
         display_tier: effectiveTier,
         tier_override: manualTier ? true : false,
         show_player_count: !!showPlayerCount,
-        is_offline: true,
+        ...(isLiveOnPeer ? {} : { is_offline: true }),
       };
     });
 
