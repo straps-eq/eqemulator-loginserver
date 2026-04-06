@@ -552,14 +552,19 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Remove servers from this source that no longer exist on the peer
-    if (syncedShortNames.size > 0) {
+    // Remove servers from this source that no longer exist on the peer.
+    // Preserve servers that are live on the peer (adopted via live_servers)
+    // even if they aren't in the peer's exported servers list.
+    const liveShortNames = new Set<string>(
+      (data.live_servers || []).map((ls: Record<string, unknown>) => ls.server_short_name as string).filter(Boolean)
+    );
+    if (syncedShortNames.size > 0 || liveShortNames.size > 0) {
       const [existingRows] = await conn.execute(
         `SELECT id, short_name FROM login_world_servers WHERE federation_source_node_id = ?`,
         [sourceNodeId]
       ) as unknown as [Array<{ id: number; short_name: string }>];
       for (const row of existingRows) {
-        if (!syncedShortNames.has(row.short_name)) {
+        if (!syncedShortNames.has(row.short_name) && !liveShortNames.has(row.short_name)) {
           await conn.execute(`DELETE FROM server_profiles WHERE world_server_id = ?`, [row.id]);
           await conn.execute(`DELETE FROM login_world_servers WHERE id = ?`, [row.id]);
         }
