@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { platformConfig } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { platformConfig, federationNodes } from "@/db/schema";
+import { eq, and, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +66,29 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [release, services, statusPageConfig] = await Promise.all([
+  // Get self node ID to exclude from peer list
+  let selfNodeId: number | null = null;
+  try {
+    const { getSelfNode } = await import("@/lib/federation/node");
+    const self = await getSelfNode();
+    if (self) selfNodeId = self.id;
+  } catch {}
+
+  const [release, services, statusPageConfig, peerNodes] = await Promise.all([
     getLatestRelease(),
     proxyToAgent("/status"),
     db.select().from(platformConfig).where(eq(platformConfig.configKey, "status_page_public")),
+    db.select({
+      id: federationNodes.id,
+      name: federationNodes.name,
+      endpointUrl: federationNodes.endpointUrl,
+      nodeTier: federationNodes.nodeTier,
+      status: federationNodes.status,
+      softwareVersion: federationNodes.softwareVersion,
+      lastHeartbeat: federationNodes.lastHeartbeatAt,
+    }).from(federationNodes).where(
+      selfNodeId ? ne(federationNodes.id, selfNodeId) : undefined as any
+    ),
   ]);
 
   const latestVersion = release?.tag_name?.replace(/^v/, "") || null;
@@ -86,6 +105,7 @@ export async function GET() {
     services: services?.services || null,
     agentConnected: !services?.error,
     statusPagePublic,
+    peerNodes: peerNodes || [],
   });
 }
 

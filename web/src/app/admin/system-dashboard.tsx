@@ -23,6 +23,16 @@ interface ServiceInfo {
   started_at?: string;
 }
 
+interface PeerNode {
+  id: number;
+  name: string;
+  endpointUrl: string;
+  nodeTier: string;
+  status: string;
+  softwareVersion: string | null;
+  lastHeartbeat: string | null;
+}
+
 interface SystemData {
   currentVersion: string;
   latestVersion: string | null;
@@ -33,6 +43,7 @@ interface SystemData {
   services: Record<string, ServiceInfo> | null;
   agentConnected: boolean;
   statusPagePublic: boolean;
+  peerNodes: PeerNode[];
 }
 
 export function SystemDashboard() {
@@ -43,6 +54,8 @@ export function SystemDashboard() {
   const [showNotes, setShowNotes] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string | null>(null);
   const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false);
+  const [remoteUpgradeNodeId, setRemoteUpgradeNodeId] = useState<number | null>(null);
+  const [remoteUpgradeProgress, setRemoteUpgradeProgress] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -445,6 +458,116 @@ export function SystemDashboard() {
               <ArrowUpCircle className="h-3 w-3" />
               Run Migrations
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Federation Nodes */}
+      {data.peerNodes && data.peerNodes.length > 0 && (
+        <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+          <div className="px-5 py-3 border-b border-frost-400/8">
+            <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
+              Federation Nodes
+            </h3>
+          </div>
+          <div className="divide-y divide-frost-400/5">
+            {data.peerNodes.map((node) => {
+              const isOutdated = node.softwareVersion && data.currentVersion && node.softwareVersion !== data.currentVersion;
+              const isUpgrading = remoteUpgradeNodeId === node.id;
+              return (
+                <div key={node.id} className="flex items-center justify-between px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <Globe className="h-4 w-4 text-parchment-600" />
+                    <div>
+                      <span className="text-sm text-parchment-300">{node.name}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-parchment-700 font-mono">{node.endpointUrl}</span>
+                        {node.softwareVersion && (
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isOutdated ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
+                            v{node.softwareVersion}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-2 w-2 rounded-full ${node.status === 'active' ? 'bg-emerald-400' : 'bg-parchment-600'}`} />
+                      <span className={`text-xs capitalize ${node.status === 'active' ? 'text-emerald-400' : 'text-parchment-600'}`}>
+                        {node.status}
+                      </span>
+                    </div>
+                    {isUpgrading ? (
+                      <div className="flex items-center gap-1.5 text-xs text-frost-300">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        <span>{remoteUpgradeProgress || 'Upgrading...'}</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Trigger image upgrade on ${node.name}?\n\nThis will: backup DB, pull web image, run migrations, restart web.\nIt will NOT touch their docker-compose.yml or .env.`)) return;
+                          setRemoteUpgradeNodeId(node.id);
+                          setRemoteUpgradeProgress('Starting...');
+                          setActionResult(null);
+                          try {
+                            await fetch('/api/admin/system', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'remote_upgrade', node_id: node.id }),
+                            });
+                          } catch {}
+                          // Poll status
+                          let retries = 0;
+                          const poll = setInterval(async () => {
+                            retries++;
+                            try {
+                              const r = await fetch('/api/admin/system', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'remote_upgrade_status', node_id: node.id }),
+                              });
+                              const s = await r.json();
+                              if (s.step === 'done' && !s.running) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name} upgraded successfully!`, type: 'success' });
+                                fetchData();
+                              } else if (s.step === 'failed' && !s.running) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name} upgrade failed: ${s.error || 'unknown'}`, type: 'error' });
+                              } else if (s.running) {
+                                setRemoteUpgradeProgress(stepLabels[s.step] || s.step);
+                              } else if (s.error) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name}: ${s.error}`, type: 'error' });
+                              }
+                            } catch {
+                              if (retries > 60) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `Lost connection to ${node.name}`, type: 'error' });
+                              }
+                            }
+                          }, 3000);
+                        }}
+                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
+                        className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`Upgrade ${node.name} (image only)`}
+                      >
+                        <Download className="h-3 w-3" />
+                        Upgrade
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
