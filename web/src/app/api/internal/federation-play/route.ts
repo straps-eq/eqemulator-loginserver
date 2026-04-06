@@ -10,6 +10,20 @@ import { federationPost } from "@/lib/federation/client";
  *
  * Only accessible from internal Docker network (loginserver container).
  */
+
+// Dedup cache: prevent the same user+server from flooding the peer node
+// Key: "accountId:server_short_name", Value: { ts, status }
+const recentRequests = new Map<string, { ts: number; status: number; body: object }>();
+const DEDUP_WINDOW_MS = 10_000; // 10 seconds
+
+// Cleanup stale entries periodically
+setInterval(() => {
+  const now = Date.now();
+  recentRequests.forEach((val, key) => {
+    if (now - val.ts > DEDUP_WINDOW_MS * 3) recentRequests.delete(key);
+  });
+}, 30_000);
+
 export async function POST(request: NextRequest) {
   try {
     // Basic internal-only check (Docker network)
@@ -24,6 +38,13 @@ export async function POST(request: NextRequest) {
 
     if (!server_short_name || !account_id || !account_name || !login_key) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Dedup: if we just forwarded this exact request, return cached result
+    const dedupKey = `${account_id}:${server_short_name}`;
+    const cached = recentRequests.get(dedupKey);
+    if (cached && (Date.now() - cached.ts) < DEDUP_WINDOW_MS) {
+      return NextResponse.json(cached.body, { status: cached.status });
     }
 
     // Find which federation node owns this server
@@ -60,13 +81,15 @@ export async function POST(request: NextRequest) {
 
     if (result.ok) {
       console.log(`[federation-play] Auth forwarded successfully for ${account_name}`);
-      return NextResponse.json({ success: true, ...(result.data as object) });
+      const respBody = { success: true, ...(result.data as object) };
+      recentRequests.set(dedupKey, { ts: Date.now(), status: 200, body: respBody });
+      return NextResponse.json(respBody);
     } else {
       console.error(`[federation-play] Master returned ${result.status}: ${result.error}`);
-      return NextResponse.json(
-        { error: result.error || "Master rejected request" },
-        { status: result.status || 502 }
-      );
+      const respBody = { error: result.error || "Master rejected request" };
+      const status = result.status || 502;
+      recentRequests.set(dedupKey, { ts: Date.now(), status, body: respBody });
+      return NextResponse.json(respBody, { status });
     }
   } catch (error) {
     console.error("[federation-play] Error:", error);

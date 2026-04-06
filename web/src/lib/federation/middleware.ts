@@ -61,8 +61,8 @@ export async function authenticateFederationRequest(
     return { node: null, error: `Node is ${node.status}`, status: 403 };
   }
 
-  // Rate limit: 120 requests per minute per node
-  const rl = await rateLimit(`federation:${node.id}`, 120, 60_000);
+  // Rate limit: 600 requests per minute per node (high to avoid play_request floods blocking sync/admin ops)
+  const rl = await rateLimit(`federation:${node.id}`, 600, 60_000);
   if (!rl.ok) {
     return { node: null, error: "Rate limited", status: 429 };
   }
