@@ -147,6 +147,47 @@ export async function runSyncCycle(): Promise<{
   let changesApplied = 0;
   const errors: string[] = [];
 
+  // Reclaim servers that reconnected to the local loginserver BEFORE syncing.
+  // This MUST run before applyFullDataSync so that locally-connected servers
+  // have federation_source_node_id = NULL and won't be pruned by the sync.
+  try {
+    const http = await import("http");
+    const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
+    const token = process.env.LOGINSERVER_API_TOKEN || "";
+    const localLive: Array<{ server_short_name: string }> = await new Promise((resolve) => {
+      const r = http.get(`${apiUrl}/v1/servers/list`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }, (res: any) => {
+        let d = "";
+        res.on("data", (c: string) => d += c);
+        res.on("end", () => {
+          try { resolve(JSON.parse(d)); } catch { resolve([]); }
+        });
+      });
+      r.on("error", () => resolve([]));
+      r.setTimeout(5000, () => { r.destroy(); resolve([]); });
+    });
+
+    if (localLive.length > 0) {
+      const liveShortNames = localLive.map((s) => s.server_short_name);
+      for (const shortName of liveShortNames) {
+        try {
+          const [rows] = await pool.execute(
+            `SELECT id, federation_source_node_id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id > 0 LIMIT 1`,
+            [shortName]
+          ) as unknown as [Array<{ id: number; federation_source_node_id: number }>];
+          if (rows.length > 0) {
+            await pool.execute(`UPDATE login_world_servers SET federation_source_node_id = NULL WHERE id = ?`, [rows[0].id]);
+            await pool.execute(`DELETE FROM federation_server_status WHERE world_server_id = ?`, [rows[0].id]);
+            console.log(`[sync_data] reclaimed server "${shortName}" (id ${rows[0].id}) as local — reconnected directly`);
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    errors.push(`reclaim check failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   for (const peer of peers) {
     try {
       // Skip pulling from mesh-tier peers — they are read-only consumers
@@ -260,47 +301,6 @@ export async function runSyncCycle(): Promise<{
     await pruneAuditLog(90);
   } catch (err) {
     errors.push(`audit prune failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // Reclaim servers that reconnected to the local loginserver.
-  // If a server was adopted as federated (federation_source_node_id set) but is
-  // now directly connected here, clear the flag so it's treated as local again.
-  try {
-    const http = await import("http");
-    const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
-    const token = process.env.LOGINSERVER_API_TOKEN || "";
-    const localLive: Array<{ server_short_name: string }> = await new Promise((resolve) => {
-      const r = http.get(`${apiUrl}/v1/servers/list`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }, (res: any) => {
-        let d = "";
-        res.on("data", (c: string) => d += c);
-        res.on("end", () => {
-          try { resolve(JSON.parse(d)); } catch { resolve([]); }
-        });
-      });
-      r.on("error", () => resolve([]));
-      r.setTimeout(5000, () => { r.destroy(); resolve([]); });
-    });
-
-    if (localLive.length > 0) {
-      const liveShortNames = localLive.map((s) => s.server_short_name);
-      for (const shortName of liveShortNames) {
-        try {
-          const [rows] = await pool.execute(
-            `SELECT id, federation_source_node_id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id > 0 LIMIT 1`,
-            [shortName]
-          ) as unknown as [Array<{ id: number; federation_source_node_id: number }>];
-          if (rows.length > 0) {
-            await pool.execute(`UPDATE login_world_servers SET federation_source_node_id = NULL WHERE id = ?`, [rows[0].id]);
-            await pool.execute(`DELETE FROM federation_server_status WHERE world_server_id = ?`, [rows[0].id]);
-            console.log(`[sync_data] reclaimed server "${shortName}" (id ${rows[0].id}) as local — reconnected directly`);
-          }
-        } catch {}
-      }
-    }
-  } catch (err) {
-    errors.push(`reclaim check failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Check if our own local data changed (e.g. new world server connected).
