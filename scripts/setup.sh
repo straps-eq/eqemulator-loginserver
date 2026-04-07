@@ -223,7 +223,8 @@ sed "s/YOURDOMAIN.COM/${DOMAIN}/g" \
 echo "  ✓ nginx/conf.d/default.conf"
 
 # Data directories
-mkdir -p mariadb/data backups certbot/conf certbot/www
+mkdir -p mariadb/data backups certbot/conf certbot/www uploads
+chmod 777 uploads
 echo "  ✓ Data directories"
 
 # ══════════════════════════════════════════════
