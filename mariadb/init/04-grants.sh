@@ -26,6 +26,7 @@ GRANT ALL ON eqemu_login.server_profiles TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.server_claims TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.platform_config TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.world_server_admin_links TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.platform_oauth_links TO 'eqemu_web'@'%';
 
 -- Full access on federation tables (created by migrations)
 GRANT ALL ON eqemu_login.federation_nodes TO 'eqemu_web'@'%';

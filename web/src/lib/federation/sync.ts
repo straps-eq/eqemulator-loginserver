@@ -901,10 +901,23 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Upsert platform_admins
+    // Upsert platform_admins — handle unique constraint on login_account_id
     if (!isMasterNode && data.platform_admins && data.platform_admins.length > 0) {
       for (const pa of data.platform_admins) {
         try {
+          // Check if login_account_id is occupied by a DIFFERENT local row
+          if (pa.login_account_id) {
+            const [existing] = await conn.execute(
+              `SELECT id FROM platform_admins WHERE login_account_id = ? AND id != ? LIMIT 1`,
+              [pa.login_account_id, pa.id] as number[]
+            ) as unknown as [Array<{ id: number }>];
+            if (existing.length > 0) {
+              // Conflict — delete the conflicting local row (master is authoritative)
+              await conn.execute(`DELETE FROM platform_admins WHERE id = ?`, [existing[0].id] as number[]);
+              console.log(`[sync_data] removed conflicting platform_admins row id ${existing[0].id} (login_account_id ${pa.login_account_id})`);
+            }
+          }
+
           await conn.execute(
             `INSERT INTO platform_admins (id, login_account_id, role, created_at)
              VALUES (?, ?, ?, ?)
