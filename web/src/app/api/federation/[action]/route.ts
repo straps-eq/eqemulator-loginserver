@@ -27,6 +27,16 @@ async function handleHeartbeat(req: NextRequest) {
     const configs = await getAllConfig();
     const maxConfigVersion = configs.reduce((max, c) => Math.max(max, c.version), 0);
 
+    // Include active peer list so peers can reconcile removed nodes
+    const { getActivePeers } = await import("@/lib/federation/node");
+    const activePeers = await getActivePeers();
+    const peerList = activePeers.map((p: { publicKey: string; name: string; endpointUrl: string; nodeTier?: string }) => ({
+      public_key: p.publicKey,
+      name: p.name,
+      endpoint_url: p.endpointUrl,
+      node_tier: p.nodeTier || "mesh",
+    }));
+
     return NextResponse.json({
       node_id: self.id,
       name: self.name,
@@ -36,6 +46,7 @@ async function handleHeartbeat(req: NextRequest) {
       latest_config_version: maxConfigVersion,
       software_version: APP_VERSION,
       timestamp: Date.now(),
+      active_peers: peerList,
     });
   }
 
@@ -310,7 +321,7 @@ async function handleSyncData(req: NextRequest) {
     })
     .from(loginAccounts);
 
-  // Export world servers (only locally connected, not already-synced records)
+  // Export world servers (full federation view — all nodes get all servers)
   const { sql } = await import("drizzle-orm");
   const servers = await db
     .select({
@@ -324,10 +335,9 @@ async function handleSyncData(req: NextRequest) {
       is_server_trusted: loginWorldServers.isServerTrusted,
       note: loginWorldServers.note,
     })
-    .from(loginWorldServers)
-    .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
+    .from(loginWorldServers);
 
-  // Export server admins (only local records)
+  // Export server admins (full federation view, exclude blank/junk names)
   const admins = await db
     .select({
       id: loginServerAdmins.id,
@@ -339,7 +349,7 @@ async function handleSyncData(req: NextRequest) {
       registration_date: loginServerAdmins.registrationDate,
     })
     .from(loginServerAdmins)
-    .where(sql`federation_source_node_id IS NULL OR federation_source_node_id = 0`);
+    .where(sql`account_name != '' AND account_name IS NOT NULL`);
 
   // Export server profiles — match by world_server_id OR login_server_admin_id fallback
   const [profileRows] = await db.execute(
@@ -350,9 +360,7 @@ async function handleSyncData(req: NextRequest) {
         LEFT JOIN login_world_servers lws ON lws.id = sp.world_server_id
         LEFT JOIN login_world_servers lws2 ON lws2.login_server_admin_id = sp.login_server_admin_id
           AND sp.world_server_id = 0 AND sp.login_server_admin_id > 0
-        WHERE COALESCE(lws.id, lws2.id) IS NOT NULL
-          AND (COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) IS NULL
-               OR COALESCE(lws.federation_source_node_id, lws2.federation_source_node_id) = 0)`
+        WHERE COALESCE(lws.id, lws2.id) IS NOT NULL`
   ) as unknown as [Array<Record<string, unknown>>];
 
   // Make relative banner URLs absolute so mesh nodes can display them
@@ -696,6 +704,35 @@ async function handleRemoteRestart(req: NextRequest) {
   }
 }
 
+// ── Force Pull & Restart (master triggers direct image pull + restart on this node) ──
+async function handleForcePullRestart(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  if (!auth.node.isMaster) {
+    return NextResponse.json({ error: "Only master nodes can trigger force pull" }, { status: 403 });
+  }
+
+  const body = bodyText ? JSON.parse(bodyText) : {};
+  const mode = body.mode || "direct";
+  console.log(`[federation] force_pull_restart mode=${mode} from ${auth.node.name}`);
+
+  const token = process.env.UPGRADE_AGENT_TOKEN || "";
+  try {
+    const agentRes = await fetch(`http://upgrade-agent:9090/force_pull_restart?mode=${mode}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await agentRes.json();
+    return NextResponse.json(result, { status: agentRes.status });
+  } catch (err) {
+    return NextResponse.json({ error: "Upgrade agent not reachable" }, { status: 502 });
+  }
+}
+
 // ── Route dispatcher ──
 
 export async function GET(req: NextRequest, ctx: RouteContext) {
@@ -741,6 +778,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handleRemoteUpgrade(req);
       case "remote_restart":
         return await handleRemoteRestart(req);
+      case "force_pull_restart":
+        return await handleForcePullRestart(req);
       default:
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

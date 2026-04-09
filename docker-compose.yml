@@ -148,7 +148,6 @@ services:
     environment:
       - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
       - COMPOSE_DIR=/host
-      - HOST_PROJECT_DIR=${HOST_PROJECT_DIR:-/opt/eqemu}
       - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
     working_dir: /host
     networks:
@@ -171,6 +170,7 @@ services:
 
 networks:
   internal:
+    name: eqemu_internal
     driver: bridge
 
 volumes:

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Server, Save, RefreshCw } from "lucide-react";
+import { Server, Save, RefreshCw, Network } from "lucide-react";
 
 interface ServerInfo {
   server_long_name: string;
@@ -12,6 +12,9 @@ interface ServerInfo {
   display_tier?: string;
   tier_override?: boolean;
   is_trusted?: boolean;
+  is_federated?: boolean;
+  federation_node_id?: number | null;
+  federation_node_name?: string | null;
 }
 
 interface TierConfig {
@@ -152,8 +155,9 @@ export function ServersDashboard() {
         </div>
 
         {/* Header */}
-        <div className="grid grid-cols-[1fr_80px_90px_140px] gap-x-3 px-4 py-2 border-b border-frost-400/6 bg-[#0c1019]/60">
+        <div className="grid grid-cols-[1fr_140px_80px_90px_140px] gap-x-3 px-4 py-2 border-b border-frost-400/6 bg-[#0c1019]/60">
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display">Server</span>
+          <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display">Node</span>
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display text-right">Players</span>
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display text-center">Current</span>
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display text-center">Override</span>
@@ -170,12 +174,23 @@ export function ServersDashboard() {
             return (
               <div
                 key={`${server.server_short_name}-${i}`}
-                className={`grid grid-cols-[1fr_80px_90px_140px] gap-x-3 px-4 py-2.5 items-center ${
+                className={`grid grid-cols-[1fr_140px_80px_90px_140px] gap-x-3 px-4 py-2.5 items-center ${
                   i < sorted.length - 1 ? "border-b border-frost-400/5" : ""
                 }`}
               >
                 <div className="min-w-0">
                   <span className="text-sm text-parchment-200 truncate block">{server.server_long_name}</span>
+                </div>
+                <div className="min-w-0">
+                  {server.federation_node_id ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-blue-400/80 bg-blue-400/5 border border-blue-400/10 rounded px-1.5 py-0.5 truncate">
+                      <Network className="h-2.5 w-2.5 flex-shrink-0" />
+                      <span className="font-mono text-[10px]">{server.federation_node_id}</span>
+                      <span className="truncate">{server.federation_node_name || ""}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-parchment-700">Local</span>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-sm font-display font-bold text-frost-300">{server.players_online}</span>

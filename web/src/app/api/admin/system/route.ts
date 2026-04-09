@@ -52,10 +52,14 @@ async function proxyToAgent(path: string, method: string = "GET"): Promise<any> 
     const res = await fetch(`http://upgrade-agent:9090${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
     });
     if (res.ok) return await res.json();
     return { error: `Agent returned ${res.status}` };
   } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return { error: "Upgrade agent request timed out (15s)" };
+    }
     return { error: "Upgrade agent not reachable" };
   }
 }
@@ -66,12 +70,16 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Get self node ID to exclude from peer list
+  // Get self node info (ID + master status) — single call, reused below
   let selfNodeId: number | null = null;
+  let isMaster = false;
   try {
     const { getSelfNode } = await import("@/lib/federation/node");
     const self = await getSelfNode();
-    if (self) selfNodeId = self.id;
+    if (self) {
+      selfNodeId = self.id;
+      isMaster = !!self.isMaster;
+    }
   } catch {}
 
   const [release, services, statusPageConfig, peerNodes] = await Promise.all([
@@ -92,12 +100,27 @@ export async function GET() {
   ]);
 
   const latestVersion = release?.tag_name?.replace(/^v/, "") || null;
-  const updateAvailable = latestVersion ? compareVersions(CURRENT_VERSION, latestVersion) : false;
+  let updateAvailable = latestVersion ? compareVersions(CURRENT_VERSION, latestVersion) : false;
   const statusPagePublic = statusPageConfig.length > 0 ? statusPageConfig[0].configValue === "true" : true;
+
+  // Non-master nodes: also check if any peer (master) reports a newer version
+  let peerLatestVersion: string | null = null;
+  if (!isMaster && peerNodes && peerNodes.length > 0) {
+    for (const p of peerNodes) {
+      if (p.softwareVersion && compareVersions(CURRENT_VERSION, p.softwareVersion)) {
+        if (!peerLatestVersion || compareVersions(peerLatestVersion, p.softwareVersion)) {
+          peerLatestVersion = p.softwareVersion;
+        }
+      }
+    }
+    if (peerLatestVersion) {
+      updateAvailable = true;
+    }
+  }
 
   return NextResponse.json({
     currentVersion: CURRENT_VERSION,
-    latestVersion,
+    latestVersion: peerLatestVersion || latestVersion,
     updateAvailable,
     releaseNotes: release?.body || null,
     releaseUrl: release?.html_url || null,
@@ -105,6 +128,7 @@ export async function GET() {
     services: services?.services || null,
     agentConnected: !services?.error,
     statusPagePublic,
+    isMaster,
     peerNodes: peerNodes || [],
   });
 }
@@ -147,15 +171,39 @@ export async function POST(request: NextRequest) {
       const result = await proxyToAgent(`/restart/${service}`, "POST");
       return NextResponse.json(result);
     }
-    case "remote_upgrade": {
-      // Trigger image-only upgrade on a peer federation node
-      const nodeId = body.node_id;
-      if (!nodeId) {
-        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+    case "force_pull_restart": {
+      const mode = body.mode || "direct";
+      const result = await proxyToAgent(`/force_pull_restart?mode=${mode}`, "POST");
+      return NextResponse.json(result, { status: result.error ? 500 : 202 });
+    }
+    case "remote_force_pull_restart": {
+      const nodeId = parseInt(body.node_id, 10);
+      const mode = body.mode || "direct";
+      if (!nodeId || isNaN(nodeId)) {
+        return NextResponse.json({ error: "node_id required (number)" }, { status: 400 });
       }
       try {
         const { federationPost } = await import("@/lib/federation/client");
-        const { federationNodes } = await import("@/db/schema");
+        const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
+        if (!node) {
+          return NextResponse.json({ error: "Node not found" }, { status: 404 });
+        }
+        console.log(`[remote_force_pull] Force pull & restart on node ${nodeId} (${node.endpointUrl}) mode=${mode}`);
+        const result = await federationPost(node.endpointUrl, "/api/federation/force_pull_restart", { mode }, node.tlsCertHash);
+        console.log(`[remote_force_pull] Result: ok=${result.ok} status=${result.status} data=${JSON.stringify(result.data)} error=${result.error}`);
+        return NextResponse.json(result.ok ? result.data : { error: result.error }, { status: result.ok ? 200 : (result.status || 502) });
+      } catch (err) {
+        return NextResponse.json({ error: "Failed to reach peer node" }, { status: 502 });
+      }
+    }
+    case "remote_upgrade": {
+      // Trigger image-only upgrade on a peer federation node
+      const nodeId = parseInt(body.node_id, 10);
+      if (!nodeId || isNaN(nodeId)) {
+        return NextResponse.json({ error: "node_id required (number)" }, { status: 400 });
+      }
+      try {
+        const { federationPost } = await import("@/lib/federation/client");
         const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
         if (!node) {
           return NextResponse.json({ error: "Node not found" }, { status: 404 });
@@ -169,14 +217,13 @@ export async function POST(request: NextRequest) {
       }
     }
     case "remote_restart": {
-      const nodeId = body.node_id;
+      const nodeId = parseInt(body.node_id, 10);
       const service = body.service || "loginserver";
-      if (!nodeId) {
-        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+      if (!nodeId || isNaN(nodeId)) {
+        return NextResponse.json({ error: "node_id required (number)" }, { status: 400 });
       }
       try {
         const { federationPost } = await import("@/lib/federation/client");
-        const { federationNodes } = await import("@/db/schema");
         const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
         if (!node) {
           return NextResponse.json({ error: "Node not found" }, { status: 404 });
@@ -190,13 +237,12 @@ export async function POST(request: NextRequest) {
       }
     }
     case "remote_upgrade_status": {
-      const nodeId = body.node_id;
-      if (!nodeId) {
-        return NextResponse.json({ error: "node_id required" }, { status: 400 });
+      const nodeId = parseInt(body.node_id, 10);
+      if (!nodeId || isNaN(nodeId)) {
+        return NextResponse.json({ error: "node_id required (number)" }, { status: 400 });
       }
       try {
         const { federationGet } = await import("@/lib/federation/client");
-        const { federationNodes } = await import("@/db/schema");
         const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
         if (!node) {
           return NextResponse.json({ error: "Node not found" }, { status: 404 });

@@ -83,16 +83,17 @@ export async function GET() {
       wsLinkMap.set(l.platformAccountId, arr);
     }
 
-    // Get worldserver admin names
+    // Get worldserver admin names (all federation nodes, exclude blank/junk names)
     const wsAdmins = await db
       .select({
         id: loginServerAdmins.id,
         accountName: loginServerAdmins.accountName,
       })
-      .from(loginServerAdmins);
+      .from(loginServerAdmins)
+      .where(sql`account_name != '' AND account_name IS NOT NULL`);
     const wsAdminMap = new Map(wsAdmins.map((a) => [a.id, a.accountName]));
 
-    // Get connected world servers
+    // Get connected world servers (full federation view)
     const worldServers = await db
       .select({
         id: loginWorldServers.id,
@@ -146,7 +147,7 @@ export async function GET() {
         verifiedAccounts: accounts.filter((a) => a.emailVerified).length,
         totalAdmins: admins.length,
         totalWorldServers: worldServers.length,
-        totalWorldServerAdmins: wsAdmins.length,
+        totalServerAdmins: wsAdmins.length,
       },
     });
   } catch (error) {

@@ -27,6 +27,30 @@ RUN sed -i '/w\.short_name.*=.*m_server_short_name;/a\\t\tw.login_server_admin_i
  && grep -n 'login_server_admin_id' /build/source/loginserver/world_server.cpp \
  && grep -n 'Federation' /build/source/loginserver/world_server_manager.cpp || true
 
+# Patch: add missing SetServerListTypeId definition
+RUN echo '' >> /build/source/loginserver/world_server.cpp \
+ && echo 'WorldServer *WorldServer::SetServerListTypeId(unsigned int in_server_list_id) {' >> /build/source/loginserver/world_server.cpp \
+ && echo '	m_server_list_type_id = in_server_list_id;' >> /build/source/loginserver/world_server.cpp \
+ && echo '	return this;' >> /build/source/loginserver/world_server.cpp \
+ && echo '}' >> /build/source/loginserver/world_server.cpp
+
+# Patch: refresh live server list types from DB (web auto-tier sync writes login_server_list_type_id)
+COPY patches/refresh_live_list_types.cpp /tmp/refresh_live_list_types.cpp
+RUN python3 -c "\
+import re; \
+f='/build/source/loginserver/world_server_manager.cpp'; \
+p=open('/tmp/refresh_live_list_types.cpp').read(); \
+s=open(f).read(); \
+anchor='Federation: loaded [{}] federated servers from DB'; \
+i=s.find(anchor); \
+assert i>0, 'anchor not found'; \
+j=s.find('} catch', i); \
+assert j>0, 'catch not found after anchor'; \
+s=s[:j]+p+'\n\t'+s[j:]; \
+open(f,'w').write(s)" \
+ && echo "=== Verify list type refresh patch ===" \
+ && grep -n 'RefreshLiveServerListTypes\|login_server_list_type_id.*federation_source_node_id IS NULL' /build/source/loginserver/world_server_manager.cpp
+
 # Build loginserver only
 RUN mkdir build && cd build \
     && cmake .. \

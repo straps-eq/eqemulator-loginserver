@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { loginWorldServers, serverProfiles, platformConfig } from "@/db/schema";
+import { loginWorldServers, serverProfiles, platformConfig, federationNodes } from "@/db/schema";
 import { inArray, eq } from "drizzle-orm";
 import http from "http";
 
@@ -52,11 +52,13 @@ export async function GET() {
     return NextResponse.json(cachedResponse.data);
   }
 
-  const [liveServers, dbServers, profiles] = await Promise.all([
+  const [liveServers, dbServers, profiles, fedNodes] = await Promise.all([
     getLiveServers(),
     db.select().from(loginWorldServers).catch(() => [] as any[]),
     db.select().from(serverProfiles).catch(() => [] as any[]),
+    db.select({ id: federationNodes.id, name: federationNodes.name }).from(federationNodes).catch(() => [] as any[]),
   ]);
+  const nodeMap = new Map(fedNodes.map((n: any) => [n.id, n.name]));
 
   // Tier thresholds — graceful fallback if platform_config table is missing
   let highMin = 400;
@@ -95,6 +97,8 @@ export async function GET() {
       display_tier: effectiveTier,
       tier_override: manualTier ? true : false,
       show_player_count: !!showPlayerCount,
+      federation_node_id: dbMatch?.federationSourceNodeId || null,
+      federation_node_name: dbMatch?.federationSourceNodeId ? (nodeMap.get(dbMatch.federationSourceNodeId) || null) : null,
     };
   });
 
@@ -138,6 +142,8 @@ export async function GET() {
         tier_override: manualTier ? true : false,
         show_player_count: !!showPlayerCount,
         is_federated: true,
+        federation_node_id: d.federationSourceNodeId,
+        federation_node_name: nodeMap.get(d.federationSourceNodeId!) || null,
       };
     });
 

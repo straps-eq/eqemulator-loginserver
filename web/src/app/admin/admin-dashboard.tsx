@@ -51,7 +51,7 @@ interface Stats {
   verifiedAccounts: number;
   totalAdmins: number;
   totalWorldServers: number;
-  totalWorldServerAdmins: number;
+  totalServerAdmins: number;
 }
 
 export function AdminDashboard() {
@@ -188,7 +188,7 @@ export function AdminDashboard() {
           <StatCard
             icon={<Server className="h-4 w-4" />}
             label="Server Accounts"
-            value={stats.totalWorldServerAdmins}
+            value={stats.totalServerAdmins}
           />
         </div>
       )}

@@ -142,7 +142,7 @@ export default async function HomePage() {
           <div className="max-w-2xl mx-auto">
             <pre className="bg-[#0a0e17] border border-frost-400/6 rounded-lg p-5 text-sm text-parchment-300 overflow-x-auto font-mono mb-6">
 {`"loginserver2": {
-  "host": "login.eqemulator.dev",
+  "host": "worldserver.eqemulator.dev",
   "port": "5998"
 }`}
             </pre>

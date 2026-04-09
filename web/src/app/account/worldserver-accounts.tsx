@@ -281,14 +281,14 @@ function AccountCard({
               <div className="mt-2 relative">
                 <pre className="bg-[#0a0e17] border border-frost-400/6 rounded p-3 text-xs text-parchment-300 overflow-x-auto font-mono">
 {`"loginserver2": {
-  "host": "login.eqemulator.dev",
+  "host": "worldserver.eqemulator.dev",
   "port": "5998",
   "account": "${acct.accountName}",
   "password": "${configPassword}"
 }`}
                 </pre>
                 <button
-                  onClick={() => copy(`"loginserver2": {\n  "host": "login.eqemulator.dev",\n  "port": "5998",\n  "account": "${acct.accountName}",\n  "password": "${configPassword}"\n}`, `config-${acct.id}`)}
+                  onClick={() => copy(`"loginserver2": {\n  "host": "worldserver.eqemulator.dev",\n  "port": "5998",\n  "account": "${acct.accountName}",\n  "password": "${configPassword}"\n}`, `config-${acct.id}`)}
                   className="absolute top-2 right-2 text-parchment-600 hover:text-parchment-400 transition-colors"
                 >
                   {copiedField === `config-${acct.id}` ? <Check className="h-3 w-3 text-forest-400" /> : <Copy className="h-3 w-3" />}

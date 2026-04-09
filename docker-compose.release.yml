@@ -109,16 +109,12 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   upgrade-agent:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.upgrade-agent
-    image: eqemu-upgrade-agent:latest
+    image: ghcr.io/straps-eq/eqemu-upgrade-agent:latest
     container_name: eqemu-upgrade-agent
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.release.yml:/host/docker-compose.release.yml:ro
-      - ./.env:/host/.env:ro
+      - .:/host
       - ./backups:/host/backups
     environment:
       - AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
@@ -145,4 +141,5 @@ volumes:
 
 networks:
   internal:
+    name: eqemu_internal
     driver: bridge

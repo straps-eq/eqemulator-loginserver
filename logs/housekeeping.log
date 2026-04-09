@@ -1,0 +1,31 @@
+[2026-04-09 04:00:02] === Housekeeping started ===
+[2026-04-09 04:00:02] Pruning unused Docker images...
+[2026-04-09 04:00:02] Docker prune: Total reclaimed space: 0B
+[2026-04-09 04:00:02] Optimizing MariaDB tables...
+Table	Op	Msg_type	Msg_text
+eqemu_login.login_accounts	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.login_accounts	optimize	status	OK
+eqemu_login.login_world_servers	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.login_world_servers	optimize	status	OK
+eqemu_login.login_server_admins	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.login_server_admins	optimize	status	OK
+eqemu_login.server_profiles	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.server_profiles	optimize	status	OK
+eqemu_login.platform_accounts	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.platform_accounts	optimize	status	OK
+eqemu_login.platform_admins	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.platform_admins	optimize	status	OK
+eqemu_login.account_login_links	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.account_login_links	optimize	status	OK
+eqemu_login.platform_oauth_links	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.platform_oauth_links	optimize	status	OK
+eqemu_login.world_server_admin_links	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.world_server_admin_links	optimize	status	OK
+eqemu_login.federation_changelog	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.federation_changelog	optimize	status	OK
+eqemu_login.federation_audit_log	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.federation_audit_log	optimize	status	OK
+eqemu_login.federation_server_status	optimize	note	Table does not support optimize, doing recreate + analyze instead
+eqemu_login.federation_server_status	optimize	status	OK
+[2026-04-09 04:00:07] Removed 0 old backups (>7 days)
+[2026-04-09 04:00:07] === Housekeeping complete ===

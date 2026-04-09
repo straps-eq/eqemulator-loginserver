@@ -41,7 +41,7 @@ export default async function ServerOperatorsPage() {
                   </div>
                 </div>
                 <div className="w-full">
-                  <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Quick Start — Add login.eqemulator.dev</h2>
+                  <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Quick Start — Add worldserver.eqemulator.dev</h2>
                   <p className="text-parchment-400 text-sm mb-3">
                     Add a new loginserver entry to your{" "}
                     <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqemu_config.json</code>.
@@ -52,7 +52,7 @@ export default async function ServerOperatorsPage() {
   "server": {
     "world": {
       "loginserver2": {
-        "host": "login.eqemulator.dev",
+        "host": "worldserver.eqemulator.dev",
         "port": "5998"
       }
     }
@@ -94,7 +94,7 @@ export default async function ServerOperatorsPage() {
         "legacy": "1"
       },
       "loginserver2": {
-        "host": "login.eqemulator.dev",
+        "host": "worldserver.eqemulator.dev",
         "port": "5998"
       }
     }
@@ -247,7 +247,7 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">My server isn&apos;t appearing in the list</h3>
                 <p className="text-parchment-400 text-sm">
                   Check your world server logs for loginserver connection messages. Ensure{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">login.eqemulator.dev</code>{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code>{" "}
                   is reachable from your server on port 5998 (TCP). Verify the config key is named{" "}
                   <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver2</code>{" "}
                   (not <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver_2</code>).
@@ -266,11 +266,11 @@ export default async function ServerOperatorsPage() {
             </Card>
             <Card>
               <CardContent className="p-5">
-                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Can I connect to login.eqemulator.dev only (not eqemulator.net)?</h3>
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Can I connect to worldserver.eqemulator.dev only (not eqemulator.net)?</h3>
                 <p className="text-parchment-400 text-sm">
                   Yes. Just configure a single{" "}
                   <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver1</code>{" "}
-                  pointing at login.eqemulator.dev. Players using their eqemulator.net credentials will still
+                  pointing at worldserver.eqemulator.dev. Players using their eqemulator.net credentials will still
                   work thanks to LSPX account proxying.
                 </p>
               </CardContent>

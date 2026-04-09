@@ -75,7 +75,8 @@ export async function authenticateFederationRequest(
   }
 
   // Verify signature
-  const path = new URL(req.url).pathname;
+  const url = new URL(req.url);
+  const path = url.pathname + url.search;
   const method = req.method;
   const valid = await verifySignature(
     publicKeyHex,

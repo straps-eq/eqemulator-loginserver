@@ -17,11 +17,14 @@ import { federationGet } from "./client";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
 
-const SYNCED_TABLES = new Set([
-  "login_accounts",
-  "login_world_servers",
-  "login_server_admins",
-  "server_profiles",
+// Changelog-based sync is DISABLED for loginserver tables.
+// The full data sync (applyFullDataSync) handles all loginserver tables with
+// proper federation_source_node_id tracking and deduplication.
+// The changelog sync was creating duplicate records (inserts without
+// federation_source_node_id) and bloating the changelog by re-logging
+// every applied change.
+const SYNCED_TABLES = new Set<string>([
+  // All loginserver tables handled by full data sync — do not add here
 ]);
 
 // Column whitelists — only these columns are allowed in sync payloads.
@@ -87,6 +90,7 @@ interface HeartbeatResponse {
   latest_config_version: number;
   software_version?: string;
   timestamp: number;
+  active_peers?: Array<{ public_key: string; name: string; endpoint_url: string; node_tier: string }>;
 }
 
 interface ChangesResponse {
@@ -212,6 +216,66 @@ export async function runSyncCycle(): Promise<{
         await updatePeerVersion(peer.id, hb.data.software_version);
       }
 
+      // Reconcile peer list: if this peer (typically master) provides an active_peers list,
+      // deactivate any local peers that are NOT in that list and NOT self.
+      if (hb.data.active_peers && hb.data.is_master) {
+        try {
+          const { getSelfNode } = await import("./node");
+          const selfNode = await getSelfNode();
+          const masterPeerKeys = new Set(hb.data.active_peers.map((p) => p.public_key));
+          // Also include the master's own key and our own key
+          masterPeerKeys.add(peer.publicKey);
+          if (selfNode) masterPeerKeys.add(selfNode.publicKey);
+
+          const allLocalPeers = await getActivePeers();
+          // Build a lookup of master-reported endpoint URLs by public key
+          const masterEndpoints = new Map(
+            hb.data.active_peers!.map((p) => [p.public_key, p.endpoint_url])
+          );
+          for (const localPeer of allLocalPeers) {
+            if (!masterPeerKeys.has(localPeer.publicKey)) {
+              // This peer was removed from the master — deactivate locally
+              await pool.execute(
+                `UPDATE federation_nodes SET status = 'revoked', is_approved = 0, updated_at = NOW() WHERE id = ?`,
+                [localPeer.id]
+              );
+              console.log(`[federation] deactivated node "${localPeer.name}" (id ${localPeer.id}) — removed from master`);
+              await auditLog(localPeer.id, "node_removed_by_master", { name: localPeer.name });
+            } else {
+              // Update endpoint_url if master reports a different one
+              const masterUrl = masterEndpoints.get(localPeer.publicKey);
+              if (masterUrl && masterUrl !== localPeer.endpointUrl) {
+                await pool.execute(
+                  `UPDATE federation_nodes SET endpoint_url = ?, updated_at = NOW() WHERE id = ?`,
+                  [masterUrl, localPeer.id]
+                );
+                console.log(`[federation] updated endpoint for "${localPeer.name}": ${localPeer.endpointUrl} -> ${masterUrl}`);
+              }
+            }
+          }
+          // Also update the master peer's own endpoint_url if it changed
+          const masterReportedUrl = masterEndpoints.get(peer.publicKey) || 
+            hb.data.active_peers!.find(p => p.public_key === peer.publicKey)?.endpoint_url;
+          if (!masterReportedUrl && peer.endpointUrl !== peer.endpointUrl) { /* no-op */ }
+          // The master's own endpoint is the peer we're talking to — update from heartbeat source
+          if (peer.endpointUrl) {
+            // Check if master's self-reported endpoint differs from what we have
+            const selfReported = hb.data.active_peers!.find(
+              p => p.public_key === peer.publicKey
+            );
+            if (selfReported && selfReported.endpoint_url !== peer.endpointUrl) {
+              await pool.execute(
+                `UPDATE federation_nodes SET endpoint_url = ?, updated_at = NOW() WHERE id = ?`,
+                [selfReported.endpoint_url, peer.id]
+              );
+              console.log(`[federation] updated master endpoint: ${peer.endpointUrl} -> ${selfReported.endpoint_url}`);
+            }
+          }
+        } catch (err) {
+          errors.push(`peer reconciliation failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
       // Pull changes since our last known seq for this peer
       const sinceSeq = peer.lastSyncSeq || 0;
       if (hb.data.latest_seq <= sinceSeq) {
@@ -301,6 +365,34 @@ export async function runSyncCycle(): Promise<{
     await pruneAuditLog(90);
   } catch (err) {
     errors.push(`audit prune failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Self-healing: purge junk records that accumulate from sync bugs
+  try {
+    const [blankResult] = await pool.execute(
+      `DELETE FROM login_server_admins WHERE account_name = '' OR account_name IS NULL`
+    ) as unknown as [{ affectedRows: number }];
+    if (blankResult.affectedRows > 0) {
+      console.log(`[housekeeping] purged ${blankResult.affectedRows} blank-name login_server_admins`);
+    }
+    // Duplicate federated servers where a local copy already exists (local is authoritative)
+    const [dupResult] = await pool.execute(
+      `DELETE fed FROM login_world_servers fed
+       INNER JOIN login_world_servers loc ON loc.short_name = fed.short_name
+         AND (loc.federation_source_node_id IS NULL OR loc.federation_source_node_id = 0)
+       WHERE fed.federation_source_node_id IS NOT NULL AND fed.federation_source_node_id > 0`
+    ) as unknown as [{ affectedRows: number }];
+    if (dupResult.affectedRows > 0) {
+      console.log(`[housekeeping] purged ${dupResult.affectedRows} duplicate federated servers (local copy exists)`);
+    }
+    // Orphaned server_profiles with no matching world server
+    await pool.execute(
+      `DELETE sp FROM server_profiles sp LEFT JOIN login_world_servers lws ON sp.world_server_id = lws.id WHERE lws.id IS NULL`
+    );
+    // Orphaned server_profiles with world_server_id = 0
+    await pool.execute(`DELETE FROM server_profiles WHERE world_server_id = 0`);
+  } catch (err) {
+    errors.push(`housekeeping cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Check if our own local data changed (e.g. new world server connected).
@@ -503,6 +595,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         ) as unknown as [Array<{ id: number }>];
 
         if (existingSrv.length > 0) {
+          // Already have this server from this source — update it
           await conn.execute(
             `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?, login_server_admin_id = ?, is_server_trusted = ?, note = ? WHERE id = ?`,
             [
@@ -513,37 +606,41 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             ] as (string | number | null)[]
           );
         } else {
-          // Check if this server already exists locally with no federation source
-          // (e.g. it was registered before federation was set up). If so, adopt it
-          // as federated rather than inserting a duplicate row.
-          const [orphanSrv] = await conn.execute(
+          // Skip if this server already exists locally — local copy is authoritative
+          const [localSrv] = await conn.execute(
             `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
             [srv.short_name] as string[]
           ) as unknown as [Array<{ id: number }>];
 
-          if (orphanSrv.length > 0) {
-            await conn.execute(
-              `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?, login_server_admin_id = ?, is_server_trusted = ?, note = ?, federation_source_node_id = ? WHERE id = ?`,
-              [
-                srv.long_name, srv.tag_description || "",
-                srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-                srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
-                srv.note || null, sourceNodeId, orphanSrv[0].id,
-              ] as (string | number | null)[]
-            );
-            console.log(`[sync_data] adopted orphan server "${srv.short_name}" (id ${orphanSrv[0].id}) as federated from node ${sourceNodeId}`);
-          } else {
-            await conn.execute(
-              `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                srv.long_name, srv.short_name, srv.tag_description || "",
-                srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-                srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
-                srv.note || null, sourceNodeId,
-              ] as (string | number | null)[]
-            );
+          if (localSrv.length > 0) {
+            // Local server takes precedence — don't create a federated duplicate
+            syncedShortNames.add(srv.short_name as string);
+            continue;
           }
+
+          // Also skip if it already exists from a different federation source
+          const [otherSrv] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id IS NOT NULL AND federation_source_node_id != ? LIMIT 1`,
+            [srv.short_name, sourceNodeId] as (string | number)[]
+          ) as unknown as [Array<{ id: number }>];
+
+          if (otherSrv.length > 0) {
+            // Already exists from another node — skip duplicate
+            syncedShortNames.add(srv.short_name as string);
+            continue;
+          }
+
+          // New federated server — insert
+          await conn.execute(
+            `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              srv.long_name, srv.short_name, srv.tag_description || "",
+              srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
+              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+              srv.note || null, sourceNodeId,
+            ] as (string | number | null)[]
+          );
         }
         syncedShortNames.add(srv.short_name as string);
         const [srvResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
@@ -573,9 +670,11 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     }
 
     // Upsert admins — match on (account_name, federation_source_node_id)
+    // Skip blank account names — these are junk records that cause duplication loops
     const syncedAdminNames = new Set<string>();
     for (const adm of data.admins) {
       try {
+        if (!adm.account_name || (adm.account_name as string).trim() === "") continue;
         const [existingAdm] = await conn.execute(
           `SELECT id FROM login_server_admins WHERE account_name = ? AND federation_source_node_id = ? LIMIT 1`,
           [adm.account_name, sourceNodeId] as (string | number)[]
@@ -1029,15 +1128,9 @@ async function applyChange(change: ChangeEntry) {
       break;
   }
 
-  // Record in our own changelog so we don't re-sync it back
-  await db.insert(federationChangelog).values({
-    tableName: table_name,
-    rowId: row_id,
-    operation,
-    originNodeId: origin_node_id,
-    payload: safePayload,
-    createdAt: new Date(),
-  });
+  // NOTE: We no longer re-log applied remote changes into the local changelog.
+  // This was causing exponential changelog growth — every change from a peer
+  // got echoed back, creating 137K+ duplicate entries.
 }
 
 async function applyInsert(tableName: string, rowId: number, payload: Record<string, unknown>) {

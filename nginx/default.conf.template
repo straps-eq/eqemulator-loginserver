@@ -4,7 +4,7 @@ limit_req_zone $binary_remote_addr zone=api_general:10m rate=30r/m;
 
 server {
     listen 80;
-    server_name __DOMAIN__ www.__DOMAIN__;
+    server_name __DOMAIN__ www.__DOMAIN__ worldserver.__DOMAIN__;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -18,7 +18,7 @@ server {
 server {
     listen 443 ssl;
     client_max_body_size 10m;
-    server_name __DOMAIN__ www.__DOMAIN__;
+    server_name __DOMAIN__ www.__DOMAIN__ worldserver.__DOMAIN__;
 
     ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;

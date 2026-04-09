@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   RefreshCw,
   ArrowUpCircle,
@@ -43,6 +43,7 @@ interface SystemData {
   services: Record<string, ServiceInfo> | null;
   agentConnected: boolean;
   statusPagePublic: boolean;
+  isMaster: boolean;
   peerNodes: PeerNode[];
 }
 
@@ -79,10 +80,18 @@ export function SystemDashboard() {
     config_sync: "Syncing config files...",
     migrate: "Running migrations...",
     restart: "Restarting services...",
+    health_check: "Verifying health...",
     nginx: "Restarting nginx...",
     done: "Upgrade complete!",
     failed: "Upgrade failed",
   };
+
+  // Track poll intervals for cleanup on unmount
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pollRefs = useRef<any[]>([]);
+  useEffect(() => {
+    return () => { pollRefs.current.forEach(id => clearInterval(id)); };
+  }, []);
 
   const pollUpgradeStatus = () => {
     let retries = 0;
@@ -99,6 +108,7 @@ export function SystemDashboard() {
 
         if (status.step === "done" && !status.running) {
           clearInterval(poll);
+          pollRefs.current = pollRefs.current.filter(id => id !== poll);
           setUpgradeProgress(null);
           setActionLoading(null);
           const res = status.result;
@@ -111,6 +121,7 @@ export function SystemDashboard() {
           fetchData();
         } else if (status.step === "failed" && !status.running) {
           clearInterval(poll);
+          pollRefs.current = pollRefs.current.filter(id => id !== poll);
           setUpgradeProgress(null);
           setActionLoading(null);
           setActionResult({ text: `Upgrade failed: ${status.error || "unknown error"}`, type: "error" });
@@ -121,6 +132,7 @@ export function SystemDashboard() {
         // Web is probably restarting — keep polling
         if (retries > 120) {
           clearInterval(poll);
+          pollRefs.current = pollRefs.current.filter(id => id !== poll);
           setUpgradeProgress(null);
           setActionLoading(null);
           setActionResult({ text: "Lost connection during upgrade. Check server logs and refresh.", type: "error" });
@@ -129,6 +141,7 @@ export function SystemDashboard() {
         }
       }
     }, 2000);
+    pollRefs.current.push(poll);
   };
 
   const doAction = async (action: string, extra?: Record<string, unknown>) => {
@@ -162,7 +175,12 @@ export function SystemDashboard() {
       if (result.error) {
         setActionResult({ text: result.error, type: "error" });
       } else {
-        setActionResult({ text: result.message || "Done", type: "success" });
+        let msg = "Done";
+        if (action === "backup" && result.file) msg = `Backup saved: ${result.file} (${Math.round((result.size || 0) / 1024)}KB)`;
+        else if (action === "migrate") msg = `${result.applied || 0} migrations applied${result.errors?.length ? ` (${result.errors.length} errors)` : ""}`;
+        else if (action === "pull") msg = "Images pulled successfully";
+        else if (action === "restart") msg = "Service restarted";
+        setActionResult({ text: msg, type: "success" });
         fetchData();
       }
     } catch {
@@ -458,6 +476,25 @@ export function SystemDashboard() {
               <ArrowUpCircle className="h-3 w-3" />
               Run Migrations
             </button>
+            <button
+              onClick={() => {
+                if (!confirm("Force pull latest images and restart web + agent?\n\nThis uses direct docker pull (bypasses compose cache), stops the old container, and starts a fresh one.\n\nNo backup or migrations — use the other buttons for those.")) return;
+                setUpgradeProgress("Pulling images & restarting...");
+                setActionLoading("force_pull_restart");
+                setActionResult(null);
+                fetch("/api/admin/system", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "force_pull_restart", mode: "direct" }),
+                }).catch(() => {});
+                pollUpgradeStatus();
+              }}
+              disabled={!!actionLoading}
+              className="flex items-center gap-1.5 rounded border border-amber-400/15 px-3 py-1.5 text-xs text-amber-400/80 hover:text-amber-300 hover:border-amber-400/30 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Force Pull &amp; Restart
+            </button>
           </div>
         </div>
       )}
@@ -472,7 +509,7 @@ export function SystemDashboard() {
           </div>
           <div className="divide-y divide-frost-400/5">
             {data.peerNodes.map((node) => {
-              const isOutdated = node.softwareVersion && data.currentVersion && node.softwareVersion !== data.currentVersion;
+              const isOutdated = data.isMaster && node.softwareVersion && data.currentVersion && node.softwareVersion !== data.currentVersion;
               const isUpgrading = remoteUpgradeNodeId === node.id;
               return (
                 <div key={node.id} className="flex items-center justify-between px-5 py-3">
@@ -533,6 +570,66 @@ export function SystemDashboard() {
                       </button>
                       <button
                         onClick={async () => {
+                          if (!confirm(`Force pull & restart on ${node.name}?\n\nThis bypasses compose cache: direct docker pull, stops old container, starts new one.\nNo backup or migrations. Fast and reliable.`)) return;
+                          setRemoteUpgradeNodeId(node.id);
+                          setRemoteUpgradeProgress('Force pulling...');
+                          setActionResult(null);
+                          try {
+                            await fetch('/api/admin/system', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'remote_force_pull_restart', node_id: node.id, mode: 'direct' }),
+                            });
+                          } catch {}
+                          let retries = 0;
+                          const poll = setInterval(async () => {
+                            retries++;
+                            try {
+                              const r = await fetch('/api/admin/system', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'remote_upgrade_status', node_id: node.id }),
+                              });
+                              const s = await r.json();
+                              if (s.step === 'done' && !s.running) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name} force pull & restart complete!`, type: 'success' });
+                                fetchData();
+                              } else if (s.step === 'failed' && !s.running) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name} force pull failed: ${s.error || 'unknown'}`, type: 'error' });
+                              } else if (s.running) {
+                                setRemoteUpgradeProgress(stepLabels[s.step] || s.step);
+                              } else if (s.error) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `${node.name}: ${s.error}`, type: 'error' });
+                              }
+                            } catch {
+                              if (retries > 60) {
+                                clearInterval(poll);
+                                setRemoteUpgradeNodeId(null);
+                                setRemoteUpgradeProgress(null);
+                                setActionResult({ text: `Lost connection to ${node.name}`, type: 'error' });
+                              }
+                            }
+                          }, 3000);
+                          pollRefs.current.push(poll);
+                        }}
+                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
+                        className="flex items-center gap-1.5 rounded border border-amber-400/15 px-2.5 py-1.5 text-xs text-amber-400/80 hover:text-amber-300 hover:border-amber-400/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`Force pull & restart on ${node.name} (bypasses compose cache)`}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Force Pull
+                      </button>
+                      <button
+                        onClick={async () => {
                           if (!confirm(`Trigger image upgrade on ${node.name}?\n\nThis will: backup DB, pull web image, run migrations, restart web.\nIt will NOT touch their docker-compose.yml or .env.`)) return;
                           setRemoteUpgradeNodeId(node.id);
                           setRemoteUpgradeProgress('Starting...');
@@ -583,6 +680,7 @@ export function SystemDashboard() {
                               }
                             }
                           }, 3000);
+                          pollRefs.current.push(poll);
                         }}
                         disabled={!!actionLoading || !!remoteUpgradeNodeId}
                         className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
