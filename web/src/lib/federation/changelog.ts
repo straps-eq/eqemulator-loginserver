@@ -98,19 +98,31 @@ export async function pruneChangelog(retentionDays = 7): Promise<number> {
     );
 
   const safePruneSeq = peers[0]?.minSeq ?? 0;
-  if (safePruneSeq <= 0) return 0; // no peers or no progress — don't prune
 
   // Also enforce time-based retention
   const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
-  const result = await db
-    .delete(federationChangelog)
-    .where(
-      sql`${federationChangelog.id} <= ${safePruneSeq}
-        AND ${federationChangelog.createdAt} < ${cutoffDate}`
-    );
+  if (safePruneSeq > 0) {
+    // Master or nodes with syncing peers: prune only entries that all peers have consumed AND are old enough
+    const result = await db
+      .delete(federationChangelog)
+      .where(
+        sql`${federationChangelog.id} <= ${safePruneSeq}
+          AND ${federationChangelog.createdAt} < ${cutoffDate}`
+      );
+    return (result as unknown as { rowsAffected: number })?.rowsAffected ?? 0;
+  }
 
-  return (result as unknown as { rowsAffected: number })?.rowsAffected ?? 0;
+  // Non-master nodes with no syncing peers: prune on time alone to prevent unbounded growth.
+  // Mesh/peer nodes don't serve changelog to others, so no sync safety needed.
+  if (!self.isMaster) {
+    const result = await db
+      .delete(federationChangelog)
+      .where(sql`${federationChangelog.createdAt} < ${cutoffDate}`);
+    return (result as unknown as { rowsAffected: number })?.rowsAffected ?? 0;
+  }
+
+  return 0; // Master with no peer progress — don't prune yet
 }
 
 /**

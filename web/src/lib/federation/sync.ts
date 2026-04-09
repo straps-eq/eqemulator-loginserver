@@ -227,49 +227,77 @@ export async function runSyncCycle(): Promise<{
           masterPeerKeys.add(peer.publicKey);
           if (selfNode) masterPeerKeys.add(selfNode.publicKey);
 
-          const allLocalPeers = await getActivePeers();
-          // Build a lookup of master-reported endpoint URLs by public key
+          // Build a lookup of master-reported peers by public key
           const masterEndpoints = new Map(
-            hb.data.active_peers!.map((p) => [p.public_key, p.endpoint_url])
+            hb.data.active_peers!.map((p) => [p.public_key, p])
           );
-          for (const localPeer of allLocalPeers) {
-            if (!masterPeerKeys.has(localPeer.publicKey)) {
-              // This peer was removed from the master — deactivate locally
-              await pool.execute(
-                `UPDATE federation_nodes SET status = 'revoked', is_approved = 0, updated_at = NOW() WHERE id = ?`,
-                [localPeer.id]
-              );
-              console.log(`[federation] deactivated node "${localPeer.name}" (id ${localPeer.id}) — removed from master`);
-              await auditLog(localPeer.id, "node_removed_by_master", { name: localPeer.name });
+
+          // Get ALL local peers (not just active) so we can reactivate unapproved ones
+          const [allLocalRows] = await pool.execute(
+            `SELECT id, public_key, name, endpoint_url, status, is_approved FROM federation_nodes WHERE is_self = 0`
+          ) as unknown as [Array<{ id: number; public_key: string; name: string; endpoint_url: string; status: string; is_approved: number }>];
+
+          const localPeersByKey = new Map(allLocalRows.map(r => [r.public_key, r]));
+
+          // Deactivate local peers not in master's list, update/approve those that are
+          for (const localPeer of allLocalRows) {
+            if (!masterPeerKeys.has(localPeer.public_key)) {
+              if (localPeer.status === "active" && localPeer.is_approved === 1) {
+                await pool.execute(
+                  `UPDATE federation_nodes SET status = 'revoked', is_approved = 0, updated_at = NOW() WHERE id = ?`,
+                  [localPeer.id]
+                );
+                console.log(`[federation] deactivated node "${localPeer.name}" (id ${localPeer.id}) — removed from master`);
+                await auditLog(localPeer.id, "node_removed_by_master", { name: localPeer.name });
+              }
             } else {
+              const masterPeer = masterEndpoints.get(localPeer.public_key);
+              // Approve/activate if master says it's active but local copy isn't
+              if (localPeer.status !== "active" || localPeer.is_approved !== 1) {
+                await pool.execute(
+                  `UPDATE federation_nodes SET status = 'active', is_approved = 1, node_tier = ?, updated_at = NOW() WHERE id = ?`,
+                  [masterPeer?.node_tier || "mesh", localPeer.id]
+                );
+                console.log(`[federation] approved node "${localPeer.name}" (id ${localPeer.id}) — active on master`);
+              }
               // Update endpoint_url if master reports a different one
-              const masterUrl = masterEndpoints.get(localPeer.publicKey);
-              if (masterUrl && masterUrl !== localPeer.endpointUrl) {
+              if (masterPeer && masterPeer.endpoint_url !== localPeer.endpoint_url) {
                 await pool.execute(
                   `UPDATE federation_nodes SET endpoint_url = ?, updated_at = NOW() WHERE id = ?`,
-                  [masterUrl, localPeer.id]
+                  [masterPeer.endpoint_url, localPeer.id]
                 );
-                console.log(`[federation] updated endpoint for "${localPeer.name}": ${localPeer.endpointUrl} -> ${masterUrl}`);
+                console.log(`[federation] updated endpoint for "${localPeer.name}": ${localPeer.endpoint_url} -> ${masterPeer.endpoint_url}`);
               }
             }
           }
-          // Also update the master peer's own endpoint_url if it changed
-          const masterReportedUrl = masterEndpoints.get(peer.publicKey) || 
-            hb.data.active_peers!.find(p => p.public_key === peer.publicKey)?.endpoint_url;
-          if (!masterReportedUrl && peer.endpointUrl !== peer.endpointUrl) { /* no-op */ }
-          // The master's own endpoint is the peer we're talking to — update from heartbeat source
-          if (peer.endpointUrl) {
-            // Check if master's self-reported endpoint differs from what we have
-            const selfReported = hb.data.active_peers!.find(
-              p => p.public_key === peer.publicKey
-            );
-            if (selfReported && selfReported.endpoint_url !== peer.endpointUrl) {
+
+          // Create local entries for peers the master reports that we don't have at all
+          for (const mp of hb.data.active_peers!) {
+            if (mp.public_key === selfNode?.publicKey) continue; // skip self
+            if (mp.public_key === peer.publicKey) continue; // skip the master itself
+            if (localPeersByKey.has(mp.public_key)) continue; // already handled above
+            try {
               await pool.execute(
-                `UPDATE federation_nodes SET endpoint_url = ?, updated_at = NOW() WHERE id = ?`,
-                [selfReported.endpoint_url, peer.id]
+                `INSERT INTO federation_nodes (name, endpoint_url, public_key, is_self, is_master, is_approved, status, node_tier, created_at, updated_at)
+                 VALUES (?, ?, ?, 0, 0, 1, 'active', ?, NOW(), NOW())`,
+                [mp.name, mp.endpoint_url, mp.public_key, mp.node_tier || "mesh"]
               );
-              console.log(`[federation] updated master endpoint: ${peer.endpointUrl} -> ${selfReported.endpoint_url}`);
+              console.log(`[federation] created new peer "${mp.name}" from master's active list`);
+            } catch (err) {
+              console.error(`[federation] failed to create peer "${mp.name}":`, err);
             }
+          }
+
+          // Update the master peer's own endpoint if it changed
+          const masterSelfEntry = hb.data.active_peers!.find(
+            p => p.public_key === peer.publicKey
+          );
+          if (masterSelfEntry && masterSelfEntry.endpoint_url !== peer.endpointUrl) {
+            await pool.execute(
+              `UPDATE federation_nodes SET endpoint_url = ?, updated_at = NOW() WHERE id = ?`,
+              [masterSelfEntry.endpoint_url, peer.id]
+            );
+            console.log(`[federation] updated master endpoint: ${peer.endpointUrl} -> ${masterSelfEntry.endpoint_url}`);
           }
         } catch (err) {
           errors.push(`peer reconciliation failed: ${err instanceof Error ? err.message : String(err)}`);
