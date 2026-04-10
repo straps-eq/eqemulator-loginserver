@@ -302,7 +302,7 @@ function doRestart(res, service) {
     jsonResponse(res, 400, { error: `invalid service: ${service}` });
     return;
   }
-  const output = compose(`up -d --no-deps --pull always --force-recreate ${service}`);
+  const output = compose(`up -d --no-deps --force-recreate ${service}`);
   // If we recreated web or loginserver, nginx needs a restart to pick up new container IPs
   if (service === "web" || service === "loginserver") {
     log("Restarting nginx to pick up new container IP");
@@ -369,7 +369,7 @@ function doForcePullRestart(res, mode) {
       // Step 3: Restart web + loginserver
       upgradeState.step = "restart";
       log("Force pull: Restarting web + loginserver...");
-      const out = compose("up -d --no-deps --pull always --force-recreate web loginserver");
+      const out = compose("up -d --no-deps --force-recreate web loginserver");
       log(`  compose up output: ${(out || "").slice(0, 200)}`);
       if (out && out.includes("Error")) {
         upgradeState = { running: false, step: "failed", error: `Restart failed: ${out.slice(0, 200)}`, result: null };
@@ -395,7 +395,7 @@ function doForcePullRestart(res, mode) {
           execSync(`docker pull ${AGENT_IMAGE}`, { encoding: "utf8", timeout: 120000 });
         }
         log("  ✓ Agent image pulled, self-updating...");
-        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --pull always --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
+        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
       } catch (e) { log(`  ⚠ Agent self-update skipped: ${e.message}`); }
     } catch (err) {
       log(`Force pull restart failed: ${err.message}`);
@@ -523,7 +523,7 @@ function doUpgrade(res) {
       // Step 5: Restart services with new images
       upgradeState.step = "restart";
       log("Step 5/6: Restarting services");
-      const restartOut = compose("up -d --no-deps --pull always --force-recreate web loginserver");
+      const restartOut = compose("up -d --no-deps --force-recreate web loginserver");
       if (restartOut && restartOut.includes("Error")) {
         upgradeState = { running: false, step: "failed", error: `Restart failed: ${restartOut.slice(0, 200)}`, result: null };
         releaseUpgradeLock();
@@ -614,6 +614,13 @@ function doImageUpgrade(res) {
       } catch (e) { log(`  ⚠ Could not detect compose image tag: ${e.message}`); }
       log("  ✓ Web image pulled");
 
+      // Also pull loginserver image
+      const lsImage = "ghcr.io/straps-eq/eqemu-loginserver:latest";
+      try {
+        execSync(`docker pull ${lsImage}`, { encoding: "utf8", timeout: 120000 });
+        log("  ✓ Loginserver image pulled");
+      } catch (e) { log(`  ⚠ Loginserver pull skipped: ${e.message.slice(0, 200)}`); }
+
       // Step 3: Run migrations
       upgradeState.step = "migrate";
       log("Step 3/4: Running migrations");
@@ -643,7 +650,7 @@ function doImageUpgrade(res) {
       // Step 4: Restart web + loginserver (preserves their docker-compose, env, other services)
       upgradeState.step = "restart";
       log("Step 4/4: Restarting web + loginserver");
-      const restartOut = compose("up -d --no-deps --pull always --force-recreate web loginserver");
+      const restartOut = compose("up -d --no-deps --force-recreate web loginserver");
       log(`  compose output: ${(restartOut || "").slice(0, 300)}`);
       if (restartOut && restartOut.includes("Error")) {
         upgradeState = { running: false, step: "failed", error: `Web restart failed: ${restartOut.slice(0, 200)}`, result: null };
@@ -671,7 +678,7 @@ function doImageUpgrade(res) {
         run("docker pull ghcr.io/straps-eq/eqemu-upgrade-agent:latest 2>&1");
         log("  ✓ Upgrade-agent image pulled, self-updating...");
         // This will kill us, but restart policy brings back the new version
-        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --pull always --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
+        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
       } catch (e) { log(`  ⚠ Agent self-update skipped: ${e.message}`); }
     } catch (err) {
       log(`Image upgrade failed: ${err.message}`);
