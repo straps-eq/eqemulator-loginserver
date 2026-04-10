@@ -437,17 +437,27 @@ function doUpgrade(res) {
       }
       log(`  ✓ Backup saved (${backupSize} bytes)`);
 
-      // Step 2: Pull new images (including upgrade-agent itself)
+      // Step 2: Pull new images (direct docker pull to avoid compose pull issues)
       upgradeState.step = "pull";
       log("Step 2/6: Pulling new images");
-      const pullResult = runResult(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" pull web loginserver upgrade-agent 2>&1`);
-      if (!pullResult.ok) {
-        log(`  ✗ Pull failed: ${pullResult.output.slice(0, 200)}`);
-        upgradeState = { running: false, step: "failed", error: `Image pull failed: ${pullResult.output.slice(0, 200)}`, result: null };
-        releaseUpgradeLock();
-        return;
+      const images = [
+        "ghcr.io/straps-eq/eqemu-web:latest",
+        "ghcr.io/straps-eq/eqemu-loginserver:latest",
+        "ghcr.io/straps-eq/eqemu-upgrade-agent:latest",
+      ];
+      for (const img of images) {
+        try {
+          execSync(`docker pull ${img}`, { encoding: "utf8", timeout: 120000 });
+          log(`  ✓ Pulled ${img}`);
+        } catch (pullErr) {
+          const pullMsg = (pullErr.stderr || pullErr.message || "").trim();
+          log(`  ✗ Pull failed for ${img}: ${pullMsg.slice(0, 200)}`);
+          upgradeState = { running: false, step: "failed", error: `Image pull failed: ${img}: ${pullMsg.slice(0, 200)}`, result: null };
+          releaseUpgradeLock();
+          return;
+        }
       }
-      log("  ✓ Images pulled");
+      log("  ✓ All images pulled");
 
       // Step 3: Sync config files from new upgrade-agent image
       // ─────────────────────────────────────────────────────────────────
