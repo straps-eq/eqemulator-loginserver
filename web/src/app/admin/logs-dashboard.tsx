@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { RefreshCw, AlertTriangle, CheckCircle2, Info, Terminal, ChevronDown, ChevronRight } from "lucide-react";
 
 interface LogEvent {
   ts: string;
@@ -255,6 +255,123 @@ export function LogsDashboard() {
           </div>
         )}
       </div>
+
+      {/* Container Logs (on-demand) */}
+      <ContainerLogs />
+    </div>
+  );
+}
+
+const CONTAINER_SERVICES = ["loginserver", "web", "mariadb", "redis", "nginx", "upgrade-agent", "prometheus"] as const;
+const TAIL_OPTIONS = [100, 200, 500, 1000, 2000] as const;
+
+function ContainerLogs() {
+  const [open, setOpen] = useState(false);
+  const [service, setService] = useState<string>("loginserver");
+  const [tail, setTail] = useState<number>(200);
+  const [lines, setLines] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [meta, setMeta] = useState<{ container: string; count: number } | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ service, tail: String(tail) });
+      const res = await fetch(`/api/admin/container-logs?${params}`);
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        setLines([]);
+      } else {
+        setLines(data.lines || []);
+        setMeta({ container: data.container, count: data.count });
+      }
+    } catch {
+      setError("Failed to fetch container logs");
+    }
+    setLoading(false);
+  }, [service, tail]);
+
+  return (
+    <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+      <button
+        onClick={() => { setOpen(!open); if (!open && lines.length === 0) fetchLogs(); }}
+        className="w-full px-5 py-3 flex items-center justify-between hover:bg-frost-400/[0.02] transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-frost-400/60" />
+          <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
+            Container Logs
+          </h3>
+          <span className="text-[10px] text-parchment-700">on-demand</span>
+        </div>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-parchment-600" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-parchment-600" />
+        )}
+      </button>
+
+      {open && (
+        <div className="border-t border-frost-400/8">
+          {/* Controls */}
+          <div className="px-5 py-3 flex items-center gap-3 border-b border-frost-400/5">
+            <select
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+            >
+              {CONTAINER_SERVICES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <select
+              value={tail}
+              onChange={(e) => setTail(Number(e.target.value))}
+              className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+            >
+              {TAIL_OPTIONS.map((t) => (
+                <option key={t} value={t}>Last {t} lines</option>
+              ))}
+            </select>
+            <button
+              onClick={fetchLogs}
+              disabled={loading}
+              className="flex items-center gap-1.5 rounded border border-frost-400/15 bg-frost-400/5 px-3 py-1 text-xs text-frost-300 hover:bg-frost-400/10 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading..." : "Fetch Logs"}
+            </button>
+            {meta && (
+              <span className="text-[10px] text-parchment-700 ml-auto">
+                {meta.container} — {meta.count} lines
+              </span>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="px-5 py-3 flex items-center gap-2 border-b border-frost-400/5 bg-red-400/5">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+              <span className="text-xs text-red-300">{error}</span>
+            </div>
+          )}
+
+          {/* Log output */}
+          <div className="max-h-[600px] overflow-y-auto overflow-x-auto">
+            {lines.length > 0 ? (
+              <pre className="px-5 py-3 text-[11px] leading-relaxed font-mono text-parchment-500 whitespace-pre">{lines.join("\n")}</pre>
+            ) : !loading && !error ? (
+              <div className="px-5 py-8 text-center">
+                <Terminal className="h-5 w-5 text-parchment-700 mx-auto mb-2" />
+                <p className="text-xs text-parchment-600">Click "Fetch Logs" to load container output</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

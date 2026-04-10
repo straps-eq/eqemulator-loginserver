@@ -1169,8 +1169,49 @@ function checkLspxHealth() {
   }
 }
 
-setInterval(checkLspxHealth, LSPX_CHECK_INTERVAL);
+healthIntervals.push(setInterval(checkLspxHealth, LSPX_CHECK_INTERVAL));
 log("LSPX watchdog enabled (check every 5m, restart on ≥5 unique user failures)");
+
+// ── Container Logs (on-demand) ──
+const ALLOWED_CONTAINERS = new Set(["web", "loginserver", "mariadb", "redis", "nginx", "upgrade-agent", "prometheus", "certbot"]);
+
+function getContainerLogs(res, urlStr) {
+  const params = new URL(urlStr, "http://localhost").searchParams;
+  const service = params.get("service") || "loginserver";
+  const tail = Math.min(Math.max(parseInt(params.get("tail") || "200", 10), 10), 2000);
+  const since = params.get("since") || "";
+
+  if (!ALLOWED_CONTAINERS.has(service)) {
+    return jsonResponse(res, 400, { error: `Invalid service: ${service}. Allowed: ${[...ALLOWED_CONTAINERS].join(", ")}` });
+  }
+
+  const container = `eqemu-${service}`;
+  log(`GET /container-logs?service=${service}&tail=${tail}`);
+
+  let cmd = `docker logs --tail ${tail} --timestamps ${container} 2>&1`;
+  if (since) {
+    // Validate since looks like a duration (e.g. "1h", "30m") or ISO timestamp
+    if (/^[0-9]+[smh]$/.test(since) || /^\d{4}-\d{2}-\d{2}/.test(since)) {
+      cmd = `docker logs --since ${since} --tail ${tail} --timestamps ${container} 2>&1`;
+    }
+  }
+
+  try {
+    const output = execSync(cmd, { encoding: "utf8", timeout: 15000, maxBuffer: 5 * 1024 * 1024 }).trim();
+    const lines = output.split("\n").filter(Boolean);
+    jsonResponse(res, 200, { service, container, lines, count: lines.length, tail });
+  } catch (err) {
+    const msg = (err.stderr || err.stdout || err.message || "").trim();
+    // execSync throws on non-zero exit but docker logs outputs to stderr for container logs
+    // Try to use whatever output we got
+    if (err.stdout) {
+      const lines = err.stdout.trim().split("\n").filter(Boolean);
+      jsonResponse(res, 200, { service, container, lines, count: lines.length, tail });
+    } else {
+      jsonResponse(res, 500, { error: `Failed to get logs for ${container}: ${msg.slice(0, 200)}` });
+    }
+  }
+}
 
 // ── HTTP Server ──
 const server = http.createServer((req, res) => {
@@ -1202,6 +1243,8 @@ const server = http.createServer((req, res) => {
     const svc = url.replace("/restart/", "");
     return doRestart(res, svc);
   }
+
+  if (method === "GET" && url.startsWith("/container-logs")) return getContainerLogs(res, url);
 
   jsonResponse(res, 404, { error: "not found" });
 });
