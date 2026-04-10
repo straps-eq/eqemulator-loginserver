@@ -357,10 +357,19 @@ function doForcePullRestart(res, mode) {
       }
       log("  ✓ Web image pulled");
 
-      // Step 2: Restart web
+      // Step 2: Pull loginserver image too
+      const LS_IMAGE = "ghcr.io/straps-eq/eqemu-loginserver:latest";
+      try {
+        if (!useCompose) {
+          execSync(`docker pull ${LS_IMAGE}`, { encoding: "utf8", timeout: 120000 });
+        }
+        log("  ✓ Loginserver image pulled");
+      } catch (e) { log(`  ⚠ Loginserver pull skipped: ${e.message}`); }
+
+      // Step 3: Restart web + loginserver
       upgradeState.step = "restart";
-      log("Force pull: Restarting web...");
-      const out = compose("up -d --no-deps --pull always --force-recreate web");
+      log("Force pull: Restarting web + loginserver...");
+      const out = compose("up -d --no-deps --pull always --force-recreate web loginserver");
       log(`  compose up output: ${(out || "").slice(0, 200)}`);
       if (out && out.includes("Error")) {
         upgradeState = { running: false, step: "failed", error: `Restart failed: ${out.slice(0, 200)}`, result: null };
@@ -631,10 +640,10 @@ function doImageUpgrade(res) {
       } catch (e) { log(`  ⚠ Migration step failed: ${e.message}`); }
       log(`  ✓ ${migCount} migrations applied`);
 
-      // Step 4: Restart web only (preserves their docker-compose, env, other services)
+      // Step 4: Restart web + loginserver (preserves their docker-compose, env, other services)
       upgradeState.step = "restart";
-      log("Step 4/4: Restarting web");
-      const restartOut = compose("up -d --no-deps --pull always --force-recreate web");
+      log("Step 4/4: Restarting web + loginserver");
+      const restartOut = compose("up -d --no-deps --pull always --force-recreate web loginserver");
       log(`  compose output: ${(restartOut || "").slice(0, 300)}`);
       if (restartOut && restartOut.includes("Error")) {
         upgradeState = { running: false, step: "failed", error: `Web restart failed: ${restartOut.slice(0, 200)}`, result: null };
