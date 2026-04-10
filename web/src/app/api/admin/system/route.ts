@@ -34,9 +34,9 @@ async function getLatestRelease() {
 }
 
 function compareVersions(current: string, latest: string): boolean {
-  // Strip 'v' prefix
-  const c = current.replace(/^v/, "").split(".").map(Number);
-  const l = latest.replace(/^v/, "").split(".").map(Number);
+  // Strip 'v' prefix and pre-release suffixes (e.g. "1.5.0-beta.1" → "1.5.0")
+  const c = current.replace(/^v/, "").replace(/-.*$/, "").split(".").map(Number);
+  const l = latest.replace(/^v/, "").replace(/-.*$/, "").split(".").map(Number);
   for (let i = 0; i < Math.max(c.length, l.length); i++) {
     const cv = c[i] || 0;
     const lv = l[i] || 0;

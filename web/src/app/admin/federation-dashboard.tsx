@@ -100,6 +100,8 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
 
   useEffect(() => {
     fetchData();
+    const poll = setInterval(fetchData, 30_000);
+    return () => clearInterval(poll);
   }, [fetchData]);
 
   const doAction = async (body: Record<string, unknown>) => {
@@ -722,7 +724,7 @@ function PeerCard({
   peer: NodeInfo;
   isMaster: boolean;
   selfVersion: string;
-  onAction: (body: Record<string, unknown>) => void;
+  onAction: (body: Record<string, unknown>) => Promise<void> | void;
   actionLoading: string | null;
   copiedToken: number | null;
   onCopyToken: (text: string, nodeId: number) => void;

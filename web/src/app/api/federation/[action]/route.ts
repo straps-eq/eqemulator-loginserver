@@ -181,6 +181,14 @@ async function handleRegister(req: NextRequest) {
   const configs = await getAllConfig();
   const peers = await getActivePeers();
 
+  // Notify existing peers about the new node so they don't wait for next heartbeat
+  try {
+    const { broadcastSyncNotification } = await import("@/lib/federation/client");
+    await broadcastSyncNotification("peer_registered");
+  } catch (err) {
+    console.error("[federation] broadcast after register failed:", err);
+  }
+
   return NextResponse.json({
     node_id: result.nodeId,
     master: {
@@ -485,7 +493,12 @@ async function handlePlayRequest(req: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const body = JSON.parse(bodyText);
+  let body: any;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const { server_short_name, account_id, account_name, login_key, loginserver_name, client_ip } = body;
 
   if (!server_short_name || !account_id || !account_name || !login_key) {

@@ -218,6 +218,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "key is required" }, { status: 400 });
         }
         await nodeModule.setConfig(key, value);
+        nodeModule.clearSelfNodeCache();
         await nodeModule.auditLog(self.id, "config_updated", { key, value });
         return NextResponse.json({ success: true });
       }

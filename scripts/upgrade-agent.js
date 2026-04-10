@@ -789,6 +789,10 @@ async function postRestartHealthCheck() {
   return true;
 }
 
+// ── Graceful shutdown flag (declared early — referenced by health monitors) ──
+let shuttingDown = false;
+const healthIntervals = [];
+
 // ── Web Health Monitor (30s) ──
 let lastNginxRestart = 0;
 let lastWebRestart = 0;
@@ -858,7 +862,7 @@ function checkWebHealth() {
   } catch (err) { /* don't crash agent */ }
 }
 
-setInterval(checkWebHealth, WEB_HEALTH_INTERVAL);
+healthIntervals.push(setInterval(checkWebHealth, WEB_HEALTH_INTERVAL));
 log("Web health monitor enabled (30s interval)");
 
 // On startup: fix network splits, then refresh nginx upstreams.
@@ -912,7 +916,7 @@ function checkLoginserverHealth() {
   } catch (err) { /* don't crash agent */ }
 }
 
-setInterval(checkLoginserverHealth, LS_HEALTH_INTERVAL);
+healthIntervals.push(setInterval(checkLoginserverHealth, LS_HEALTH_INTERVAL));
 log("Loginserver health monitor enabled (60s interval)");
 
 // ── Docker Log Parser (15s) ──
@@ -1035,7 +1039,7 @@ function parseContainerLogs() {
   } catch (e) { /* web container may not exist */ }
 }
 
-setInterval(parseContainerLogs, 15000);
+healthIntervals.push(setInterval(parseContainerLogs, 15000));
 // Initial parse after a short delay (let containers stabilize)
 setTimeout(parseContainerLogs, 5000);
 log("Log parser enabled (15s interval)");
@@ -1203,21 +1207,16 @@ const server = http.createServer((req, res) => {
 });
 
 // ── Graceful Shutdown ──
-let shuttingDown = false;
-process.on("SIGTERM", () => {
+function gracefulShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  log("Received SIGTERM, shutting down...");
+  log(`Received ${signal}, shutting down...`);
+  healthIntervals.forEach(id => clearInterval(id));
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10000).unref();
-});
-process.on("SIGINT", () => {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  log("Received SIGINT, shutting down...");
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 10000).unref();
-});
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // Load persisted upgrade state from previous run (e.g. after self-update)
 loadPersistedUpgradeState();

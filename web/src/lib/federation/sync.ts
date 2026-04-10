@@ -542,6 +542,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   let applied = 0;
 
   try {
+    await conn.beginTransaction();
+
     // Upsert login_accounts — preserve master's ID so federated play auth works.
     // The EQ client gets its account_id at login time from the local login_accounts.id.
     // The world server's account table stores lsaccount_id from previous logins.
@@ -1088,9 +1090,14 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       lastSyncDataHash.set(sourceNodeId, data.data_hash);
     }
 
+    await conn.commit();
+
     if (applied > 0) {
       console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
     }
+  } catch (txErr) {
+    try { await conn.rollback(); } catch {}
+    throw txErr;
   } finally {
     conn.release();
   }
