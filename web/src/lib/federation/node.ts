@@ -216,6 +216,7 @@ export async function initializeAsPeer(
       isMaster: 0,
       isApproved: 1,
       status: "active",
+      nodeTier: peer.node_tier || "mesh",
       createdAt: new Date(),
       updatedAt: new Date(),
     });

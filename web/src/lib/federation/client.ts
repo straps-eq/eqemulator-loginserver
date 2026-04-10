@@ -83,31 +83,63 @@ async function federationFetch<T>(
   const agent = createPinnedAgent(tlsCertHash);
 
   try {
-    const fetchOptions: RequestInit & { agent?: https.Agent } = {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Federation-PublicKey": self.publicKey,
-        "X-Federation-Timestamp": timestamp,
-        "X-Federation-Signature": signature,
-      },
-      body: method !== "GET" ? bodyStr : undefined,
-      signal: AbortSignal.timeout(15_000),
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Federation-PublicKey": self.publicKey,
+      "X-Federation-Timestamp": timestamp,
+      "X-Federation-Signature": signature,
     };
-    // Node.js fetch supports custom agents via undici dispatcher,
-    // but for cert pinning we pass the agent for Node's https module
-    if (agent) (fetchOptions as Record<string, unknown>).agent = agent;
 
-    const res = await fetch(url, fetchOptions);
+    // When TLS cert pinning is active, use https.request (which supports
+    // custom agents) instead of fetch (which silently ignores the agent).
+    let status: number;
+    let responseBody: string;
 
+    if (agent) {
+      const parsed = new URL(url);
+      const result = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const timer = setTimeout(() => { req.destroy(); reject(new Error("Request timed out (15s)")); }, 15_000);
+        const req = https.request(
+          {
+            hostname: parsed.hostname,
+            port: parsed.port || 443,
+            path: parsed.pathname + parsed.search,
+            method,
+            headers,
+            agent,
+          },
+          (res) => {
+            let data = "";
+            res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+            res.on("end", () => { clearTimeout(timer); resolve({ status: res.statusCode || 0, body: data }); });
+          }
+        );
+        req.on("error", (err) => { clearTimeout(timer); reject(err); });
+        if (method !== "GET" && bodyStr) req.write(bodyStr);
+        req.end();
+      });
+      status = result.status;
+      responseBody = result.body;
+    } else {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: method !== "GET" ? bodyStr : undefined,
+        signal: AbortSignal.timeout(15_000),
+      });
+      status = res.status;
+      responseBody = await res.text();
+    }
+
+    const ok = status >= 200 && status < 300;
     let data: T | null = null;
     try {
-      data = await res.json();
+      data = JSON.parse(responseBody);
     } catch {
       // non-JSON response
     }
 
-    return { ok: res.ok, status: res.status, data, error: res.ok ? null : `HTTP ${res.status}` };
+    return { ok, status, data, error: ok ? null : `HTTP ${status}` };
   } catch (err) {
     return {
       ok: false,

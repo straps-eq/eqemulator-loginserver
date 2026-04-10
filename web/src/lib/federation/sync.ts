@@ -118,8 +118,21 @@ interface SyncDataResponse {
 const federatedLiveCache = new Map<number, { data: Array<Record<string, unknown>>; expires: number }>();
 const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
 
+/** Servers reclaimed as local during this sync cycle — skip re-adoption. */
+const reclaimedServers = new Set<string>();
+
 /** Track last sync_data hash per peer to skip unchanged data. */
 const lastSyncDataHash = new Map<number, string>();
+
+/** Clear cached sync data hashes — call after admin edits to synced tables
+ *  so the next sync cycle forces a full re-apply even if the peer's hash hasn't changed. */
+export function clearSyncDataHash(sourceNodeId?: number) {
+  if (sourceNodeId !== undefined) {
+    lastSyncDataHash.delete(sourceNodeId);
+  } else {
+    lastSyncDataHash.clear();
+  }
+}
 
 /** Track our own local server list hash to detect when new servers join. */
 let lastLocalServerHash: string | null = null;
@@ -154,6 +167,7 @@ export async function runSyncCycle(): Promise<{
   // Reclaim servers that reconnected to the local loginserver BEFORE syncing.
   // This MUST run before applyFullDataSync so that locally-connected servers
   // have federation_source_node_id = NULL and won't be pruned by the sync.
+  reclaimedServers.clear();
   try {
     const http = await import("http");
     const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
@@ -183,6 +197,7 @@ export async function runSyncCycle(): Promise<{
           if (rows.length > 0) {
             await pool.execute(`UPDATE login_world_servers SET federation_source_node_id = NULL WHERE id = ?`, [rows[0].id]);
             await pool.execute(`DELETE FROM federation_server_status WHERE world_server_id = ?`, [rows[0].id]);
+            reclaimedServers.add(shortName);
             console.log(`[sync_data] reclaimed server "${shortName}" (id ${rows[0].id}) as local — reconnected directly`);
           }
         } catch {}
@@ -577,6 +592,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
              ON DUPLICATE KEY UPDATE
                account_password = VALUES(account_password),
                account_email = VALUES(account_email),
+               source_loginserver = VALUES(source_loginserver),
                last_login_date = VALUES(last_login_date),
                updated_at = VALUES(updated_at)`,
             [
@@ -595,6 +611,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
              ON DUPLICATE KEY UPDATE
                account_password = VALUES(account_password),
                account_email = VALUES(account_email),
+               source_loginserver = VALUES(source_loginserver),
                last_login_date = VALUES(last_login_date),
                updated_at = VALUES(updated_at)`,
             [
@@ -1013,6 +1030,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         try {
           const shortName = ls.server_short_name as string;
           if (!shortName) continue;
+          // Skip servers reclaimed as local earlier in this sync cycle (A-5 race fix)
+          if (reclaimedServers.has(shortName)) continue;
 
           // First try: match by (short_name, federation_source_node_id)
           let [rows] = await conn.execute(

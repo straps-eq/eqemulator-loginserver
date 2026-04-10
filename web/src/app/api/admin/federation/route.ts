@@ -227,7 +227,8 @@ export async function POST(req: NextRequest) {
         if (!self) {
           return NextResponse.json({ error: "Not initialized" }, { status: 400 });
         }
-        const { runSyncCycle } = await import("@/lib/federation/sync");
+        const { runSyncCycle, clearSyncDataHash } = await import("@/lib/federation/sync");
+        clearSyncDataHash(); // Force full re-apply on manual sync
         const result = await runSyncCycle();
         return NextResponse.json({ success: true, ...result });
       }

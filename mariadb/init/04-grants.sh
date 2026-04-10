@@ -34,6 +34,7 @@ GRANT ALL ON eqemu_login.federation_config TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.federation_changelog TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.federation_audit_log TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.federation_origin_map TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.federation_server_status TO 'eqemu_web'@'%';
 
 -- Seed API token for loginserver <-> web communication
 INSERT INTO login_api_tokens (token, can_write, can_read, created_at)

@@ -336,8 +336,14 @@ function doForcePullRestart(res, mode) {
       upgradeState.step = "pull";
       log("Force pull: Pulling latest images...");
       if (useCompose) {
-        const pullOut = compose("pull web");
-        log(`  compose pull output: ${(pullOut || "").slice(0, 200)}`);
+        const pullResult = runResult(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" pull web 2>&1`);
+        if (!pullResult.ok) {
+          log(`  ✗ Compose pull failed: ${pullResult.output.slice(0, 200)}`);
+          upgradeState = { running: false, step: "failed", error: `Pull failed: ${pullResult.output.slice(0, 200)}`, result: null };
+          releaseUpgradeLock();
+          return;
+        }
+        log(`  compose pull output: ${(pullResult.output || "").slice(0, 200)}`);
       } else {
         try {
           execSync(`docker pull ${WEB_IMAGE}`, { encoding: "utf8", timeout: 120000 });
@@ -499,16 +505,21 @@ function doUpgrade(res) {
             log(`  ✗ ${fname}: ${migResult.output.slice(0, 200)}`);
           } else {
             recordMigration(fname);
+            migCount++;
           }
-          migCount++;
         }
-      } catch {}
+      } catch (e) { log(`  ⚠ Migration step failed: ${e.message}`); }
       log(`  ✓ ${migCount} migrations applied`);
 
       // Step 5: Restart services with new images
       upgradeState.step = "restart";
       log("Step 5/6: Restarting services");
-      compose("up -d --no-deps --pull always --force-recreate web loginserver");
+      const restartOut = compose("up -d --no-deps --pull always --force-recreate web loginserver");
+      if (restartOut && restartOut.includes("Error")) {
+        upgradeState = { running: false, step: "failed", error: `Restart failed: ${restartOut.slice(0, 200)}`, result: null };
+        releaseUpgradeLock();
+        return;
+      }
       log("  ✓ Services restarted");
 
       // Step 6: Post-restart health verification
@@ -614,10 +625,10 @@ function doImageUpgrade(res) {
             log(`  ✗ ${fname}: ${migResult.output.slice(0, 200)}`);
           } else {
             recordMigration(fname);
+            migCount++;
           }
-          migCount++;
         }
-      } catch {}
+      } catch (e) { log(`  ⚠ Migration step failed: ${e.message}`); }
       log(`  ✓ ${migCount} migrations applied`);
 
       // Step 4: Restart web only (preserves their docker-compose, env, other services)
