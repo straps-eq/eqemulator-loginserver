@@ -122,3 +122,34 @@ export interface ServerListResult {
 export async function getServerList() {
   return apiRequest<ServerListResult>("GET", "/v1/servers/list");
 }
+
+/**
+ * Collapse duplicate world server entries returned by /v1/servers/list.
+ *
+ * The loginserver never evicts a world server whose TCP connection died
+ * half-open, so a server that reconnects is appended as an additional entry
+ * while the dead one lingers with permanently frozen counters. Entries arrive
+ * in connection order, so the last occurrence is the live connection.
+ *
+ * The key is (short_name, long_name) — identical to the Prometheus series
+ * identity in /api/metrics — so genuinely distinct servers are never merged.
+ * The first-seen position is kept while the value is overwritten by the
+ * last-seen entry, which yields stable ordering with live counters.
+ */
+export function dedupeLiveServers<
+  T extends { server_short_name?: unknown; server_long_name?: unknown }
+>(servers: T[]): T[] {
+  const out: T[] = [];
+  const indexBySeries = new Map<string, number>();
+  for (const s of servers) {
+    const key = `${String(s.server_short_name ?? "")}\u0000${String(s.server_long_name ?? "")}`;
+    const seenAt = indexBySeries.get(key);
+    if (seenAt === undefined) {
+      indexBySeries.set(key, out.length);
+      out.push(s);
+    } else {
+      out[seenAt] = s;
+    }
+  }
+  return out;
+}

@@ -385,6 +385,7 @@ async function handleSyncData(req: NextRequest) {
 
   // Export live server data (players online, status, zones) from loginserver API
   const http = await import("http");
+  const { dedupeLiveServers } = await import("@/lib/loginserver-api");
   const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
   const token = process.env.LOGINSERVER_API_TOKEN || "";
   const liveServers: Record<string, unknown>[] = await new Promise((resolve) => {
@@ -400,7 +401,7 @@ async function handleSyncData(req: NextRequest) {
           const safe = (Array.isArray(json) ? json : []).map(
             ({ local_ip, ...rest }: Record<string, unknown>) => rest
           );
-          resolve(safe);
+          resolve(dedupeLiveServers(safe));
         } catch { resolve([]); }
       });
     });

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { loginWorldServers, serverProfiles, platformConfig, federationNodes } from "@/db/schema";
 import { inArray, eq } from "drizzle-orm";
 import http from "http";
+import { dedupeLiveServers } from "@/lib/loginserver-api";
 
 /** Map population tier to loginserver list type id (shown in EQ client). */
 const tierToListType: Record<string, number> = { high: 1, medium: 2, low: 3 };
@@ -29,7 +30,7 @@ async function getLiveServers() {
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
-          resolve(Array.isArray(json) ? json : []);
+          resolve(dedupeLiveServers(Array.isArray(json) ? json : []));
         } catch { resolve([]); }
       });
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import http from "http";
+import { dedupeLiveServers } from "@/lib/loginserver-api";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,15 @@ function isInternalRequest(req: NextRequest): boolean {
   return false;
 }
 
-async function getLiveServers(): Promise<any[]> {
+/**
+ * Fetch the live world server list, or null if the loginserver could not be
+ * reached or returned something unusable.
+ *
+ * The null case must stay distinguishable from an empty list: reporting 0 when
+ * the loginserver is simply unreachable writes a false zero into the population
+ * history, which permanently skews averages and peaks over that window.
+ */
+async function getLiveServers(): Promise<any[] | null> {
   const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
   const token = process.env.LOGINSERVER_API_TOKEN || "";
   return new Promise((resolve) => {
@@ -36,14 +45,16 @@ async function getLiveServers(): Promise<any[]> {
       let data = "";
       res.on("data", (chunk) => data += chunk);
       res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 400) { resolve(null); return; }
         try {
           const json = JSON.parse(data);
-          resolve(Array.isArray(json) ? json : []);
-        } catch { resolve([]); }
+          if (!Array.isArray(json)) { resolve(null); return; }
+          resolve(dedupeLiveServers(json));
+        } catch { resolve(null); }
       });
     });
-    req.on("error", () => resolve([]));
-    req.setTimeout(5000, () => { req.destroy(); resolve([]); });
+    req.on("error", () => resolve(null));
+    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
   });
 }
 
@@ -55,35 +66,47 @@ export async function GET(req: NextRequest) {
   const servers = await getLiveServers();
 
   const lines: string[] = [
-    "# HELP eqemu_server_players_online Current number of players online per server",
-    "# TYPE eqemu_server_players_online gauge",
-    "# HELP eqemu_server_status Server status (1=online, 0=offline)",
-    "# TYPE eqemu_server_status gauge",
-    "# HELP eqemu_server_zones_booted Number of zones currently booted per server",
-    "# TYPE eqemu_server_zones_booted gauge",
-    "# HELP eqemu_servers_total Total number of connected world servers",
-    "# TYPE eqemu_servers_total gauge",
-    `eqemu_servers_total ${servers.length}`,
+    "# HELP eqemu_loginserver_up Whether the loginserver API responded for this scrape",
+    "# TYPE eqemu_loginserver_up gauge",
+    `eqemu_loginserver_up ${servers === null ? 0 : 1}`,
   ];
 
-  let totalPlayers = 0;
-  for (const s of servers) {
-    const name = (s.server_short_name || "unknown").replace(/"/g, '\\"');
-    const longName = (s.server_long_name || "unknown").replace(/"/g, '\\"');
-    const labels = `server_short_name="${name}",server_long_name="${longName}"`;
-    const players = s.players_online ?? 0;
-    const status = s.server_status > 0 ? 1 : 0;
-    const zones = s.zones_booted ?? 0;
-    totalPlayers += players;
+  // When the loginserver is unreachable, deliberately emit no server or
+  // population series. Prometheus then marks them stale, leaving an honest gap
+  // in the graph rather than ingesting a 0 that never actually happened.
+  // A reachable-but-empty list still reports 0, because that is real data.
+  if (servers !== null) {
+    lines.push(
+      "# HELP eqemu_server_players_online Current number of players online per server",
+      "# TYPE eqemu_server_players_online gauge",
+      "# HELP eqemu_server_status Server status (1=online, 0=offline)",
+      "# TYPE eqemu_server_status gauge",
+      "# HELP eqemu_server_zones_booted Number of zones currently booted per server",
+      "# TYPE eqemu_server_zones_booted gauge",
+      "# HELP eqemu_servers_total Total number of connected world servers",
+      "# TYPE eqemu_servers_total gauge",
+      `eqemu_servers_total ${servers.length}`,
+    );
 
-    lines.push(`eqemu_server_players_online{${labels}} ${players}`);
-    lines.push(`eqemu_server_status{${labels}} ${status}`);
-    lines.push(`eqemu_server_zones_booted{${labels}} ${zones}`);
+    let totalPlayers = 0;
+    for (const s of servers) {
+      const name = (s.server_short_name || "unknown").replace(/"/g, '\\"');
+      const longName = (s.server_long_name || "unknown").replace(/"/g, '\\"');
+      const labels = `server_short_name="${name}",server_long_name="${longName}"`;
+      const players = s.players_online ?? 0;
+      const status = s.server_status > 0 ? 1 : 0;
+      const zones = s.zones_booted ?? 0;
+      totalPlayers += players;
+
+      lines.push(`eqemu_server_players_online{${labels}} ${players}`);
+      lines.push(`eqemu_server_status{${labels}} ${status}`);
+      lines.push(`eqemu_server_zones_booted{${labels}} ${zones}`);
+    }
+
+    lines.push("# HELP eqemu_players_online_total Total players across all servers");
+    lines.push("# TYPE eqemu_players_online_total gauge");
+    lines.push(`eqemu_players_online_total ${totalPlayers}`);
   }
-
-  lines.push("# HELP eqemu_players_online_total Total players across all servers");
-  lines.push("# TYPE eqemu_players_online_total gauge");
-  lines.push(`eqemu_players_online_total ${totalPlayers}`);
 
   return new NextResponse(lines.join("\n") + "\n", {
     headers: { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" },

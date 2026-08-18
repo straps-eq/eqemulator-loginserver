@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
+import { dedupeLiveServers } from "@/lib/loginserver-api";
 import { ServerList } from "./server-list";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ async function getServers() {
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
-          resolve(Array.isArray(json) ? json : json?.data || []);
+          resolve(dedupeLiveServers(Array.isArray(json) ? json : json?.data || []));
         } catch {
           resolve([]);
         }
