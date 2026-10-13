@@ -14,7 +14,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
 
 # Clone EQEmu source (fork with federation server list + auth forwarding + ToB login).
 # Pinned to a commit so every build compiles the same source; bump EQEMU_REF deliberately.
-ARG EQEMU_REF=462551544fa941dcc57209ec5f60c3a54dde473b
+ARG EQEMU_REF=49601b7db4bc46e697079faf96a370b878b2ac70
 RUN git init /build/source \
  && git -C /build/source remote add origin https://github.com/straps-eq/EQEmu.git \
  && git -C /build/source fetch --depth 1 origin $EQEMU_REF \
