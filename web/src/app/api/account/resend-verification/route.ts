@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { platformAccounts } from "@/db/schema";
@@ -8,7 +9,7 @@ import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request);
     const rl = await rateLimit(`resend-verify:${ip}`, 3, 15 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(

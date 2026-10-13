@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { loginServerAdmins, worldServerAdminLinks, loginWorldServers, serverProfiles } from "@/db/schema";
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request);
     const rl = await rateLimit(`ws-create:${ip}`, 5, 60 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(

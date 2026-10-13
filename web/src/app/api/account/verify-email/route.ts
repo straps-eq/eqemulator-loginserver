@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import { db } from "@/lib/db";
 import { platformAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -6,7 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request);
     const rl = await rateLimit(`verify-email:${ip}`, 10, 15 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(

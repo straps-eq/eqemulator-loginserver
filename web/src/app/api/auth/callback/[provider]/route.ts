@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import type { OAuth2Tokens } from "arctic";
 import {
   google,
@@ -31,7 +32,7 @@ export async function GET(
     return NextResponse.redirect(`${BASE_URL}/login?error=invalid_provider`);
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = getClientIp(request);
   const rl = await rateLimit(`oauth-callback:${ip}`, 10, 15 * 60 * 1000);
   if (!rl.ok) {
     return NextResponse.redirect(`${BASE_URL}/login?error=rate_limited`);

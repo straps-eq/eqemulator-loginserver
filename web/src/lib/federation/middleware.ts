@@ -18,6 +18,7 @@ export interface AuthenticatedNode {
   isMaster: number;
   isApproved: number;
   status: string;
+  nodeTier: string;
 }
 
 /**
@@ -110,6 +111,7 @@ export async function authenticateFederationRequest(
       isMaster: node.isMaster,
       isApproved: node.isApproved,
       status: node.status,
+      nodeTier: node.nodeTier,
     },
     error: null,
     status: 200,

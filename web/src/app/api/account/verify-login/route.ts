@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import { getSession } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { cacheGet, cacheSet } from "@/lib/redis";
@@ -7,7 +8,7 @@ const MAX_ATTEMPTS = 5;
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request);
     const rl = await rateLimit(`mfa-verify:${ip}`, 10, 15 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(

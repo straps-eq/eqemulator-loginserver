@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import http from "http";
 import { dedupeLiveServers } from "@/lib/loginserver-api";
+import { isDirectInternalRequest } from "@/lib/client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -13,18 +14,10 @@ function isInternalRequest(req: NextRequest): boolean {
     if (auth === `Bearer ${metricsToken}`) return true;
   }
 
-  // Allow internal Docker network IPs
-  const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || "";
-  // Docker internal bridge IPs are typically 172.x.x.x or 10.x.x.x
-  if (ip.startsWith("172.") || ip.startsWith("10.") || ip === "127.0.0.1" || ip === "::1") {
-    return true;
-  }
-
-  // If no X-Forwarded-For (direct internal request), allow
-  if (!forwarded) return true;
-
-  return false;
+  // Allow direct Docker-network requests (Prometheus scrapes web:3000).
+  // Never trust X-Forwarded-For here: nginx appends to it, so its first entry
+  // is whatever the client sent.
+  return isDirectInternalRequest(req);
 }
 
 /**
