@@ -2,7 +2,7 @@
 
 This is a fork of the [EQEmu Server](https://github.com/EQEmu/Server) loginserver with federation support, LSPX proxy, and cross-node authentication forwarding.
 
-**Fork:** [straps-eq/EQEmu](https://github.com/straps-eq/EQEmu) branch `federation-server-list`
+**Fork:** [straps-eq/EQEmu](https://github.com/straps-eq/EQEmu) branch `federation-tob` (pinned by commit in the Dockerfile)
 
 ## Architecture
 
@@ -42,7 +42,7 @@ This is a fork of the [EQEmu Server](https://github.com/EQEmu/Server) loginserve
 |------|----------|---------|
 | 5998 | TCP+UDP | Titanium client connections |
 | 5999 | TCP+UDP | SoD/RoF2 client connections |
-| 15900 | TCP+UDP | Larion (live) client connections |
+| 15900 | TCP+UDP | ToB (The Outer Brood) client connections |
 | 6000 | TCP | Internal HTTP API (world server data, federation) |
 
 ## Packet Flow
@@ -312,14 +312,14 @@ Signature payload = timestamp + method + path + body
 
 ## Building
 
-The Docker image is built from the `federation-server-list` branch of the EQEmu fork:
+The Docker image is built from the `federation-tob` branch of the EQEmu fork:
 
 ```bash
 docker compose build loginserver
 ```
 
 The Dockerfile:
-1. Clones `straps-eq/EQEmu` branch `federation-server-list`
+1. Clones `straps-eq/EQEmu` branch `federation-tob` at the commit pinned by `EQEMU_REF`
 2. Applies the `login_world_servers_repository.h` patch (adds `federation_source_node_id` column)
 3. Patches `world_server.cpp` to persist `login_server_admin_id` on world server registration
 4. Builds only the loginserver binary (`-DEQEMU_BUILD_LOGIN=ON`)

@@ -35,7 +35,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 |-----------|---------|
 | **Next.js 15** | Web application (App Router, server components) |
 | **MariaDB** | Account data, server profiles, federation state |
-| **EQEmu Loginserver** | Handles EQ client connections (Titanium/SoD+/Larion) — [packet flow & architecture](LOGINSERVER.md) · [C++ fork](https://github.com/straps-eq/EQEmu/tree/federation-server-list) |
+| **EQEmu Loginserver** | Handles EQ client connections (Titanium/SoD+/ToB) — [packet flow & architecture](LOGINSERVER.md) · [C++ fork](https://github.com/straps-eq/EQEmu/tree/federation-tob) |
 | **Redis** | Rate limiting, MFA code storage (optional) |
 | **nginx** | Reverse proxy with Let's Encrypt SSL |
 | **Prometheus** | Metrics collection (optional) |
@@ -55,7 +55,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 | 443 | TCP | HTTPS web UI |
 | 5998 | TCP+UDP | Titanium client login |
 | 5999 | TCP+UDP | SoD+/RoF2 client login |
-| 15900 | TCP+UDP | Larion client login |
+| 15900 | TCP+UDP | ToB client login |
 
 ### Step 1 — Install Docker
 
@@ -217,7 +217,7 @@ If you want to run a separate federation (not connected to EQEmulator.dev), you 
 | 80 | TCP | HTTP → HTTPS redirect |
 | 5998 | TCP/UDP | Titanium client login |
 | 5999 | TCP/UDP | SoD+/RoF2 client login |
-| 15900 | TCP/UDP | Larion client login |
+| 15900 | TCP/UDP | ToB client login |
 | 6000 | TCP | Loginserver internal API |
 
 ## Project Structure

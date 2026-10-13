@@ -164,7 +164,7 @@ export default async function AboutPage() {
                 to both loginservers simultaneously. Your players can reach you from either network.
               </p>
               <p>
-                <strong className="text-parchment-200">All EQ clients supported.</strong> Titanium, SoD+, and Larion clients
+                <strong className="text-parchment-200">All EQ clients supported.</strong> Titanium, SoD+, and ToB clients
                 are all supported. Just update your eqhost.txt to point here.
               </p>
             </div>

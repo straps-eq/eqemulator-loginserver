@@ -110,8 +110,8 @@ Edit `/opt/eqemu/loginserver/login.json` — use the same structure as the maste
     "titanium_opcodes": "login_opcodes.conf",
     "sod_port": 5999,
     "sod_opcodes": "login_opcodes_sod.conf",
-    "larion_port": 15900,
-    "larion_opcodes": "login_opcodes_larion.conf",
+    "tob_port": 15900,
+    "tob_opcodes": "login_opcodes_tob.conf",
     "display_expansions": true,
     "max_expansions_mask": 524287
   }

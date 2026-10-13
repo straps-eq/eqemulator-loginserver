@@ -93,7 +93,7 @@ Host=login.eqemulator.dev:5999`}
                   </p>
                   <details className="text-sm">
                     <summary className="text-frost-400/70 cursor-pointer hover:text-frost-400 transition-colors text-xs font-medium">
-                      Using Titanium or Larion client? View alternate ports
+                      Using Titanium or ToB client? View alternate ports
                     </summary>
                     <div className="mt-2 space-y-2">
                       <p className="text-parchment-500 text-xs">Titanium clients (port 5998):</p>
@@ -101,7 +101,7 @@ Host=login.eqemulator.dev:5999`}
 {`[LoginServer]
 Host=login.eqemulator.dev:5998`}
                       </pre>
-                      <p className="text-parchment-500 text-xs">Larion clients (port 15900):</p>
+                      <p className="text-parchment-500 text-xs">ToB (The Outer Brood) clients (port 15900):</p>
                       <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-3 text-xs text-parchment-300 overflow-x-auto">
 {`[LoginServer]
 Host=login.eqemulator.dev:15900`}
@@ -175,7 +175,7 @@ Host=login.eqemulator.dev:15900`}
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Which port does my client use?</h3>
                 <p className="text-parchment-400 text-sm">
-                  SoD+ clients use port 5999 (most common), Titanium uses port 5998, and Larion uses port 15900.
+                  SoD+ clients use port 5999 (most common), Titanium uses port 5998, and ToB uses port 15900.
                   If unsure, use 5999.
                 </p>
               </CardContent>

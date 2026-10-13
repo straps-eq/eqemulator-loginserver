@@ -12,8 +12,14 @@ WORKDIR /build
 RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
     && /opt/vcpkg/bootstrap-vcpkg.sh
 
-# Clone EQEmu source (fork with federation server list + auth forwarding)
-RUN git clone --branch federation-server-list --depth 1 https://github.com/straps-eq/EQEmu.git /build/source
+# Clone EQEmu source (fork with federation server list + auth forwarding + ToB login).
+# Pinned to a commit so every build compiles the same source; bump EQEMU_REF deliberately.
+ARG EQEMU_REF=462551544fa941dcc57209ec5f60c3a54dde473b
+RUN git init /build/source \
+ && git -C /build/source remote add origin https://github.com/straps-eq/EQEmu.git \
+ && git -C /build/source fetch --depth 1 origin $EQEMU_REF \
+ && git -C /build/source checkout --detach FETCH_HEAD \
+ && test "$(git -C /build/source rev-parse HEAD)" = "$EQEMU_REF"
 WORKDIR /build/source
 RUN git submodule update --init --recursive
 
