@@ -512,8 +512,51 @@ async function handlePlayRequest(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Find the local server ID by short_name (must be a live connected server, not federated)
+  const { auditLog } = await import("@/lib/federation/node");
+  const sourceLoginserver = loginserver_name || "eqemu";
+
+  // A play_request makes this node's loginserver admit a player to one of its
+  // worlds as whatever account the request names, so only official nodes may
+  // send one. Mesh nodes list and route, they do not log players in here.
+  if (auth.node.nodeTier !== "official") {
+    await auditLog(auth.node.id, "play_request_rejected", { reason: "tier", server_short_name, account_id });
+    return NextResponse.json({ error: "Only official nodes may send play requests" }, { status: 403 });
+  }
+
+  const accountId = Number(account_id);
+  if (
+    !Number.isInteger(accountId) || accountId <= 0 ||
+    typeof server_short_name !== "string" || server_short_name.length > 64 ||
+    typeof account_name !== "string" || account_name.length > 30 ||
+    typeof login_key !== "string" || login_key.length > 30 ||
+    typeof sourceLoginserver !== "string" || sourceLoginserver.length > 64 ||
+    (client_ip !== undefined && (typeof client_ip !== "string" || client_ip.length > 45))
+  ) {
+    return NextResponse.json({ error: "Invalid field values" }, { status: 400 });
+  }
+
+  const { rateLimit } = await import("@/lib/rate-limit");
+  const rl = await rateLimit(`play_request:${auth.node.id}`, 60, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Rate limited", retry_after_ms: rl.retryAfterMs }, { status: 429 });
+  }
+
   const { pool } = await import("@/lib/db");
+
+  // The account must exist on this node (federation sync keeps account ids
+  // identical across nodes) under the same name and source, so a peer cannot
+  // pair an id with a different account's name.
+  const [accounts] = await pool.execute(
+    `SELECT id FROM login_accounts WHERE id = ? AND account_name = ? AND source_loginserver = ? LIMIT 1`,
+    [accountId, account_name, sourceLoginserver]
+  ) as unknown as [Array<{ id: number }>];
+
+  if (accounts.length === 0) {
+    await auditLog(auth.node.id, "play_request_rejected", { reason: "unknown_account", server_short_name, account_id: accountId, account_name });
+    return NextResponse.json({ error: "Unknown account" }, { status: 403 });
+  }
+
+  // Find the local server ID by short_name (must be a live connected server, not federated)
   const [rows] = await pool.execute(
     `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
     [server_short_name]
@@ -533,10 +576,10 @@ async function handlePlayRequest(req: NextRequest) {
 
   const lsPayload = JSON.stringify({
     server_id: serverId,
-    account_id,
+    account_id: accountId,
     account_name,
     login_key,
-    loginserver_name: loginserver_name || "eqemu",
+    loginserver_name: sourceLoginserver,
     client_ip: client_ip || "0.0.0.0",
   });
 
@@ -562,6 +605,7 @@ async function handlePlayRequest(req: NextRequest) {
 
   if (lsResult.ok) {
     console.log(`[play_request] ClientAuth sent successfully for ${account_name} -> ${server_short_name}`);
+    await auditLog(auth.node.id, "play_request_forwarded", { server_short_name, server_id: serverId, account_id: accountId, account_name, client_ip: client_ip || null });
     return NextResponse.json({ success: true, server_id: serverId });
   } else {
     console.error(`[play_request] Loginserver API returned ${lsResult.status}: ${lsResult.body}`);
