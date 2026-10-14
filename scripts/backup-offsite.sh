@@ -98,6 +98,9 @@ if [ "$UPLOAD" = "1" ]; then
       -v "$RCLONE_CONF_DIR:/config" -v "$WORK/out:/out:ro" \
       "$TOOLS_IMAGE" rclone --config /config/rclone.conf "$@"
   }
+  # Pruning a folder that does not exist yet fails, so make sure both are there.
+  rc mkdir "$REMOTE/daily"
+  rc mkdir "$REMOTE/weekly"
   rc copy "/out/$NAME.7z" "$REMOTE/daily/"
   if [ "$(date -u +%u)" = "7" ]; then
     rc copy "/out/$NAME.7z" "$REMOTE/weekly/"
