@@ -247,7 +247,7 @@ export default async function ServerOperatorsPage() {
           </span>
           <h2 id="tob-heading" className="font-display text-xl font-bold text-parchment-100 mb-2">Supporting ToB Clients</h2>
           <p className="text-parchment-400 text-sm mb-5">
-            Players on the ToB (The Outer Brood) client can now log in to EQEmulator.dev.
+            Players using the ToB client can now log in to EQEmulator.dev.
             They see every server in the list, but can only enter worlds that have been set up for ToB.
             Here is what that takes on your side.
           </p>
