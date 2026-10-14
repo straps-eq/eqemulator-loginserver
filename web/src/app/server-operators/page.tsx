@@ -279,7 +279,7 @@ export default async function ServerOperatorsPage() {
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">2</span>
                     <div>
-                      <strong className="text-parchment-200">Build world and zone from upstream EQEmu/Server <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.</strong> 
+                      <strong className="text-parchment-200">Build world and zone from upstream EQEmu/Server <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.</strong>{" "}
                       That branch includes the ToB patch (<code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">common/patches/tob*.cpp</code>). Older builds
                       can&apos;t talk to ToB clients.
                     </div>
@@ -295,7 +295,7 @@ export default async function ServerOperatorsPage() {
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">4</span>
                     <div className="min-w-0 flex-1">
-                      <strong className="text-parchment-200">Allow ToB in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>.</strong> 
+                      <strong className="text-parchment-200">Allow ToB in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>.</strong>{" "}
                       The rule must include <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code>, or be left blank to allow every client.
                       <div className="mt-3 flex gap-2.5 rounded border border-gold-400/20 bg-gold-400/5 p-3">
                         <AlertTriangle className="h-4 w-4 flex-shrink-0 text-gold-300 mt-0.5" aria-hidden="true" />
@@ -310,7 +310,7 @@ export default async function ServerOperatorsPage() {
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">5</span>
                     <div>
-                      <strong className="text-parchment-200">Keep your world&apos;s client port on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.</strong> 
+                      <strong className="text-parchment-200">Keep your world&apos;s client port on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.</strong>{" "}
                       The ToB client always connects to world on 9000, so a world on a custom port won&apos;t work
                       for ToB players.
                     </div>
