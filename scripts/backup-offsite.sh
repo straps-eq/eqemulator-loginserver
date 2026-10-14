@@ -1,6 +1,6 @@
 #!/bin/bash
 # ──────────────────────────────────────────────
-# Nightly off-site backup of the loginserver stack.
+# Hourly off-site backup of the loginserver stack.
 #
 # Builds one self-contained, AES-256 encrypted 7-Zip archive (database dump,
 # .env, login.json, nginx config, restore kit), tests it, uploads it to
@@ -14,7 +14,10 @@
 #        chmod 600 ~/.config/eqemu-backup/passphrase
 #   2. A Dropbox rclone remote named "dropbox" in ~/.config/rclone/rclone.conf
 #   3. docker build -t eqemu-backup-tools:1 /opt/eqemu/scripts/backup
-#   4. cron: 30 3 * * * /opt/eqemu/scripts/backup-offsite.sh >> /opt/eqemu/logs/backup.log 2>&1
+#   4. cron: 30 * * * * /opt/eqemu/scripts/backup-offsite.sh >> /opt/eqemu/logs/backup.log 2>&1
+#
+# Dropbox layout: hourly/ every run (kept 2 days), daily/ from the 03:30 UTC
+# run (kept 14 days), weekly/ from Sunday's 03:30 UTC run (kept 8 weeks).
 #
 # Env overrides: BACKUP_REMOTE (default dropbox:apps/loginserver), UPLOAD=0 to
 # build and test the archive without uploading, HEALTHCHECK_URL (or a URL in
@@ -32,6 +35,7 @@ REMOTE="${BACKUP_REMOTE:-dropbox:apps/loginserver}"
 LOCAL_DIR="${BACKUP_LOCAL_DIR:-$HOME/eqemu-backups}"
 TOOLS_IMAGE="${BACKUP_TOOLS_IMAGE:-eqemu-backup-tools:1}"
 UPLOAD="${UPLOAD:-1}"
+KEEP_HOURLY_HOURS=48
 KEEP_DAILY_DAYS=14
 KEEP_WEEKLY_DAYS=56
 KEEP_LOCAL=3
@@ -56,7 +60,8 @@ trap 'rc=$?; [ $rc -ne 0 ] && ping_hc /fail; exit $rc' EXIT
 docker image inspect "$TOOLS_IMAGE" >/dev/null 2>&1 || fail "tools image $TOOLS_IMAGE not built (docker build -t $TOOLS_IMAGE $EQEMU_DIR/scripts/backup)"
 
 DATE="$(date -u +%Y-%m-%d)"
-NAME="loginserver-backup-$DATE"
+HOUR="$(date -u +%H)"
+NAME="loginserver-backup-${DATE}_${HOUR}00"
 WORK="$(mktemp -d)"
 trap 'rc=$?; rm -rf "$WORK"; [ $rc -ne 0 ] && ping_hc /fail; exit $rc' EXIT
 STAGE="$WORK/$NAME"
@@ -105,7 +110,7 @@ log "Archive built and tested: $(du -h "$ARCHIVE" | cut -f1)"
 cp -p "$ARCHIVE" "$LOCAL_DIR/"
 ls -1t "$LOCAL_DIR"/loginserver-backup-*.7z | tail -n +$((KEEP_LOCAL + 1)) | xargs -r rm -f
 
-# 5. Upload: daily copy every night, weekly copy on Sundays, then prune.
+# 5. Upload: hourly copy every run, daily copy from the 03 UTC run, weekly on Sundays, then prune.
 if [ "$UPLOAD" = "1" ]; then
   [ -s "$RCLONE_CONF_DIR/rclone.conf" ] || fail "no rclone config in $RCLONE_CONF_DIR"
   rc() {
@@ -113,16 +118,21 @@ if [ "$UPLOAD" = "1" ]; then
       -v "$RCLONE_CONF_DIR:/config" -v "$WORK/out:/out:ro" \
       "$TOOLS_IMAGE" rclone --config /config/rclone.conf "$@"
   }
-  # Pruning a folder that does not exist yet fails, so make sure both are there.
+  # Pruning a folder that does not exist yet fails, so make sure all three are there.
+  rc mkdir "$REMOTE/hourly"
   rc mkdir "$REMOTE/daily"
   rc mkdir "$REMOTE/weekly"
-  rc copy "/out/$NAME.7z" "$REMOTE/daily/"
-  if [ "$(date -u +%u)" = "7" ]; then
-    rc copy "/out/$NAME.7z" "$REMOTE/weekly/"
+  rc copy "/out/$NAME.7z" "$REMOTE/hourly/"
+  if [ "$HOUR" = "03" ]; then
+    rc copy "/out/$NAME.7z" "$REMOTE/daily/"
+    if [ "$(date -u +%u)" = "7" ]; then
+      rc copy "/out/$NAME.7z" "$REMOTE/weekly/"
+    fi
   fi
+  rc delete "$REMOTE/hourly/" --min-age "${KEEP_HOURLY_HOURS}h" --include 'loginserver-backup-*.7z'
   rc delete "$REMOTE/daily/" --min-age "${KEEP_DAILY_DAYS}d" --include 'loginserver-backup-*.7z'
   rc delete "$REMOTE/weekly/" --min-age "${KEEP_WEEKLY_DAYS}d" --include 'loginserver-backup-*.7z'
-  log "Uploaded to $REMOTE/daily/$NAME.7z"
+  log "Uploaded to $REMOTE/hourly/$NAME.7z"
 else
   log "UPLOAD=0: archive kept locally only ($LOCAL_DIR/$NAME.7z)"
 fi
