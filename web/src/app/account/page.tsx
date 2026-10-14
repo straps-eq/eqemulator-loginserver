@@ -7,6 +7,8 @@ import { AccountNav } from "./account-nav";
 import { WorldServerAccounts } from "./worldserver-accounts";
 import { ConnectedProviders } from "./connected-providers";
 import { LoginServerAccounts } from "./loginserver-accounts";
+import Link from "next/link";
+import { CodeBlock } from "@/components/ui/code-block";
 
 export default async function AccountPage() {
   const session = await getSession();
@@ -103,10 +105,12 @@ export default async function AccountPage() {
                   To connect to servers through this login server, update your{" "}
                   <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> file:
                 </p>
-                <pre className="bg-[#0a0e17] border border-frost-400/6 rounded-lg p-4 text-sm text-parchment-300 overflow-x-auto font-mono">
-{`[LoginServer]
-Host=login.eqemulator.dev:5999`}
-                </pre>
+                <CodeBlock code={`[LoginServer]
+Host=login.eqemulator.dev:5999`} label="eqhost.txt for RoF2/SoD+" />
+                <p className="text-parchment-500 text-xs mt-3">
+                  Port 5999 is for RoF2/SoD+ clients. Using ToB (port 15900) or Titanium (port 5998)? See the{" "}
+                  <Link href="/getting-started" className="hover-frost text-frost-400">Getting Started guide</Link>.
+                </p>
               </div>
             </section>
           </div>

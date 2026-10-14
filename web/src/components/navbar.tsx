@@ -38,10 +38,10 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
                   {label}
                 </Link>
               ))}
-              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="hover-frost px-2.5 py-1.5 text-parchment-500 rounded" title="Discord">
+              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="hover-frost px-2.5 py-1.5 text-parchment-500 rounded" title="Discord" aria-label="EQEmulator Discord (opens in new tab)">
                 {discordSvg}
               </a>
-              <a href="https://github.com/EQEmu" target="_blank" rel="noopener noreferrer" className="hover-frost px-2.5 py-1.5 text-parchment-500 rounded" title="GitHub">
+              <a href="https://github.com/EQEmu" target="_blank" rel="noopener noreferrer" className="hover-frost px-2.5 py-1.5 text-parchment-500 rounded" title="GitHub" aria-label="EQEmu on GitHub (opens in new tab)">
                 <Github className="h-4 w-4" />
               </a>
             </div>
@@ -83,6 +83,7 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
               onClick={() => setMobileOpen(!mobileOpen)}
               className="md:hidden p-2 rounded text-parchment-400 hover:text-frost-400 transition-colors"
               aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -105,10 +106,10 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
               </Link>
             ))}
             <div className="flex items-center gap-3 px-3 py-2">
-              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="text-parchment-500 hover:text-frost-400 transition-colors" title="Discord">
+              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="text-parchment-500 hover:text-frost-400 transition-colors" title="Discord" aria-label="EQEmulator Discord (opens in new tab)">
                 {discordSvg}
               </a>
-              <a href="https://github.com/EQEmu" target="_blank" rel="noopener noreferrer" className="text-parchment-500 hover:text-frost-400 transition-colors" title="GitHub">
+              <a href="https://github.com/EQEmu" target="_blank" rel="noopener noreferrer" className="text-parchment-500 hover:text-frost-400 transition-colors" title="GitHub" aria-label="EQEmu on GitHub (opens in new tab)">
                 <Github className="h-4 w-4" />
               </a>
             </div>

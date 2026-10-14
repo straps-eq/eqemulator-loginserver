@@ -343,8 +343,8 @@ export function StatusDashboard() {
             <h3 className="font-display text-xs font-semibold text-parchment-300 uppercase tracking-wider mb-2">Login Ports</h3>
             <ul className="text-parchment-500 text-xs space-y-1">
               <li><strong className="text-parchment-300">5998</strong> — Titanium clients</li>
-              <li><strong className="text-parchment-300">5999</strong> — SoD+ clients (most common)</li>
-              <li><strong className="text-parchment-300">15900</strong> — ToB clients</li>
+              <li><strong className="text-parchment-300">5999</strong> — SoD/UF/RoF/RoF2 clients (most common)</li>
+              <li><strong className="text-parchment-300">15900</strong> — ToB clients (The Outer Brood, current Steam client)</li>
             </ul>
           </div>
           <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">

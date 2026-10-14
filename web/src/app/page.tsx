@@ -48,6 +48,7 @@ export default async function HomePage() {
           <p className="mx-auto max-w-xl text-sm text-parchment-400/80 mb-8 leading-relaxed">
             Browse EverQuest private servers with live telemetry.
             Compatible with existing eqemulator.net accounts — just update your eqhost.txt and play.
+            Titanium, SoD+, RoF2 and the current Steam client (ToB) can all log in.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -117,6 +118,24 @@ export default async function HomePage() {
                 <p className="text-parchment-500 text-xs leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-10 max-w-2xl mx-auto">
+            <p className="text-center font-display text-[10px] tracking-[0.25em] uppercase text-parchment-600 mb-3">
+              Login port by client
+            </p>
+            <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+              {[
+                { client: "RoF2 / SoD+", port: "5999", note: "Most common — use if unsure" },
+                { client: "ToB (Steam)", port: "15900", note: "Only on worlds that support ToB" },
+                { client: "Titanium", port: "5998", note: "Classic client" },
+              ].map(({ client, port, note }) => (
+                <div key={port} className="rounded border border-frost-400/6 bg-[#0a0e16]/60 px-4 py-3">
+                  <dt className="font-display text-xs font-semibold text-parchment-200">{client}</dt>
+                  <dd className="font-mono text-frost-400/80 text-sm my-1">{port}</dd>
+                  <dd className="text-parchment-500 text-[11px] leading-snug">{note}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
           <div className="text-center mt-8">
             <Link

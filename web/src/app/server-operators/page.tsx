@@ -28,6 +28,8 @@ export default async function ServerOperatorsPage() {
         <h1 className="font-display text-3xl font-bold text-parchment-100 mb-2">Server Operators</h1>
         <p className="text-parchment-400 mb-10">
           Connect your EQEmu world server to this login server so players can find and join your world.
+          Want ToB (current Steam client) players too? See{" "}
+          <a href="#tob" className="hover-frost text-frost-400">Supporting ToB Clients</a>.
         </p>
 
         {/* Quick start */}
@@ -37,7 +39,7 @@ export default async function ServerOperatorsPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-frost-400/20 bg-frost-400/5">
-                    <Plus className="h-5 w-5 text-frost-400" />
+                    <Plus className="h-5 w-5 text-frost-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="w-full">
@@ -74,7 +76,7 @@ export default async function ServerOperatorsPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-arcane-400/20 bg-arcane-400/5">
-                    <Server className="h-5 w-5 text-arcane-400" />
+                    <Server className="h-5 w-5 text-arcane-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="w-full">
@@ -118,7 +120,7 @@ export default async function ServerOperatorsPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-frost-400/20 bg-frost-400/5">
-                    <Settings className="h-5 w-5 text-frost-400" />
+                    <Settings className="h-5 w-5 text-frost-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="w-full">
@@ -188,7 +190,7 @@ export default async function ServerOperatorsPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-arcane-400/20 bg-arcane-400/5">
-                    <Shield className="h-5 w-5 text-arcane-400" />
+                    <Shield className="h-5 w-5 text-arcane-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div>
@@ -239,45 +241,106 @@ export default async function ServerOperatorsPage() {
         </div>
 
         {/* ToB client support */}
-        <div className="mt-12">
-          <h2 className="font-display text-xl font-bold text-parchment-100 mb-5">Supporting ToB Clients</h2>
-          <Card>
-            <CardContent className="p-5 space-y-3">
-              <p className="text-parchment-400 text-sm">
-                Players on the current Steam client (The Outer Brood, ToB) log in to EQEmulator.dev on port 15900.
-                That port is on our loginserver, so <strong className="text-parchment-200">you don&apos;t need to open
-                any new ports</strong>. Your world and zones use the same ports as for RoF2 clients, and your world
-                keeps connecting to us on TCP 5998 as before.
-              </p>
-              <p className="text-parchment-400 text-sm">To let ToB players into your world:</p>
-              <ol className="list-decimal list-inside space-y-1.5 text-parchment-400 text-sm">
-                <li>
-                  Run world and zone built from upstream EQEmu{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code> with ToB support. Older builds can&apos;t
-                  decode ToB packets. Back up your database before upgrading.
-                </li>
-                <li>
-                  Add <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_TOB.conf</code> (from upstream{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">utils/patches/</code>) next to your other patch files.
-                </li>
-                <li>
-                  Make sure <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code> includes{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code>. On develop-v2 the default is{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>, which turns away Titanium, SoF, SoD and UF
-                  players. Add those if you support them, or leave the rule blank to allow every client.
-                </li>
-                <li>
-                  Keep your world on the standard UDP port <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>. ToB clients
-                  are always told to connect to 9000, so a world on a custom port won&apos;t work for them.
-                </li>
-              </ol>
-              <p className="text-parchment-400 text-sm">
-                ToB players see every server in the list. Until you enable ToB, they&apos;ll get an error when
-                entering your world, so let your players know which clients you support.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <section id="tob" aria-labelledby="tob-heading" className="mt-12 scroll-mt-20">
+          <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-400/60 block mb-2">
+            New client
+          </span>
+          <h2 id="tob-heading" className="font-display text-xl font-bold text-parchment-100 mb-2">Supporting ToB Clients</h2>
+          <p className="text-parchment-400 text-sm mb-5">
+            Players on the current Steam client (The Outer Brood, ToB) can now log in to EQEmulator.dev.
+            They see every server in the list, but can only enter worlds that have been set up for ToB.
+            Here is what that takes on your side.
+          </p>
+
+          <div className="space-y-4">
+            <Card className="border-frost-400/15">
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">No new ports for you</h3>
+                <p className="text-parchment-400 text-sm">
+                  ToB clients log in on port <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">15900</code>, which lives on <em>our</em> loginserver.
+                  You don&apos;t open anything new. Your world keeps registering with 
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code> on TCP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">5998</code> exactly as before,
+                  and your <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver</code> config entries don&apos;t change.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-3">Checklist</h3>
+                <ol className="space-y-4 text-parchment-400 text-sm">
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">1</span>
+                    <div>
+                      <strong className="text-parchment-200">Back up your database.</strong> Do this before moving
+                      your server to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">2</span>
+                    <div>
+                      <strong className="text-parchment-200">Build world and zone from upstream EQEmu/Server <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.</strong> 
+                      That branch includes the ToB patch (<code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">common/patches/tob*.cpp</code>). Older builds
+                      can&apos;t talk to ToB clients.
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">3</span>
+                    <div>
+                      <strong className="text-parchment-200">Install the ToB patch file.</strong> Copy 
+                      <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">utils/patches/patch_TOB.conf</code> from the source tree into your server&apos;s
+                      patches directory, next to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_RoF2.conf</code>.
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">4</span>
+                    <div className="min-w-0 flex-1">
+                      <strong className="text-parchment-200">Allow ToB in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>.</strong> 
+                      The rule must include <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code>, or be left blank to allow every client.
+                      <div className="mt-3 flex gap-2.5 rounded border border-gold-400/20 bg-gold-400/5 p-3">
+                        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-gold-300 mt-0.5" aria-hidden="true" />
+                        <p className="text-parchment-300 text-xs leading-relaxed">
+                          On develop-v2 the default is <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. That <strong>blocks Titanium,
+                          SoF, SoD and UF</strong> players. If you support those clients, add them to the rule or
+                          leave it blank.
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">5</span>
+                    <div>
+                      <strong className="text-parchment-200">Keep your world&apos;s client port on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.</strong> 
+                      The ToB client always connects to world on 9000, so a world on a custom port won&apos;t work
+                      for ToB players.
+                    </div>
+                  </li>
+                </ol>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-3">How a ToB login flows</h3>
+                <ol className="space-y-2 text-parchment-400 text-sm list-decimal list-inside">
+                  <li>
+                    The ToB client logs in to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">login.eqemulator.dev:15900</code> and gets the server list.
+                  </li>
+                  <li>
+                    The player picks your world. The client connects to your world on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.
+                    If your world doesn&apos;t accept ToB, entry fails here.
+                  </li>
+                  <li>From there, zoning works the same as for any other client, using your usual zone ports.</li>
+                </ol>
+              </CardContent>
+            </Card>
+
+            <p className="text-parchment-500 text-xs">
+              Until your world supports ToB, ToB players will get an error when entering it, so let your
+              community know which clients you support.
+            </p>
+          </div>
+        </section>
 
         {/* Troubleshooting */}
         <div className="mt-12">
@@ -302,6 +365,28 @@ export default async function ServerOperatorsPage() {
                   Player count is reported by the world server to each login server independently.
                   Make sure your world server is running a recent enough version that supports
                   multi-loginserver player count reporting.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">ToB players can see my server but can&apos;t get in</h3>
+                <p className="text-parchment-400 text-sm">
+                  Work through the <a href="#tob" className="hover-frost text-frost-400">ToB checklist</a>: a
+                  develop-v2 build of world and zone, <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_TOB.conf</code> in
+                  your patches directory, <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code> allowed
+                  in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>, and
+                  the world client port on UDP 9000.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">After moving to develop-v2, Titanium/SoF/SoD/UF players can&apos;t get in</h3>
+                <p className="text-parchment-400 text-sm">
+                  The develop-v2 default for <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code> is{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. Add the other clients
+                  you support to the rule, or leave it blank to allow all clients.
                 </p>
               </CardContent>
             </Card>
