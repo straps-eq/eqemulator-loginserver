@@ -17,7 +17,9 @@
 #   4. cron: 30 3 * * * /opt/eqemu/scripts/backup-offsite.sh >> /opt/eqemu/logs/backup.log 2>&1
 #
 # Env overrides: BACKUP_REMOTE (default dropbox:apps/loginserver), UPLOAD=0 to
-# build and test the archive without uploading, HEALTHCHECK_URL to ping on success.
+# build and test the archive without uploading, HEALTHCHECK_URL (or a URL in
+# ~/.config/eqemu-backup/healthcheck_url) to ping healthchecks.io-style /start,
+# success and /fail.
 # ──────────────────────────────────────────────
 set -euo pipefail
 umask 077
@@ -34,8 +36,20 @@ KEEP_DAILY_DAYS=14
 KEEP_WEEKLY_DAYS=56
 KEEP_LOCAL=3
 
+HEALTHCHECK_FILE="${HEALTHCHECK_FILE:-$HOME/.config/eqemu-backup/healthcheck_url}"
+if [ -z "${HEALTHCHECK_URL:-}" ] && [ -s "$HEALTHCHECK_FILE" ]; then
+  HEALTHCHECK_URL="$(tr -d '[:space:]' < "$HEALTHCHECK_FILE")"
+fi
+
 log() { echo "[$(date -u '+%Y-%m-%d %H:%M:%S')] $*"; }
+ping_hc() {
+  [ -n "${HEALTHCHECK_URL:-}" ] || return 0
+  curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL$1" >/dev/null 2>&1 || log "warning: healthcheck ping failed"
+}
 fail() { log "BACKUP FAILED: $*"; exit 1; }
+# Any non-zero exit (fail() or a failed command under set -e) reports to the
+# healthcheck, which then alerts; a missed night alerts via its schedule.
+trap 'rc=$?; [ $rc -ne 0 ] && ping_hc /fail; exit $rc' EXIT
 
 [ -s "$PASSFILE" ] || fail "passphrase file $PASSFILE missing or empty"
 [ "$(stat -c %a "$PASSFILE")" = "600" ] || fail "$PASSFILE must be chmod 600"
@@ -44,11 +58,12 @@ docker image inspect "$TOOLS_IMAGE" >/dev/null 2>&1 || fail "tools image $TOOLS_
 DATE="$(date -u +%Y-%m-%d)"
 NAME="loginserver-backup-$DATE"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'rc=$?; rm -rf "$WORK"; [ $rc -ne 0 ] && ping_hc /fail; exit $rc' EXIT
 STAGE="$WORK/$NAME"
 mkdir -p "$STAGE" "$WORK/out" "$LOCAL_DIR"
 
 log "=== Backup $NAME started ==="
+ping_hc /start
 
 # 1. Database: one consistent InnoDB snapshot, root password read inside the container.
 docker exec eqemu-mariadb sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" exec mariadb-dump -uroot \
@@ -112,8 +127,6 @@ else
   log "UPLOAD=0: archive kept locally only ($LOCAL_DIR/$NAME.7z)"
 fi
 
-if [ -n "${HEALTHCHECK_URL:-}" ]; then
-  curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL" >/dev/null || log "warning: healthcheck ping failed"
-fi
+ping_hc ""
 
 log "=== Backup $NAME complete ==="
