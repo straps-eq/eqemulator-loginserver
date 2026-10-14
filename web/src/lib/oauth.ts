@@ -76,6 +76,8 @@ export function generateState(): string {
 export interface OAuthProfile {
   id: string;
   email: string;
+  /** True only when the provider says it verified the email address. */
+  emailVerified: boolean;
   name: string;
   avatar?: string;
 }
@@ -89,6 +91,7 @@ export async function fetchGoogleProfile(accessToken: string): Promise<OAuthProf
   return {
     id: data.sub || data.id,
     email: data.email,
+    emailVerified: data.verified_email === true || data.email_verified === true,
     name: data.name || data.email.split("@")[0],
     avatar: data.picture,
   };
@@ -103,6 +106,7 @@ export async function fetchDiscordProfile(accessToken: string): Promise<OAuthPro
   return {
     id: data.id,
     email: data.email,
+    emailVerified: data.verified === true,
     name: data.global_name || data.username,
     avatar: data.avatar
       ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png`

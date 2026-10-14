@@ -125,6 +125,12 @@ export async function GET(
     accountId = accounts[0].id;
     accountName = accounts[0].username;
   } else {
+    // Matching or creating by email is only safe when the provider verified it;
+    // otherwise anyone could claim an account by putting its email on their profile.
+    if (!profile.emailVerified || !profile.email) {
+      return NextResponse.redirect(`${BASE_URL}/login?error=email_unverified`);
+    }
+
     // New OAuth link — check if email matches existing account (migration path)
     const emailMatch = await db
       .select()

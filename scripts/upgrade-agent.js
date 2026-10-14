@@ -1214,29 +1214,27 @@ function getContainerLogs(res, urlStr) {
   const container = `eqemu-${service}`;
   log(`GET /container-logs?service=${service}&tail=${tail}`);
 
-  let cmd = `docker logs --tail ${tail} --timestamps ${container} 2>&1`;
+  // argv array, no shell: `since` is user input and must never reach a shell.
+  const args = ["logs"];
   if (since) {
-    // Validate since looks like a duration (e.g. "1h", "30m") or ISO timestamp
-    if (/^[0-9]+[smh]$/.test(since) || /^\d{4}-\d{2}-\d{2}/.test(since)) {
-      cmd = `docker logs --since ${since} --tail ${tail} --timestamps ${container} 2>&1`;
-    }
-  }
-
-  try {
-    const output = execSync(cmd, { encoding: "utf8", timeout: 15000, maxBuffer: 5 * 1024 * 1024 }).trim();
-    const lines = output.split("\n").filter(Boolean);
-    jsonResponse(res, 200, { service, container, lines, count: lines.length, tail });
-  } catch (err) {
-    const msg = (err.stderr || err.stdout || err.message || "").trim();
-    // execSync throws on non-zero exit but docker logs outputs to stderr for container logs
-    // Try to use whatever output we got
-    if (err.stdout) {
-      const lines = err.stdout.trim().split("\n").filter(Boolean);
-      jsonResponse(res, 200, { service, container, lines, count: lines.length, tail });
+    // Duration (e.g. "1h", "30m") or ISO timestamp, anchored at both ends
+    if (/^[0-9]+[smh]$/.test(since) || /^\d{4}-\d{2}-\d{2}(T[0-9:.]+(Z|[+-]\d{2}:\d{2})?)?$/.test(since)) {
+      args.push("--since", since);
     } else {
-      jsonResponse(res, 500, { error: `Failed to get logs for ${container}: ${msg.slice(0, 200)}` });
+      return jsonResponse(res, 400, { error: "Invalid since" });
     }
   }
+  args.push("--tail", String(tail), "--timestamps", container);
+
+  // docker logs writes the container's stderr stream to our stderr, so merge both.
+  const result = spawnSync("docker", args, { encoding: "utf8", timeout: 15000, maxBuffer: 5 * 1024 * 1024 });
+  const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
+  if (result.error || (result.status !== 0 && !result.stdout)) {
+    const msg = (result.error?.message || output || "").trim();
+    return jsonResponse(res, 500, { error: `Failed to get logs for ${container}: ${msg.slice(0, 200)}` });
+  }
+  const lines = output.split("\n").filter(Boolean);
+  jsonResponse(res, 200, { service, container, lines, count: lines.length, tail });
 }
 
 // ── HTTP Server ──

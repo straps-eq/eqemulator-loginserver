@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { Compass, Shield, Activity, Settings } from "lucide-react";
 import { LiveStats } from "./live-stats";
 import { StatusIndicator } from "./status-indicator";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -25,7 +26,7 @@ export default async function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 

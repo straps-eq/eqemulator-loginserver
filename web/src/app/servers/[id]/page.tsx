@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +142,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(serverJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(serverJsonLd) }}
       />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 
