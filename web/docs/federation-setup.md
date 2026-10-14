@@ -34,7 +34,7 @@ Any Linux VPS/dedicated server with:
 - Docker & Docker Compose
 - A public domain or subdomain (e.g. `eu.eqemulator.dev`)
 - HTTPS via Let's Encrypt or Cloudflare (required for inter-node communication)
-- Ports open: **80/443** (web), **5998-5999/udp** and **15900/udp** (loginserver client), **5998/tcp** (world server registration)
+- Ports open: **80/443** (web), **5998-5999/udp** and **15900/tcp+udp** (loginserver client), **5998/tcp** (world server registration)
 
 ### 1.2 Clone the Stack
 

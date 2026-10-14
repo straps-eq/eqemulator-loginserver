@@ -53,7 +53,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 |------|----------|---------|
 | 80 | TCP | SSL certificate issuance |
 | 443 | TCP | HTTPS web UI |
-| 5998 | TCP+UDP | Titanium client login |
+| 5998 | TCP+UDP | Titanium client login (UDP), world server registration (TCP) |
 | 5999 | TCP+UDP | SoD+/RoF2 client login |
 | 15900 | TCP+UDP | ToB client login |
 
@@ -215,7 +215,7 @@ If you want to run a separate federation (not connected to EQEmulator.dev), you 
 |------|----------|---------|
 | 443 | TCP | HTTPS (web UI) |
 | 80 | TCP | HTTP → HTTPS redirect |
-| 5998 | TCP/UDP | Titanium client login |
+| 5998 | TCP/UDP | Titanium client login (UDP), world server registration (TCP) |
 | 5999 | TCP/UDP | SoD+/RoF2 client login |
 | 15900 | TCP/UDP | ToB client login |
 | 6000 | TCP | Loginserver internal API |

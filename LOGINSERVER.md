@@ -40,7 +40,7 @@ This is a fork of the [EQEmu Server](https://github.com/EQEmu/Server) loginserve
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 5998 | TCP+UDP | Titanium client connections |
+| 5998 | TCP+UDP | Titanium client connections (UDP), world server registration (TCP) |
 | 5999 | TCP+UDP | SoD/RoF2 client connections |
 | 15900 | TCP+UDP | ToB (The Outer Brood) client connections |
 | 6000 | TCP | Internal HTTP API (world server data, federation) |

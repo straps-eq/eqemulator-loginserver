@@ -238,6 +238,47 @@ export default async function ServerOperatorsPage() {
           </div>
         </div>
 
+        {/* ToB client support */}
+        <div className="mt-12">
+          <h2 className="font-display text-xl font-bold text-parchment-100 mb-5">Supporting ToB Clients</h2>
+          <Card>
+            <CardContent className="p-5 space-y-3">
+              <p className="text-parchment-400 text-sm">
+                Players on the current Steam client (The Outer Brood, ToB) log in to EQEmulator.dev on port 15900.
+                That port is on our loginserver, so <strong className="text-parchment-200">you don&apos;t need to open
+                any new ports</strong>. Your world and zones use the same ports as for RoF2 clients, and your world
+                keeps connecting to us on TCP 5998 as before.
+              </p>
+              <p className="text-parchment-400 text-sm">To let ToB players into your world:</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-parchment-400 text-sm">
+                <li>
+                  Run world and zone built from upstream EQEmu{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code> with ToB support. Older builds can&apos;t
+                  decode ToB packets. Back up your database before upgrading.
+                </li>
+                <li>
+                  Add <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_TOB.conf</code> (from upstream{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">utils/patches/</code>) next to your other patch files.
+                </li>
+                <li>
+                  Make sure <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code> includes{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code>. On develop-v2 the default is{" "}
+                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>, which turns away Titanium, SoF, SoD and UF
+                  players. Add those if you support them, or leave the rule blank to allow every client.
+                </li>
+                <li>
+                  Keep your world on the standard UDP port <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>. ToB clients
+                  are always told to connect to 9000, so a world on a custom port won&apos;t work for them.
+                </li>
+              </ol>
+              <p className="text-parchment-400 text-sm">
+                ToB players see every server in the list. Until you enable ToB, they&apos;ll get an error when
+                entering your world, so let your players know which clients you support.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Troubleshooting */}
         <div className="mt-12">
           <h2 className="font-display text-xl font-bold text-parchment-100 mb-5">Troubleshooting</h2>

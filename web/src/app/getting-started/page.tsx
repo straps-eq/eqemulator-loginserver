@@ -106,6 +106,10 @@ Host=login.eqemulator.dev:5998`}
 {`[LoginServer]
 Host=login.eqemulator.dev:15900`}
                       </pre>
+                      <p className="text-parchment-500 text-xs">
+                        ToB clients see every server in the list, but can only enter worlds whose operators have
+                        enabled ToB support. Other worlds will refuse the connection at world entry.
+                      </p>
                     </div>
                   </details>
                 </div>
