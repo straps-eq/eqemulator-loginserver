@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { Globe, Shield, Server, Users, Zap, Network } from "lucide-react";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "About — EverQuest Emulator Community Infrastructure",
@@ -164,8 +165,11 @@ export default async function AboutPage() {
                 to both loginservers simultaneously. Your players can reach you from either network.
               </p>
               <p>
-                <strong className="text-parchment-200">All EQ clients supported.</strong> Titanium, SoD+, and Larion clients
-                are all supported. Just update your eqhost.txt to point here.
+                <strong className="text-parchment-200">Titanium, SoD+, RoF2 and ToB clients.</strong> The loginserver
+                accepts all of them, including the ToB client. Just update your
+                eqhost.txt to point here. ToB players can only enter worlds that support ToB; see the{" "}
+                <Link href="/getting-started" className="hover-frost text-frost-400">Getting Started guide</Link> for
+                the right port for your client.
               </p>
             </div>
           </div>

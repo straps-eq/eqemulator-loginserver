@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { platformAccounts, platformAdmins, worldServerAdminLinks } from "@/db/schema";
@@ -12,7 +13,7 @@ const MFA_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request);
     const rl = await rateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
     if (!rl.ok) {
       return NextResponse.json(

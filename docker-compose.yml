@@ -94,6 +94,7 @@ services:
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
       - NEXT_PUBLIC_BASE_URL=https://${DOMAIN}
+      - EXTERNAL_AUTH_API_KEY=${EXTERNAL_AUTH_API_KEY:-}
     volumes:
       - ./uploads:/app/public/uploads
     networks:

@@ -34,7 +34,7 @@ Any Linux VPS/dedicated server with:
 - Docker & Docker Compose
 - A public domain or subdomain (e.g. `eu.eqemulator.dev`)
 - HTTPS via Let's Encrypt or Cloudflare (required for inter-node communication)
-- Ports open: **80/443** (web), **5998-5999/udp** and **15900/udp** (loginserver client), **5998/tcp** (world server registration)
+- Ports open: **80/443** (web), **5998-5999/udp** and **15900/tcp+udp** (loginserver client logins; 15900 is the ToB client port), **5998/tcp** (world server registration)
 
 ### 1.2 Clone the Stack
 
@@ -110,13 +110,15 @@ Edit `/opt/eqemu/loginserver/login.json` — use the same structure as the maste
     "titanium_opcodes": "login_opcodes.conf",
     "sod_port": 5999,
     "sod_opcodes": "login_opcodes_sod.conf",
-    "larion_port": 15900,
-    "larion_opcodes": "login_opcodes_larion.conf",
+    "tob_port": 15900,
+    "tob_opcodes": "login_opcodes_tob.conf",
     "display_expansions": true,
     "max_expansions_mask": 524287
   }
 }
 ```
+
+> **ToB clients:** keep `tob_port` and `tob_opcodes` in `client_configuration` and open port 15900 for both TCP and UDP (the compose file publishes both). Without them, ToB (The Outer Brood) players cannot log in through your node.
 
 ### 1.5 Start the Stack
 

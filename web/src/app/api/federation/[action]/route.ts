@@ -241,6 +241,12 @@ async function handlePasswordSync(req: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  // Mesh nodes are read-only replicas: they must never be able to overwrite
+  // credentials on another node.
+  if (auth.node.nodeTier !== "official") {
+    return NextResponse.json({ error: "Only official nodes may sync passwords" }, { status: 403 });
+  }
+
   let body: { updates?: Array<{ table: string; row_id: number; password_hash: string }> };
   try {
     body = JSON.parse(bodyText);

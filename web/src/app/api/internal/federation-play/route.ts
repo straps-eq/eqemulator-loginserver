@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { federationPost } from "@/lib/federation/client";
+import { isDirectInternalRequest } from "@/lib/client-ip";
 
 /**
  * Internal endpoint called by the local loginserver (C++) to forward a
@@ -26,10 +27,9 @@ setInterval(() => {
 
 export async function POST(request: NextRequest) {
   try {
-    // Basic internal-only check (Docker network)
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "";
-    const isInternal = ip.startsWith("172.") || ip.startsWith("10.") || ip.startsWith("192.168.") || ip === "127.0.0.1" || ip === "::1" || ip === "";
-    if (!isInternal) {
+    // Internal-only: the loginserver calls web:3000 directly. Anything that came
+    // through nginx is external, whatever X-Forwarded-For claims.
+    if (!isDirectInternalRequest(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

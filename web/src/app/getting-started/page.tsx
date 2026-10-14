@@ -4,11 +4,12 @@ import { getSession } from "@/lib/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, FileText, Play, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { ClientChooser } from "./client-chooser";
 
 export const metadata: Metadata = {
   title: "How to Play EverQuest on Private Servers",
   description:
-    "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Download the client, update eqhost.txt, and start playing in minutes.",
+    "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
   openGraph: {
     title: "How to Play EverQuest on Private Servers",
     description: "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev.",
@@ -39,26 +40,26 @@ export default async function GettingStartedPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-arcane-400/20 bg-arcane-400/5">
-                    <Download className="h-5 w-5 text-arcane-400" />
+                    <Download className="h-5 w-5 text-arcane-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div>
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">1. Get an EverQuest Client</h2>
                   <p className="text-parchment-400 text-sm mb-3">
-                    You need a copy of EverQuest to play. The most commonly supported clients are:
+                    You need a copy of EverQuest to play. This login server accepts these clients:
                   </p>
                   <ul className="text-parchment-400 text-sm space-y-1.5 mb-3">
                     <li className="flex items-start gap-2">
-                      <span className="text-frost-400/50 mt-1">•</span>
-                      <span><strong className="text-parchment-200">Titanium</strong> — Classic client, widely supported</span>
+                      <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
+                      <span><strong className="text-parchment-200">RoF2 / SoD+</strong> — Seeds of Destruction, Underfoot, Rain of Fear and RoF2. The most widely supported choice</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-frost-400/50 mt-1">•</span>
-                      <span><strong className="text-parchment-200">Secrets of Faydwer (SoF/SoD+)</strong> — More features, most popular</span>
+                      <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
+                      <span><strong className="text-parchment-200">ToB</strong> — Only works on worlds that support ToB</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-frost-400/50 mt-1">•</span>
-                      <span><strong className="text-parchment-200">Rain of Fear (RoF2)</strong> — Latest supported classic client</span>
+                      <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
+                      <span><strong className="text-parchment-200">Titanium</strong> — The classic client, still used by some servers</span>
                     </li>
                   </ul>
                   <p className="text-parchment-500 text-xs">
@@ -75,39 +76,17 @@ export default async function GettingStartedPage() {
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-frost-400/20 bg-frost-400/5">
-                    <FileText className="h-5 w-5 text-frost-400" />
+                    <FileText className="h-5 w-5 text-frost-400" aria-hidden="true" />
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">2. Update eqhost.txt</h2>
-                  <p className="text-parchment-400 text-sm mb-3">
+                  <p className="text-parchment-400 text-sm mb-4">
                     Find <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> in
-                    your EverQuest directory and replace its contents with:
+                    your EverQuest directory. Pick your client below to get the right port.
+                    If unsure, use <strong className="text-parchment-200">5999</strong>.
                   </p>
-                  <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-4 text-sm text-parchment-300 overflow-x-auto mb-3">
-{`[LoginServer]
-Host=login.eqemulator.dev:5999`}
-                  </pre>
-                  <p className="text-parchment-500 text-xs mb-3">
-                    This tells your EQ client to connect to the EQEmulator login server.
-                  </p>
-                  <details className="text-sm">
-                    <summary className="text-frost-400/70 cursor-pointer hover:text-frost-400 transition-colors text-xs font-medium">
-                      Using Titanium or Larion client? View alternate ports
-                    </summary>
-                    <div className="mt-2 space-y-2">
-                      <p className="text-parchment-500 text-xs">Titanium clients (port 5998):</p>
-                      <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-3 text-xs text-parchment-300 overflow-x-auto">
-{`[LoginServer]
-Host=login.eqemulator.dev:5998`}
-                      </pre>
-                      <p className="text-parchment-500 text-xs">Larion clients (port 15900):</p>
-                      <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-3 text-xs text-parchment-300 overflow-x-auto">
-{`[LoginServer]
-Host=login.eqemulator.dev:15900`}
-                      </pre>
-                    </div>
-                  </details>
+                  <ClientChooser />
                 </div>
               </div>
             </CardContent>
@@ -119,7 +98,7 @@ Host=login.eqemulator.dev:15900`}
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-arcane-400/20 bg-arcane-400/5">
-                    <Play className="h-5 w-5 text-arcane-400" />
+                    <Play className="h-5 w-5 text-arcane-400" aria-hidden="true" />
                   </div>
                 </div>
                 <div>
@@ -147,7 +126,7 @@ Host=login.eqemulator.dev:15900`}
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gold-300/20 bg-gold-300/5">
-                    <RefreshCw className="h-5 w-5 text-gold-300" />
+                    <RefreshCw className="h-5 w-5 text-gold-300" aria-hidden="true" />
                   </div>
                 </div>
                 <div>
@@ -175,8 +154,18 @@ Host=login.eqemulator.dev:15900`}
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Which port does my client use?</h3>
                 <p className="text-parchment-400 text-sm">
-                  SoD+ clients use port 5999 (most common), Titanium uses port 5998, and Larion uses port 15900.
-                  If unsure, use 5999.
+                  RoF2 and SoD+ clients use port 5999 (most common), ToB uses port 15900, and Titanium uses
+                  port 5998. If unsure, use 5999.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I&apos;m on ToB and get an error when entering a world. Why?</h3>
+                <p className="text-parchment-400 text-sm">
+                  The server list shows every world, but a ToB client can only enter worlds that support ToB.
+                  If a world doesn&apos;t, entry fails after you pick it. Ask that server which clients it supports,
+                  or use a RoF2/SoD+ client on port 5999 instead.
                 </p>
               </CardContent>
             </Card>

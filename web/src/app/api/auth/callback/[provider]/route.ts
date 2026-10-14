@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/client-ip";
 import type { OAuth2Tokens } from "arctic";
 import {
   google,
@@ -31,7 +32,7 @@ export async function GET(
     return NextResponse.redirect(`${BASE_URL}/login?error=invalid_provider`);
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = getClientIp(request);
   const rl = await rateLimit(`oauth-callback:${ip}`, 10, 15 * 60 * 1000);
   if (!rl.ok) {
     return NextResponse.redirect(`${BASE_URL}/login?error=rate_limited`);
@@ -124,6 +125,12 @@ export async function GET(
     accountId = accounts[0].id;
     accountName = accounts[0].username;
   } else {
+    // Matching or creating by email is only safe when the provider verified it;
+    // otherwise anyone could claim an account by putting its email on their profile.
+    if (!profile.emailVerified || !profile.email) {
+      return NextResponse.redirect(`${BASE_URL}/login?error=email_unverified`);
+    }
+
     // New OAuth link — check if email matches existing account (migration path)
     const emailMatch = await db
       .select()

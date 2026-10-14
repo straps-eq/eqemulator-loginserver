@@ -33,6 +33,7 @@ function oauthErrorMessage(code: string): string {
     case "invalid_state": return "Authentication failed — please try again.";
     case "missing_verifier": return "Authentication failed — please try again.";
     case "auth_failed": return "Authentication failed — could not verify with provider.";
+    case "email_unverified": return "Your email isn't verified with that provider. Verify it there, or log in with your password and link it from your account page.";
     case "account_not_found": return "Account not found — please contact support.";
     default: return "Authentication failed. Please try again.";
   }

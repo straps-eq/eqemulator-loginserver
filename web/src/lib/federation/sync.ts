@@ -233,7 +233,9 @@ export async function runSyncCycle(): Promise<{
 
       // Reconcile peer list: if this peer (typically master) provides an active_peers list,
       // deactivate any local peers that are NOT in that list and NOT self.
-      if (hb.data.active_peers && hb.data.is_master) {
+      // Trust our own stored is_master flag, never the peer's self-reported one:
+      // otherwise any peer could claim mastership and rewrite our peer list.
+      if (hb.data.active_peers && peer.isMaster) {
         try {
           const { getSelfNode } = await import("./node");
           const selfNode = await getSelfNode();
