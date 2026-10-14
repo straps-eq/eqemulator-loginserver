@@ -27,10 +27,10 @@ const OPTIONS: ClientOption[] = [
   {
     id: "tob",
     name: "ToB",
-    clients: "The Outer Brood (current Steam client)",
+    clients: "The Outer Brood (ToB)",
     port: 15900,
     badge: "New",
-    note: "For the current EverQuest client from Steam.",
+    note: "For the ToB client.",
     warning: (
       <>
         ToB players see every server in the list, but can only enter worlds that support ToB.

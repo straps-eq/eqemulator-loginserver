@@ -28,7 +28,7 @@ export default async function ServerOperatorsPage() {
         <h1 className="font-display text-3xl font-bold text-parchment-100 mb-2">Server Operators</h1>
         <p className="text-parchment-400 mb-10">
           Connect your EQEmu world server to this login server so players can find and join your world.
-          Want ToB (current Steam client) players too? See{" "}
+          Want ToB client players too? See{" "}
           <a href="#tob" className="hover-frost text-frost-400">Supporting ToB Clients</a>.
         </p>
 
@@ -247,7 +247,7 @@ export default async function ServerOperatorsPage() {
           </span>
           <h2 id="tob-heading" className="font-display text-xl font-bold text-parchment-100 mb-2">Supporting ToB Clients</h2>
           <p className="text-parchment-400 text-sm mb-5">
-            Players on the current Steam client (The Outer Brood, ToB) can now log in to EQEmulator.dev.
+            Players on the ToB (The Outer Brood) client can now log in to EQEmulator.dev.
             They see every server in the list, but can only enter worlds that have been set up for ToB.
             Here is what that takes on your side.
           </p>

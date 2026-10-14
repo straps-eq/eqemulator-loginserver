@@ -55,7 +55,7 @@ export default async function GettingStartedPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
-                      <span><strong className="text-parchment-200">ToB (The Outer Brood)</strong> — The current Steam client. Only works on worlds that support ToB</span>
+                      <span><strong className="text-parchment-200">ToB (The Outer Brood)</strong> — Only works on worlds that support ToB</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
