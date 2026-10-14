@@ -32,7 +32,7 @@ export function CodeBlock({
 
   return (
     <div className={cn("relative group", className)}>
-      <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-4 pr-12 text-sm text-parchment-300 overflow-x-auto font-mono">
+      <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-4 pr-12 text-xs sm:text-sm text-parchment-300 whitespace-pre-wrap break-all font-mono">
         {code}
       </pre>
       <button
