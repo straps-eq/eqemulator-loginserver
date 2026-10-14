@@ -166,7 +166,7 @@ export default async function AboutPage() {
               </p>
               <p>
                 <strong className="text-parchment-200">Titanium, SoD+, RoF2 and ToB clients.</strong> The loginserver
-                accepts all of them, including the current Steam client (The Outer Brood, ToB). Just update your
+                accepts all of them, including the ToB client. Just update your
                 eqhost.txt to point here. ToB players can only enter worlds that support ToB; see the{" "}
                 <Link href="/getting-started" className="hover-frost text-frost-400">Getting Started guide</Link> for
                 the right port for your client.

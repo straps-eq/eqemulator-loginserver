@@ -344,7 +344,7 @@ export function StatusDashboard() {
             <ul className="text-parchment-500 text-xs space-y-1">
               <li><strong className="text-parchment-300">5998</strong> — Titanium clients</li>
               <li><strong className="text-parchment-300">5999</strong> — SoD/UF/RoF/RoF2 clients (most common)</li>
-              <li><strong className="text-parchment-300">15900</strong> — ToB clients (The Outer Brood, current Steam client)</li>
+              <li><strong className="text-parchment-300">15900</strong> — ToB clients</li>
             </ul>
           </div>
           <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">

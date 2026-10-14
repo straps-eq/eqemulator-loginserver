@@ -27,10 +27,10 @@ const OPTIONS: ClientOption[] = [
   {
     id: "tob",
     name: "ToB",
-    clients: "The Outer Brood (current Steam client)",
+    clients: "ToB",
     port: 15900,
     badge: "New",
-    note: "For the current EverQuest client from Steam.",
+    note: "For players using the ToB client.",
     warning: (
       <>
         ToB players see every server in the list, but can only enter worlds that support ToB.
@@ -111,7 +111,8 @@ export function ClientChooser() {
 
       <div role="tabpanel" id={`client-panel-${opt.id}`} aria-labelledby={`client-tab-${opt.id}`}>
         <p className="text-parchment-400 text-sm mb-1">
-          <strong className="text-parchment-200">{opt.name}</strong> — {opt.clients}
+          <strong className="text-parchment-200">{opt.name}</strong>
+          {opt.clients !== opt.name && <> — {opt.clients}</>}
         </p>
         <p className="text-parchment-500 text-xs mb-3">{opt.note}</p>
         <p className="text-parchment-400 text-sm mb-2">
