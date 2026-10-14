@@ -18,6 +18,7 @@ loginserver/data/
 
 # Backups
 backups/
+rclone/
 
 # Prometheus data
 prometheus/data/
