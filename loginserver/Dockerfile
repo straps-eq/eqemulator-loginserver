@@ -14,7 +14,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
 
 # Clone EQEmu source (fork with federation server list + auth forwarding + ToB login).
 # Pinned to a commit so every build compiles the same source; bump EQEMU_REF deliberately.
-ARG EQEMU_REF=2374f2e07c979160a68a3f6dad65cc487202b396
+ARG EQEMU_REF=9fe796ec3aad634b70e9c54a35ccc70695ab69f8
 RUN git init /build/source \
  && git -C /build/source remote add origin https://github.com/straps-eq/EQEmu.git \
  && git -C /build/source fetch --depth 1 origin $EQEMU_REF \
@@ -168,6 +168,6 @@ COPY --from=builder /build/source/loginserver/login_util/ ./data/
 # Note: The EQEmu loginserver binary requires root at runtime (signal handling,
 # shared memory). Container hardening is applied via docker-compose security_opt.
 
-EXPOSE 5998/udp 5999/udp 15900/udp 5998/tcp 5999/tcp 15900/tcp 6000/tcp
+EXPOSE 5998/udp 5999/udp 15900/udp 15901/udp 5998/tcp 5999/tcp 15900/tcp 15901/tcp 6000/tcp
 
 CMD ["./loginserver"]

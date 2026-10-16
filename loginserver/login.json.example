@@ -46,6 +46,8 @@
     "sod_opcodes": "login_opcodes_sod.conf",
     "tob_port": 15900,
     "tob_opcodes": "login_opcodes_tob.conf",
+    "live_port": 15901,
+    "live_opcodes": "",
     "display_expansions": true,
     "max_expansions_mask": 524287
   }
