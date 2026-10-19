@@ -73,6 +73,7 @@ const config: Config = {
       },
       fontFamily: {
         display: ["Cinzel", "Georgia", "serif"],
+        hero: ["\"Cormorant Garamond\"", "Georgia", "serif"],
         body: ["Inter", "system-ui", "sans-serif"],
       },
       backgroundImage: {

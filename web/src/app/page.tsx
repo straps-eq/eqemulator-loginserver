@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { Compass, Download, FileText, Play, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as ServerIcon, ShieldCheck, User, Users } from "lucide-react";
 import { LiveStats } from "./live-stats";
-import { NorrathDawn } from "@/components/norrath-dawn";
+import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
 import { serverPath } from "@/lib/slug";
@@ -51,36 +51,74 @@ export default async function HomePage() {
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 
       {/* Welcome */}
-      <section className="relative overflow-hidden">
-        <NorrathDawn />
-        <div className="relative mx-auto max-w-4xl px-4 pt-14 pb-56 sm:pt-20 sm:pb-64 sm:px-6 lg:px-8 text-center [text-shadow:0_2px_14px_rgba(15,18,50,0.6)]">
-          <p className="font-display text-xs tracking-[0.3em] uppercase text-frost-300/70 mb-4">
-            Your adventure starts here
-          </p>
-          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-parchment-100 mb-4">
-            Welcome to <span className="text-gold-gradient">EQ Emulator</span>
-          </h1>
-          <p className="mx-auto max-w-xl text-base text-parchment-300 mb-7 leading-relaxed">
-            Your home for connecting to EQ Emulator worlds. Find a server, get set up, and start playing.
-            New to emulators? We&apos;ll walk you through it, step by step.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/servers"
-              className="rounded bg-gradient-to-b from-[#f2cf86] to-[#d4a650] px-10 py-3.5 text-sm font-display font-semibold tracking-wider uppercase text-[#1b2350] shadow-[0_6px_24px_rgba(242,207,134,0.35)] hover:from-[#f7dba0] hover:to-[#e0b562] transition-all duration-300 [text-shadow:none]"
-            >
-              Find a world
-            </Link>
-            <Link
-              href="/getting-started"
-              className="rounded border border-parchment-100/40 bg-[#1b2350]/45 backdrop-blur px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-parchment-100 hover:bg-[#1b2350]/65 hover:border-parchment-100/60 transition-all duration-300"
-            >
-              I&apos;m new, show me how
-            </Link>
+      <section className="relative -mt-16 overflow-hidden">
+        <Image
+          src="/hero-norrath.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[65%_center]"
+        />
+        {/* Shade the left side for the text, and fade into the page at the bottom */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0d1226]/80 via-[#0d1226]/35 to-transparent" aria-hidden="true" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#1a2140] via-[#1a2140]/70 to-transparent" aria-hidden="true" />
+
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 pt-36 sm:pt-44 pb-10">
+          <div className="max-w-2xl [text-shadow:0_2px_16px_rgba(10,14,35,0.65)]">
+            <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-parchment-200/90 mb-5">
+              Explore <span className="mx-2 text-frost-300">&middot;</span> Connect <span className="mx-2 text-frost-300">&middot;</span> Play
+            </p>
+            <h1 className="font-hero text-5xl sm:text-6xl lg:text-7xl font-semibold leading-[1.02] text-parchment-50 mb-6">
+              Your adventure
+              <br />
+              begins in <span className="text-gold-gradient">Norrath</span>
+            </h1>
+            <p className="font-hero text-xl sm:text-2xl leading-snug text-parchment-100/95 mb-9 max-w-xl">
+              Find an EQ Emulator server, learn how to play, and join a welcoming community.
+              New to emulators? We&apos;ll guide you every step of the way.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 [text-shadow:none]">
+              <Link
+                href="/servers"
+                className="inline-flex items-center justify-center gap-3 rounded bg-gradient-to-b from-[#f4d590] to-[#d4a650] px-8 py-4 text-sm font-semibold tracking-[0.18em] uppercase text-[#1b2350] shadow-[0_8px_28px_rgba(242,207,134,0.35)] hover:from-[#f8e0a8] hover:to-[#e0b562] transition-all duration-300"
+              >
+                <Compass className="h-5 w-5" aria-hidden="true" />
+                Find a server
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/getting-started"
+                className="inline-flex items-center justify-center gap-3 rounded border border-[#e3c27a]/70 bg-[#0d1226]/40 backdrop-blur px-8 py-4 text-sm font-medium tracking-[0.18em] uppercase text-parchment-50 hover:bg-[#0d1226]/60 hover:border-[#e3c27a] transition-all duration-300"
+              >
+                <BookOpen className="h-5 w-5 text-[#e3c27a]" aria-hidden="true" />
+                Get started
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="mt-6 [text-shadow:none]">
+              <LiveStats />
+            </div>
           </div>
-          <LiveStats />
+
+          {/* Three ways in */}
+          <div className="mt-24 sm:mt-32 grid grid-cols-1 md:grid-cols-3 md:divide-x divide-parchment-100/15 text-center">
+            {[
+              { icon: User, title: "For players", desc: "Learn the basics, find a server, and make your first login.", href: "/getting-started", cta: "Get started" },
+              { icon: ServerIcon, title: "Explore servers", desc: "See who's playing, compare worlds, and find your playstyle.", href: "/servers", cta: "Browse servers" },
+              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Learn more" },
+            ].map(({ icon: Icon, title, desc, href, cta }) => (
+              <div key={title} className="px-6 py-6">
+                <Icon className="h-8 w-8 mx-auto mb-3 text-[#e3c27a]" strokeWidth={1.5} aria-hidden="true" />
+                <h2 className="text-sm tracking-[0.25em] uppercase text-parchment-50 mb-2">{title}</h2>
+                <p className="font-hero text-lg leading-snug text-parchment-200 mb-3 max-w-xs mx-auto">{desc}</p>
+                <Link href={href} className="inline-flex items-center gap-2 text-xs tracking-[0.2em] uppercase text-[#e3c27a] hover:text-[#f4d590]">
+                  {cta} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="mx-auto max-w-3xl mt-1 h-px bg-gradient-to-r from-transparent via-frost-400/10 to-transparent" />
       </section>
 
       {/* Top worlds right now */}

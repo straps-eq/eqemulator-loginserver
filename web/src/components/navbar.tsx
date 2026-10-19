@@ -21,7 +21,7 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
   ];
 
   return (
-    <nav className="border-b border-frost-400/6 bg-[#151b2e]/85 backdrop-blur-xl sticky top-0 z-50">
+    <nav className="border-b border-parchment-100/10 bg-[#0d1226]/55 backdrop-blur-md sticky top-0 z-50">
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-frost-400/15 to-transparent" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
