@@ -104,6 +104,17 @@ cat >"$T/udp" <<'EOF'
 EOF
 eq "$(parse_udp_ports <"$T/udp")" "5998 5999 15916 " "udp ports"
 
+# ── configured UDP ports (needs jq) ──
+if command -v jq >/dev/null; then
+  EQEMU_DIR_SAVED="$EQEMU_DIR"; EQEMU_DIR="$T/node"; mkdir -p "$T/node/loginserver"
+  printf '{"client_configuration":{"titanium_port":5998,"titanium_opcodes":"a.conf","sod_port":5999,"tob_port":15900,"tob_opcodes":"t.conf","live_port":15901,"live_opcodes":""}}' \
+    >"$T/node/loginserver/login.json"
+  eq "$(configured_udp_ports)" "15900 5998 5999 " "empty live_opcodes skips live_port"
+  sed -i 's/"live_opcodes":""/"live_opcodes":"data\/l.conf"/' "$T/node/loginserver/login.json"
+  eq "$(configured_udp_ports)" "15900 15901 5998 5999 " "live_opcodes set keeps live_port"
+  EQEMU_DIR="$EQEMU_DIR_SAVED"
+fi
+
 # ── migration bootstrap SQL ──
 printf '%064d  001_a.sql\nzzz  002_b.sql\n%064d  ../evil.sql\n' 1 2 >"$T/sums"
 out="$(bootstrap_sql <"$T/sums")"

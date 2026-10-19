@@ -17,7 +17,8 @@ import { federationGet, federationPost, RECIPIENT_BINDING_MIN_VERSION } from "./
 import { compareVersions } from "@/lib/version";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
-import { computeStableHash, computeVolatileHash, unchangedSignatureMessage, type SyncCondition } from "./sync-hash";
+import { computeStableHash, computeVolatileHash, computeStableCollectionHashes, unchangedSignatureMessage, type SyncCondition } from "./sync-hash";
+import { buildAdminIdMap, remapAdminId, pickServerWinners, isForeignOwner } from "./sync-remap";
 import { verifyMessage } from "./crypto";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { randomBytes } from "crypto";
@@ -216,6 +217,12 @@ async function verifyUnchanged(
   return (await cacheGet(stableKey(peerId))) === cond.stable;
 }
 
+/** world_server_admin_links rows mid-correction get login_server_admin_id = base + row id. */
+const WS_LINK_PARK_BASE = 2_000_000_000;
+
+/** Per-collection stable hashes of the last apply per peer (diagnostics only). */
+const lastCollectionHashes = new Map<number, Record<string, string>>();
+
 /** The hashes live in the persistent Redis volume, so after a database restore
  *  they could make this node skip re-applying peer data it no longer has. The
  *  first sync cycle of each process clears them and does a full re-apply. */
@@ -238,12 +245,26 @@ export function getFederatedLiveServers(): Array<Record<string, unknown>> {
   return all;
 }
 
-/** Run a single sync cycle: pull changes from all active peers. */
-export async function runSyncCycle(): Promise<{
-  peersChecked: number;
-  changesApplied: number;
-  errors: string[];
-}> {
+type SyncCycleResult = { peersChecked: number; changesApplied: number; errors: string[] };
+
+/** The cycle in flight, on globalThis because Next can load this module in more than one bundle. */
+const syncState = globalThis as unknown as { __eqemuSyncCycle?: Promise<SyncCycleResult> };
+
+/**
+ * Run a single sync cycle: pull changes from all active peers. Callers that
+ * arrive while a cycle is running share it; two cycles never overlap, since
+ * racing first pulls each inserted the same servers.
+ */
+export function runSyncCycle(): Promise<SyncCycleResult> {
+  if (syncState.__eqemuSyncCycle) return syncState.__eqemuSyncCycle;
+  const run = runSyncCycleOnce().finally(() => {
+    if (syncState.__eqemuSyncCycle === run) syncState.__eqemuSyncCycle = undefined;
+  });
+  syncState.__eqemuSyncCycle = run;
+  return run;
+}
+
+async function runSyncCycleOnce(): Promise<SyncCycleResult> {
   const self = await getSelfNode();
   if (!self) return { peersChecked: 0, changesApplied: 0, errors: ["Not initialized"] };
   if (!syncHashesClearedAtStartup) {
@@ -664,11 +685,30 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     return 0;
   }
 
+  // Say which collections changed since the last apply in this process, so a
+  // payload that never stops changing can be traced to its source.
+  const collectionHashes = computeStableCollectionHashes(collections);
+  const prevCollections = lastCollectionHashes.get(sourceNodeId);
+  if (prevCollections) {
+    const changed = Object.keys(collectionHashes).filter((k) => prevCollections[k] !== collectionHashes[k]);
+    console.log(`[sync_data] stable data from node ${sourceNodeId} changed: ${changed.join(", ") || "none (hash cache was empty)"}`);
+  }
+
   const conn = await pool.getConnection();
   let applied = 0;
+  // Rows deliberately not applied (duplicates on the source, ids with no local
+  // match). Logged, but unlike rowErrors they do not block hash caching: they
+  // would be skipped the same way on every retry.
+  let skipped = 0;
+  let aiFloor = 0;
 
   try {
     await conn.beginTransaction();
+
+    // Platform tables flow one-way (master -> peers), and only peers translate
+    // source admin ids; the master keeps what it is sent.
+    const selfNode = await getSelfNode();
+    const isMasterNode = selfNode?.isMaster ?? false;
 
     // Upsert login_accounts — preserve master's ID so federated play auth works.
     // The EQ client gets its account_id at login time from the local login_accounts.id.
@@ -759,23 +799,108 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
+    // Upsert admins — match on (account_name, federation_source_node_id).
+    // Done before servers: a peer gives these rows its own ids, so the source's
+    // login_server_admin_id values are translated through adminIdMap below.
+    // Skip blank account names — these are junk records that cause duplication loops
+    const syncedAdminNames = new Set<string>();
+    const adminPairs: Array<{ sourceId: unknown; localId: number }> = [];
+    for (const adm of data.admins) {
+      try {
+        if (!adm.account_name || (adm.account_name as string).trim() === "") continue;
+        const [existingAdm] = await conn.execute(
+          `SELECT id FROM login_server_admins WHERE account_name = ? AND federation_source_node_id = ? ORDER BY id LIMIT 1`,
+          [adm.account_name, sourceNodeId] as (string | number)[]
+        ) as unknown as [Array<{ id: number }>];
+
+        let localAdminId: number;
+        if (existingAdm.length > 0) {
+          await conn.execute(
+            `UPDATE login_server_admins SET account_password = ?, first_name = ?, last_name = ?, email = ?, registration_date = ? WHERE id = ?`,
+            [
+              adm.account_password || "", adm.first_name || "",
+              adm.last_name || "", adm.email || "",
+              toMySQLDatetime(adm.registration_date), existingAdm[0].id,
+            ] as (string | number)[]
+          );
+          localAdminId = existingAdm[0].id;
+        } else {
+          const [ins] = await conn.execute(
+            `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, registration_ip_address, federation_source_node_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              adm.account_name, adm.account_password || "",
+              adm.first_name || "", adm.last_name || "", adm.email || "",
+              toMySQLDatetime(adm.registration_date), "", sourceNodeId,
+            ] as (string | number)[]
+          ) as unknown as [{ insertId: number }];
+          localAdminId = Number(ins.insertId);
+        }
+        adminPairs.push({ sourceId: adm.id, localId: localAdminId });
+        syncedAdminNames.add(adm.account_name as string);
+        const [admResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
+        if (admResult[0].c > 0) applied++;
+      } catch (err) {
+        rowErrors++;
+        console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
+      }
+    }
+
+    // Remove admins from this source that no longer exist on the peer
+    if (syncedAdminNames.size > 0) {
+      const [existingAdmins] = await conn.execute(
+        `SELECT id, account_name FROM login_server_admins WHERE federation_source_node_id = ?`,
+        [sourceNodeId]
+      ) as unknown as [Array<{ id: number; account_name: string }>];
+      for (const row of existingAdmins) {
+        if (!syncedAdminNames.has(row.account_name)) {
+          await conn.execute(`DELETE FROM login_server_admins WHERE id = ?`, [row.id]);
+        }
+      }
+    }
+
+    // Source admin id -> local admin id. Re-applied on every full apply, so rows
+    // written with the source's ids by older versions are corrected in place
+    // (the first cycle after a restart always does a full apply, see
+    // syncHashesClearedAtStartup).
+    const adminIdMap = buildAdminIdMap(adminPairs);
+    const unmappedAdmins = new Set<string>();
+    const localAdminId = (sourceId: unknown, what: string): number | null => {
+      if (isMasterNode) return Number(sourceId || 0);
+      const id = remapAdminId(adminIdMap, sourceId);
+      if (id === null) {
+        skipped++;
+        unmappedAdmins.add(`${sourceId} (${what})`);
+      }
+      return id;
+    };
+
     // Upsert servers — match on (short_name, federation_source_node_id) to preserve stable IDs
+    // The source can hold duplicate rows for one short_name; keep its lowest id
+    // so peers do not flip between them, and count the rest as skips.
     const syncedShortNames = new Set<string>();
-    for (const srv of data.servers) {
+    const { winners: serverRows, skipped: dupServers } = pickServerWinners(data.servers);
+    if (dupServers.length > 0) {
+      skipped += dupServers.length;
+      console.log(`[sync_data] node ${sourceNodeId} sent ${dupServers.length} duplicate server row(s) (${Array.from(new Set(dupServers.map((d) => d.short_name))).join(", ")}); using the lowest id of each`);
+    }
+    for (const srv of serverRows) {
       try {
         const [existingSrv] = await conn.execute(
-          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? ORDER BY id LIMIT 1`,
           [srv.short_name, sourceNodeId] as (string | number)[]
         ) as unknown as [Array<{ id: number }>];
 
         if (existingSrv.length > 0) {
-          // Already have this server from this source — update it
+          // Already have this server from this source — update it. Without a
+          // local admin to point at, leave login_server_admin_id as it is.
+          const srvAdminId = localAdminId(srv.login_server_admin_id, `server ${srv.short_name}`);
           await conn.execute(
-            `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?, login_server_admin_id = ?, is_server_trusted = ?, note = ? WHERE id = ?`,
+            `UPDATE login_world_servers SET long_name = ?, tag_description = ?, login_server_list_type_id = ?, last_login_date = ?,${srvAdminId === null ? "" : " login_server_admin_id = ?,"} is_server_trusted = ?, note = ? WHERE id = ?`,
             [
               srv.long_name, srv.tag_description || "",
               srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+              ...(srvAdminId === null ? [] : [srvAdminId]), srv.is_server_trusted || 0,
               srv.note || null, existingSrv[0].id,
             ] as (string | number | null)[]
           );
@@ -804,14 +929,15 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             continue;
           }
 
-          // New federated server — insert
+          // New federated server — insert (admin 0 until it can be mapped)
+          const srvAdminId = localAdminId(srv.login_server_admin_id, `server ${srv.short_name}`);
           await conn.execute(
             `INSERT INTO login_world_servers (long_name, short_name, tag_description, login_server_list_type_id, last_login_date, login_server_admin_id, is_server_trusted, note, federation_source_node_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               srv.long_name, srv.short_name, srv.tag_description || "",
               srv.login_server_list_type_id || 1, toMySQLDatetime(srv.last_login_date),
-              srv.login_server_admin_id || 0, srv.is_server_trusted || 0,
+              srvAdminId ?? 0, srv.is_server_trusted || 0,
               srv.note || null, sourceNodeId,
             ] as (string | number | null)[]
           );
@@ -844,59 +970,6 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Upsert admins — match on (account_name, federation_source_node_id)
-    // Skip blank account names — these are junk records that cause duplication loops
-    const syncedAdminNames = new Set<string>();
-    for (const adm of data.admins) {
-      try {
-        if (!adm.account_name || (adm.account_name as string).trim() === "") continue;
-        const [existingAdm] = await conn.execute(
-          `SELECT id FROM login_server_admins WHERE account_name = ? AND federation_source_node_id = ? LIMIT 1`,
-          [adm.account_name, sourceNodeId] as (string | number)[]
-        ) as unknown as [Array<{ id: number }>];
-
-        if (existingAdm.length > 0) {
-          await conn.execute(
-            `UPDATE login_server_admins SET account_password = ?, first_name = ?, last_name = ?, email = ?, registration_date = ? WHERE id = ?`,
-            [
-              adm.account_password || "", adm.first_name || "",
-              adm.last_name || "", adm.email || "",
-              toMySQLDatetime(adm.registration_date), existingAdm[0].id,
-            ] as (string | number)[]
-          );
-        } else {
-          await conn.execute(
-            `INSERT INTO login_server_admins (account_name, account_password, first_name, last_name, email, registration_date, registration_ip_address, federation_source_node_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              adm.account_name, adm.account_password || "",
-              adm.first_name || "", adm.last_name || "", adm.email || "",
-              toMySQLDatetime(adm.registration_date), "", sourceNodeId,
-            ] as (string | number)[]
-          );
-        }
-        syncedAdminNames.add(adm.account_name as string);
-        const [admResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
-        if (admResult[0].c > 0) applied++;
-      } catch (err) {
-        rowErrors++;
-        console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
-      }
-    }
-
-    // Remove admins from this source that no longer exist on the peer
-    if (syncedAdminNames.size > 0) {
-      const [existingAdmins] = await conn.execute(
-        `SELECT id, account_name FROM login_server_admins WHERE federation_source_node_id = ?`,
-        [sourceNodeId]
-      ) as unknown as [Array<{ id: number; account_name: string }>];
-      for (const row of existingAdmins) {
-        if (!syncedAdminNames.has(row.account_name)) {
-          await conn.execute(`DELETE FROM login_server_admins WHERE id = ?`, [row.id]);
-        }
-      }
-    }
-
     // Upsert server profiles — match by short_name to find local server ID
     const profileCount = data.profiles?.length || 0;
     if (data.profiles && data.profiles.length > 0) {
@@ -907,16 +980,20 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
 
           // Find the local server by short_name (synced from this federation source)
           const [rows] = await conn.execute(
-            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+            `SELECT id, login_server_admin_id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? ORDER BY id LIMIT 1`,
             [prof.short_name as string, sourceNodeId] as (string | number)[]
-          ) as unknown as [Array<{ id: number }>];
+          ) as unknown as [Array<{ id: number; login_server_admin_id: number }>];
 
           if (rows.length > 0) {
             const localServerId = rows[0].id;
+            // The account panel finds profiles by admin id; on a peer use the
+            // server's (already translated) admin. NULL keeps the current value.
+            const profAdminId = !isMasterNode && rows[0].login_server_admin_id > 0 ? rows[0].login_server_admin_id : null;
             await conn.execute(
-              `INSERT INTO server_profiles (world_server_id, description, website_url, discord_url, banner_image_url, expansion_era, custom_ruleset, tags, display_tier, show_player_count, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+              `INSERT INTO server_profiles (world_server_id, login_server_admin_id, description, website_url, discord_url, banner_image_url, expansion_era, custom_ruleset, tags, display_tier, show_player_count, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                ON DUPLICATE KEY UPDATE
+                 login_server_admin_id = COALESCE(VALUES(login_server_admin_id), login_server_admin_id),
                  description = VALUES(description),
                  website_url = VALUES(website_url),
                  discord_url = VALUES(discord_url),
@@ -929,6 +1006,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
                  updated_at = NOW()`,
               [
                 localServerId,
+                profAdminId,
                 prof.description ?? null,
                 prof.website_url ?? null,
                 prof.discord_url ?? null,
@@ -952,9 +1030,13 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
 
     // Platform tables (platform_accounts, oauth_links, login_links, platform_admins)
     // flow one-way: master → peers. The master never imports these from peers.
-    const { getSelfNode } = await import("./node");
-    const selfNode = await getSelfNode();
-    const isMasterNode = selfNode?.isMaster ?? false;
+
+    const blockedAccounts = new Set<number>();
+    const blocked = (accountId: unknown): boolean => {
+      if (!blockedAccounts.has(Number(accountId))) return false;
+      skipped++;
+      return true;
+    };
 
     // Upsert platform_accounts (identity anchors) — with ID conflict resolution.
     // Mesh nodes may have locally-created accounts whose IDs collide with the
@@ -971,21 +1053,10 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             ) as unknown as [Array<{ id: number; username: string; email: string }>];
 
             if (existing.length > 0 && existing[0].email !== pa.email) {
-              // ID collision — relocate the local account to a high ID
-              const [maxRow] = await conn.execute(
-                `SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM platform_accounts WHERE id >= 100000`,
-                [] as string[]
-              ) as unknown as [Array<{ next_id: number }>];
-              const newId = Math.max(maxRow[0].next_id, 100000);
-
-              // Update all FK references to the old ID
-              try { await conn.execute(`UPDATE world_server_admin_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
-              try { await conn.execute(`UPDATE account_login_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
-              try { await conn.execute(`UPDATE platform_oauth_links SET platform_account_id = ? WHERE platform_account_id = ?`, [newId, pa.id] as number[]); } catch {}
-              try { await conn.execute(`UPDATE platform_admins SET login_account_id = ? WHERE login_account_id = ?`, [newId, pa.id] as number[]); } catch {}
-
-              await conn.execute(`UPDATE platform_accounts SET id = ? WHERE id = ?`, [newId, pa.id] as number[]);
-              console.log(`[sync_data] relocated local platform_account "${existing[0].username}" id ${pa.id} -> ${newId}`);
+              // ID collision — relocate the local account (and everything that
+              // references it) to a high ID. Throws on failure, which skips the
+              // upsert below so the local account is never overwritten.
+              await relocatePlatformAccount(conn, Number(pa.id), existing[0].username);
             }
           }
 
@@ -1007,36 +1078,31 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           if (r[0].c > 0) applied++;
         } catch (err) {
           rowErrors++;
+          // Without the master's account at this id (a local one may still sit
+          // there), its child rows below would attach to the wrong account.
+          if (pa.id) blockedAccounts.add(Number(pa.id));
           console.error(`[sync_data] platform_accounts upsert error for id ${pa.id}:`, err);
         }
       }
 
-      // Bump AUTO_INCREMENT on platform tables so locally-created records
-      // never collide with synced master IDs. Uses max(synced ID) + 100000
-      // as the floor, but only if current AUTO_INCREMENT is lower.
-      try {
-        const maxSyncedId = Math.max(...data.platform_accounts.map((p) => (p.id as number) || 0));
-        const aiFloor = maxSyncedId + 100000;
-        for (const tbl of ['platform_accounts', 'platform_oauth_links', 'account_login_links', 'platform_admins']) {
-          const [curAi] = await conn.execute(
-            `SELECT AUTO_INCREMENT as ai FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-            [tbl] as string[]
-          ) as unknown as [Array<{ ai: number }>];
-          if (curAi.length > 0 && curAi[0].ai < aiFloor) {
-            await conn.execute(`ALTER TABLE \`${tbl}\` AUTO_INCREMENT = ${aiFloor}`);
-            console.log(`[sync_data] bumped ${tbl} AUTO_INCREMENT to ${aiFloor}`);
-          }
-        }
-      } catch (err) {
-        rowErrors++;
-        console.error(`[sync_data] AUTO_INCREMENT bump error:`, err);
-      }
+      // Bump AUTO_INCREMENT on platform tables (after commit, see below) so
+      // locally-created records never collide with synced master IDs.
+      aiFloor = Math.max(...data.platform_accounts.map((p) => (p.id as number) || 0)) + 100000;
     }
 
     // Upsert platform_oauth_links
     if (!isMasterNode && data.oauth_links && data.oauth_links.length > 0) {
       for (const ol of data.oauth_links) {
         try {
+          if (blocked(ol.platform_account_id)) continue;
+          await moveForeignHolder(conn, "platform_oauth_links", "platform_account_id", ol.id, ol.platform_account_id);
+          const [sameLogin] = await conn.execute(
+            `SELECT id, platform_account_id FROM platform_oauth_links WHERE provider = ? AND provider_user_id = ? AND id != ? AND platform_account_id != ? LIMIT 1`,
+            [ol.provider, ol.provider_user_id, ol.id, ol.platform_account_id] as (string | number)[]
+          ) as unknown as [Array<{ id: number; platform_account_id: number }>];
+          if (sameLogin.length > 0) {
+            console.warn(`[sync_data] ${ol.provider} login on local oauth row ${sameLogin[0].id} moves from platform account ${sameLogin[0].platform_account_id} to master account ${ol.platform_account_id}`);
+          }
           await conn.execute(
             `INSERT INTO platform_oauth_links (id, platform_account_id, provider, provider_user_id, provider_email, created_at)
              VALUES (?, ?, ?, ?, ?, ?)
@@ -1062,6 +1128,8 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     if (!isMasterNode && data.login_links && data.login_links.length > 0) {
       for (const ll of data.login_links) {
         try {
+          if (blocked(ll.platform_account_id)) continue;
+          await moveForeignHolder(conn, "account_login_links", "platform_account_id", ll.id, ll.platform_account_id);
           await conn.execute(
             `INSERT INTO account_login_links (id, platform_account_id, login_account_id, linked_at)
              VALUES (?, ?, ?, ?)
@@ -1086,16 +1154,20 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     if (!isMasterNode && data.platform_admins && data.platform_admins.length > 0) {
       for (const pa of data.platform_admins) {
         try {
-          // Check if login_account_id is occupied by a DIFFERENT local row
+          if (blocked(pa.login_account_id)) continue;
+          // A local row holding this id for another account moves to a fresh id
+          await moveForeignHolder(conn, "platform_admins", "login_account_id", pa.id, pa.login_account_id);
+          // The same account already has a row under another id (unique
+          // login_account_id): give that row the master's id instead of
+          // deleting it; the upsert then applies the master's role.
           if (pa.login_account_id) {
             const [existing] = await conn.execute(
               `SELECT id FROM platform_admins WHERE login_account_id = ? AND id != ? LIMIT 1`,
               [pa.login_account_id, pa.id] as number[]
             ) as unknown as [Array<{ id: number }>];
             if (existing.length > 0) {
-              // Conflict — delete the conflicting local row (master is authoritative)
-              await conn.execute(`DELETE FROM platform_admins WHERE id = ?`, [existing[0].id] as number[]);
-              console.log(`[sync_data] removed conflicting platform_admins row id ${existing[0].id} (login_account_id ${pa.login_account_id})`);
+              await conn.execute(`UPDATE platform_admins SET id = ? WHERE id = ?`, [pa.id, existing[0].id] as number[]);
+              console.log(`[sync_data] platform_admins row id ${existing[0].id} (login_account_id ${pa.login_account_id}) renumbered to master id ${pa.id}`);
             }
           }
 
@@ -1121,8 +1193,69 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
 
     // Upsert world_server_admin_links
     if (!isMasterNode && data.ws_admin_links && data.ws_admin_links.length > 0) {
+      // 1. A local link holding a master link's id moves to a fresh id: one
+      //    of another platform account, or one pointing at a world admin
+      //    created on this node (rows synced by older versions hold the
+      //    master's raw admin id, never a different local admin's).
+      for (const wl of data.ws_admin_links) {
+        if (!wl.id || blockedAccounts.has(Number(wl.platform_account_id))) continue;
+        try {
+          const target = remapAdminId(adminIdMap, wl.login_server_admin_id);
+          const [rows] = await conn.execute(
+            `SELECT l.platform_account_id AS owner, l.login_server_admin_id AS admin_id, a.id AS admin_row, a.federation_source_node_id AS admin_src
+             FROM world_server_admin_links l LEFT JOIN login_server_admins a ON a.id = l.login_server_admin_id
+             WHERE l.id = ? LIMIT 1`,
+            [wl.id] as number[]
+          ) as unknown as [Array<{ owner: number; admin_id: number; admin_row: number | null; admin_src: number | null }>];
+          if (rows.length === 0) continue;
+          const r = rows[0];
+          const localAdmin = r.admin_row !== null && !(Number(r.admin_src) > 0) &&
+            Number(r.admin_id) !== Number(wl.login_server_admin_id) && Number(r.admin_id) !== target;
+          if (isForeignOwner(r.owner, wl.platform_account_id) || localAdmin) {
+            await moveRowToFreshId(conn, "world_server_admin_links", wl.id,
+              `platform account ${r.owner}, admin ${r.admin_id}; master row ${wl.id} is platform account ${wl.platform_account_id}`);
+          }
+        } catch (err) {
+          rowErrors++;
+          console.error(`[sync_data] ws_admin_link ${wl.id} local row check error:`, err);
+        }
+      }
+      // 2. Older versions stored the master's admin ids here. Before correcting
+      //    them, park the master's link rows whose admin id is about to change
+      //    on a value no admin has, so the unique login_server_admin_id cannot
+      //    make two corrections block each other (e.g. two links swapping ids).
+      //    Parked rows are kept; one whose correction is then skipped points at
+      //    no admin rather than at someone else's.
+      for (const wl of data.ws_admin_links) {
+        const target = remapAdminId(adminIdMap, wl.login_server_admin_id);
+        if (!wl.id || !target || blockedAccounts.has(Number(wl.platform_account_id))) continue;
+        try {
+          const [res] = await conn.execute(
+            `UPDATE world_server_admin_links SET login_server_admin_id = ? WHERE id = ? AND platform_account_id = ? AND login_server_admin_id != ?`,
+            [WS_LINK_PARK_BASE + Number(wl.id), wl.id, wl.platform_account_id, target] as number[]
+          ) as unknown as [{ affectedRows: number }];
+          if (res.affectedRows > 0) console.log(`[sync_data] ws_admin_link ${wl.id}: correcting login_server_admin_id to local admin ${target}`);
+        } catch (err) {
+          rowErrors++;
+          console.error(`[sync_data] ws_admin_link ${wl.id} park error:`, err);
+        }
+      }
+      // 3. Upsert, pointing at this node's copy of the admin
       for (const wl of data.ws_admin_links) {
         try {
+          if (blocked(wl.platform_account_id)) continue;
+          const linkAdminId = localAdminId(wl.login_server_admin_id, `ws_admin_link ${wl.id}`);
+          if (!linkAdminId) continue;
+          // login_server_admin_id is unique: never take over another link row
+          const [holder] = await conn.execute(
+            `SELECT id, platform_account_id FROM world_server_admin_links WHERE login_server_admin_id = ? AND id != ? LIMIT 1`,
+            [linkAdminId, wl.id] as number[]
+          ) as unknown as [Array<{ id: number; platform_account_id: number }>];
+          if (holder.length > 0) {
+            skipped++;
+            console.warn(`[sync_data] ws_admin_link ${wl.id}: local admin ${linkAdminId} is already linked by row ${holder[0].id} (platform account ${holder[0].platform_account_id}); left as is`);
+            continue;
+          }
           await conn.execute(
             `INSERT INTO world_server_admin_links (id, platform_account_id, login_server_admin_id, linked_at)
              VALUES (?, ?, ?, ?)
@@ -1130,7 +1263,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
                platform_account_id = VALUES(platform_account_id),
                login_server_admin_id = VALUES(login_server_admin_id)`,
             [
-              wl.id, wl.platform_account_id, wl.login_server_admin_id,
+              wl.id, wl.platform_account_id, linkAdminId,
               toMySQLDatetime(wl.linked_at),
             ] as (string | number | null)[]
           );
@@ -1141,6 +1274,10 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           console.error(`[sync_data] ws_admin_links upsert error for id ${wl.id}:`, err);
         }
       }
+    }
+
+    if (unmappedAdmins.size > 0) {
+      console.warn(`[sync_data] no local admin for source admin id(s) from node ${sourceNodeId}, left unchanged: ${Array.from(unmappedAdmins).join(", ")}`);
     }
 
     // Clean up orphaned profiles (from old DELETE+INSERT sync cycles)
@@ -1174,7 +1311,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
 
           // First try: match by (short_name, federation_source_node_id)
           let [rows] = await conn.execute(
-            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? ORDER BY id LIMIT 1`,
             [shortName, sourceNodeId] as (string | number)[]
           ) as unknown as [Array<{ id: number }>];
 
@@ -1224,20 +1361,44 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
 
     await conn.commit();
 
+    // ALTER TABLE commits implicitly, so it runs only once the transaction is
+    // done. Uses max(synced ID) + 100000 as the floor, only if the current
+    // AUTO_INCREMENT is lower.
+    if (aiFloor > 0) {
+      try {
+        for (const tbl of ['platform_accounts', 'platform_oauth_links', 'account_login_links', 'platform_admins', 'world_server_admin_links']) {
+          const [curAi] = await conn.execute(
+            `SELECT AUTO_INCREMENT as ai FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+            [tbl] as string[]
+          ) as unknown as [Array<{ ai: number }>];
+          if (curAi.length > 0 && curAi[0].ai < aiFloor) {
+            await conn.execute(`ALTER TABLE \`${tbl}\` AUTO_INCREMENT = ${aiFloor}`);
+            console.log(`[sync_data] bumped ${tbl} AUTO_INCREMENT to ${aiFloor}`);
+          }
+        }
+      } catch (err) {
+        rowErrors++;
+        console.error(`[sync_data] AUTO_INCREMENT bump error:`, err);
+      }
+    }
+
     // Cache the hashes for future skip detection (after commit, so a rolled-back
     // apply is retried next cycle). Row errors are swallowed above so one bad
     // row cannot block the rest; if any happened, do not cache, so the whole
     // set is re-applied next cycle instead of being skipped for days.
     if (rowErrors > 0) {
-      console.warn(`[sync_data] ${rowErrors} row error(s) applying data from node ${sourceNodeId}; will re-apply next cycle`);
+      console.warn(`[sync_data] ${rowErrors} row error(s) applying data from node ${sourceNodeId}; will re-apply next cycle${skipped > 0 ? ` (${skipped} rows skipped)` : ""}`);
       return applied;
     }
     await cacheSet(stableKey(sourceNodeId), stableHash, SYNC_HASH_TTL_SECONDS);
     await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
     await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
+    lastCollectionHashes.set(sourceNodeId, collectionHashes);
 
+    // "applied" counts rows the upserts matched: mysql2 connects with
+    // CLIENT_FOUND_ROWS, so ROW_COUNT() is 1 for an unchanged row too.
     if (applied > 0) {
-      console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
+      console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live${skipped > 0 ? `, ${skipped} skipped` : ""}`);
     }
   } catch (txErr) {
     try { await conn.rollback(); } catch {}
@@ -1247,6 +1408,79 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   }
 
   return applied;
+}
+
+type Conn = Awaited<ReturnType<typeof pool.getConnection>>;
+
+/**
+ * Move a local platform account off an id the master owns, along with every
+ * row that references it. platform_oauth_links has an FK with no ON UPDATE,
+ * so neither order works with FK checks on: they are off for the moves and
+ * restored in finally, inside a savepoint so a failure leaves nothing half
+ * moved. Every row pointing at the old id moves: from now on the account is
+ * always moved before any master row for that id is written, so they are the
+ * local account's. (Master rows attached by older versions' failed attempts
+ * move too; the upserts that follow give the master's account its own rows
+ * back by id or unique key, and moveForeignHolder keeps the local copies.)
+ */
+async function relocatePlatformAccount(conn: Conn, oldId: number, username: string): Promise<number> {
+  const [maxRow] = await conn.execute(
+    `SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM platform_accounts WHERE id >= 100000`
+  ) as unknown as [Array<{ next_id: number }>];
+  const newId = Math.max(Number(maxRow[0].next_id), 100000);
+  // Every column that holds a platform account id (platform_admins.login_account_id included)
+  const refs: Array<[string, string]> = [
+    ["world_server_admin_links", "platform_account_id"],
+    ["account_login_links", "platform_account_id"],
+    ["platform_oauth_links", "platform_account_id"],
+    ["platform_admins", "login_account_id"],
+  ];
+  await conn.query(`SAVEPOINT relocate_platform_account`);
+  try {
+    await conn.query(`SET FOREIGN_KEY_CHECKS = 0`);
+    try {
+      for (const [table, col] of refs) {
+        const [res] = await conn.execute(
+          `UPDATE ${table} SET ${col} = ? WHERE ${col} = ?`, [newId, oldId]
+        ) as unknown as [{ affectedRows: number }];
+        if (res.affectedRows > 0) console.log(`[sync_data] moved ${res.affectedRows} ${table} row(s) of "${username}" to platform account ${newId}`);
+      }
+      await conn.execute(`UPDATE platform_accounts SET id = ? WHERE id = ?`, [newId, oldId]);
+    } finally {
+      await conn.query(`SET FOREIGN_KEY_CHECKS = 1`);
+    }
+    await conn.query(`RELEASE SAVEPOINT relocate_platform_account`);
+  } catch (err) {
+    try { await conn.query(`ROLLBACK TO SAVEPOINT relocate_platform_account`); } catch (e) { console.error(`[sync_data] savepoint rollback failed:`, e); }
+    console.error(`[sync_data] relocating local platform_account "${username}" off id ${oldId} failed:`, err);
+    throw err;
+  }
+  console.log(`[sync_data] relocated local platform_account "${username}" id ${oldId} -> ${newId}`);
+  return newId;
+}
+
+/**
+ * Before a master row is upserted by its id: if a local row already holds that
+ * id for a different owner, move the local row to a fresh id instead of
+ * overwriting it.
+ */
+async function moveForeignHolder(conn: Conn, table: string, ownerCol: string, id: unknown, sourceOwner: unknown): Promise<void> {
+  if (!id) return;
+  const [rows] = await conn.execute(
+    `SELECT ${ownerCol} AS owner FROM ${table} WHERE id = ? LIMIT 1`, [id] as number[]
+  ) as unknown as [Array<{ owner: number }>];
+  if (rows.length === 0 || !isForeignOwner(rows[0].owner, sourceOwner)) return;
+  await moveRowToFreshId(conn, table, id, `${ownerCol} ${rows[0].owner}; master row ${id} is ${ownerCol} ${sourceOwner}`);
+}
+
+/** Renumber a local row to a fresh id (>= 100000, above anything in the table). */
+async function moveRowToFreshId(conn: Conn, table: string, id: unknown, why: string): Promise<void> {
+  const [maxRow] = await conn.execute(
+    `SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM ${table}`
+  ) as unknown as [Array<{ next_id: number }>];
+  const newId = Math.max(Number(maxRow[0].next_id), 100000);
+  await conn.execute(`UPDATE ${table} SET id = ? WHERE id = ?`, [newId, id] as number[]);
+  console.log(`[sync_data] moved local ${table} row ${id} to id ${newId} (${why})`);
 }
 
 /** Update the live server cache and federation_server_status (changes frequently). */
@@ -1263,7 +1497,7 @@ async function applyLiveServers(liveServers: Array<Record<string, unknown>> | un
         if (!shortName) continue;
 
         let [rows] = await conn.execute(
-          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? ORDER BY id LIMIT 1`,
           [shortName, sourceNodeId] as (string | number)[]
         ) as unknown as [Array<{ id: number }>];
 

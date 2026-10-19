@@ -550,7 +550,9 @@ web_health() { # -> 0 when /api/health says ok (and schema matches if both sides
 configured_udp_ports() {
   local p=""
   if [ -r "$EQEMU_DIR/loginserver/login.json" ]; then
-    p="$(jqx -r '.client_configuration // {} | to_entries[] | select(.key|endswith("_port")) | .value | tostring' \
+    # A listener whose *_opcodes entry is empty stays off (live_opcodes on a fresh node), so don't require it.
+    p="$(jqx -r '(.client_configuration // {}) as $c | $c | to_entries[] | select(.key|endswith("_port"))
+                 | select(($c[(.key|rtrimstr("_port")) + "_opcodes"] // "x") != "") | .value | tostring' \
           <"$EQEMU_DIR/loginserver/login.json" 2>/dev/null | grep -E '^[0-9]+$' | grep -v '^0$' | sort -u | tr '\n' ' ' || true)"
   fi
   echo "${p:-5998 5999 15900 15901}"

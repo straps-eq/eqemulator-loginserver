@@ -220,7 +220,14 @@ if [ -f "certbot/conf/live/${DOMAIN}/fullchain.pem" ]; then
     warn "Could not read certificate expiry"
   fi
 else
-  warn "No SSL certificate found for $DOMAIN"
+  # certbot/conf/live is root-only; ask nginx for the certificate it serves instead.
+  EXPIRY=$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null \
+    | openssl x509 -enddate -noout 2>/dev/null | cut -d= -f2)
+  if [ -n "$EXPIRY" ]; then
+    pass "Certificate valid until $EXPIRY (served by nginx)"
+  else
+    warn "No SSL certificate found for $DOMAIN"
+  fi
 fi
 
 # ── Summary ──
