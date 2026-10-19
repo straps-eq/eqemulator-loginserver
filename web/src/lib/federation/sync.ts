@@ -408,6 +408,18 @@ async function runSyncCycleOnce(): Promise<SyncCycleResult> {
 
           const localPeersByKey = new Map(allLocalRows.map(r => [r.public_key, r]));
 
+          // Mirror the tier the master gives us onto our own row, so this node's
+          // admin page shows "official" after a promotion instead of the join default.
+          const selfEntry = selfNode ? masterEndpoints.get(selfNode.publicKey) : undefined;
+          if (selfNode && selfEntry && (selfEntry.node_tier === "official" || selfEntry.node_tier === "mesh")
+              && selfEntry.node_tier !== selfNode.nodeTier) {
+            await pool.execute(
+              `UPDATE federation_nodes SET node_tier = ?, updated_at = NOW() WHERE id = ? AND is_self = 1`,
+              [selfEntry.node_tier, selfNode.id]
+            );
+            console.log(`[federation] own tier set to "${selfEntry.node_tier}" by master`);
+          }
+
           // Deactivate local peers not in master's list, update/approve those that are
           for (const localPeer of allLocalRows) {
             if (!masterPeerKeys.has(localPeer.public_key)) {
