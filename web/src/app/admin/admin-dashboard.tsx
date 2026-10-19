@@ -122,7 +122,7 @@ export function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <RefreshCw className="h-5 w-5 animate-spin text-frost-400/50" />
+        <RefreshCw className="h-5 w-5 animate-spin text-frost-300" />
       </div>
     );
   }
@@ -135,10 +135,10 @@ export function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded border border-amber-400/10 bg-amber-400/[0.02] p-3">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Crown className="h-3 w-3 text-amber-400/80" />
-              <span className="text-xs font-display font-semibold text-amber-400/80 uppercase tracking-wider">Admin</span>
+              <Crown className="h-3 w-3 text-amber-400" />
+              <span className="text-xs font-display font-semibold text-amber-400 uppercase tracking-wider">Admin</span>
             </div>
-            <ul className="space-y-1 text-[11px] text-parchment-500 leading-relaxed">
+            <ul className="space-y-1 text-[11px] text-parchment-400 leading-relaxed">
               <li>Full platform management</li>
               <li>Create new federations (master init)</li>
               <li>Manage all accounts and roles</li>
@@ -148,10 +148,10 @@ export function AdminDashboard() {
           </div>
           <div className="rounded border border-frost-400/8 bg-frost-400/[0.02] p-3">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <ShieldCheck className="h-3 w-3 text-frost-400/70" />
-              <span className="text-xs font-display font-semibold text-frost-400/70 uppercase tracking-wider">Moderator</span>
+              <ShieldCheck className="h-3 w-3 text-frost-300" />
+              <span className="text-xs font-display font-semibold text-frost-300 uppercase tracking-wider">Moderator</span>
             </div>
-            <ul className="space-y-1 text-[11px] text-parchment-500 leading-relaxed">
+            <ul className="space-y-1 text-[11px] text-parchment-400 leading-relaxed">
               <li>View accounts and server data</li>
               <li>Join existing federations</li>
               <li>Monitor federation status</li>
@@ -196,7 +196,7 @@ export function AdminDashboard() {
       {/* Search + Refresh */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-parchment-600" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-parchment-400" />
           <input
             type="text"
             value={search}
@@ -210,11 +210,11 @@ export function AdminDashboard() {
             setLoading(true);
             fetchData();
           }}
-          className="rounded border border-frost-400/10 bg-[#202842]/60 p-2 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+          className="rounded border border-frost-400/10 bg-[#202842]/60 p-2 text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
-        <span className="text-xs text-parchment-600">
+        <span className="text-xs text-parchment-400">
           {filtered.length} account{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -222,7 +222,7 @@ export function AdminDashboard() {
       {/* Accounts Table */}
       <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[1fr_1.2fr_80px_100px_120px_80px] gap-2 px-4 py-2.5 border-b border-frost-400/8 text-[10px] font-display uppercase tracking-wider text-parchment-600">
+        <div className="grid grid-cols-[1fr_1.2fr_80px_100px_120px_80px] gap-2 px-4 py-2.5 border-b border-frost-400/8 text-[11px] font-display uppercase tracking-wider text-parchment-400">
           <span>Username</span>
           <span>Email</span>
           <span className="text-center">Verified</span>
@@ -233,7 +233,7 @@ export function AdminDashboard() {
 
         {/* Rows */}
         {sorted.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-parchment-600">
+          <div className="px-4 py-8 text-center text-sm text-parchment-400">
             No accounts found
           </div>
         ) : (
@@ -266,9 +266,9 @@ function StatCard({
 }) {
   return (
     <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-4">
-      <div className="flex items-center gap-2 text-parchment-600 mb-2">
+      <div className="flex items-center gap-2 text-parchment-400 mb-2">
         {icon}
-        <span className="text-[10px] font-display uppercase tracking-wider">
+        <span className="text-[11px] font-display uppercase tracking-wider">
           {label}
         </span>
       </div>
@@ -306,7 +306,7 @@ function AccountRow({
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onToggle}
-            className="text-parchment-600 hover:text-frost-400 transition-colors flex-shrink-0"
+            className="text-parchment-400 hover:text-frost-400 transition-colors flex-shrink-0"
           >
             {isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
@@ -318,12 +318,12 @@ function AccountRow({
             {account.username}
           </span>
           {account.role === "admin" && (
-            <Crown className="h-3 w-3 text-amber-400/80 flex-shrink-0" />
+            <Crown className="h-3 w-3 text-amber-400 flex-shrink-0" />
           )}
         </div>
 
         {/* Email */}
-        <span className="text-xs text-parchment-500 truncate">
+        <span className="text-xs text-parchment-400 truncate">
           {account.email}
         </span>
 
@@ -339,12 +339,12 @@ function AccountRow({
         {/* Role */}
         <div className="text-center">
           <span
-            className={`text-[10px] font-display uppercase tracking-wider px-2 py-0.5 rounded ${
+            className={`text-[11px] font-display uppercase tracking-wider px-2 py-0.5 rounded ${
               account.role === "admin"
                 ? "text-amber-400 bg-amber-400/10 border border-amber-400/20"
                 : account.role === "moderator"
                 ? "text-frost-400 bg-frost-400/10 border border-frost-400/20"
-                : "text-parchment-700"
+                : "text-parchment-500"
             }`}
           >
             {account.role || "—"}
@@ -368,7 +368,7 @@ function AccountRow({
                 : ""}
             </span>
           ) : (
-            <span className="text-xs text-parchment-700">—</span>
+            <span className="text-xs text-parchment-500">—</span>
           )}
         </div>
 
@@ -389,7 +389,7 @@ function AccountRow({
                 account.emailVerified ? "unverify_email" : "verify_email"
               }`
             }
-            className="p-1 rounded text-parchment-600 hover:text-frost-400 hover:bg-frost-400/10 transition-colors"
+            className="p-1 rounded text-parchment-400 hover:text-frost-400 hover:bg-frost-400/10 transition-colors"
             title={
               account.emailVerified ? "Unverify email" : "Verify email"
             }
@@ -415,7 +415,7 @@ function AccountRow({
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-[9px] text-parchment-600 hover:text-parchment-400 transition-colors"
+                className="text-[9px] text-parchment-400 hover:text-parchment-400 transition-colors"
               >
                 ✕
               </button>
@@ -423,7 +423,7 @@ function AccountRow({
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="p-1 rounded text-parchment-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              className="p-1 rounded text-parchment-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
               title="Delete account"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -437,11 +437,11 @@ function AccountRow({
         <div className="px-4 pb-4 pl-10 space-y-3">
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span className="text-parchment-600">Account ID:</span>{" "}
+              <span className="text-parchment-400">Account ID:</span>{" "}
               <span className="text-parchment-400">{account.id}</span>
             </div>
             <div>
-              <span className="text-parchment-600">Created:</span>{" "}
+              <span className="text-parchment-400">Created:</span>{" "}
               <span className="text-parchment-400">
                 {account.createdAt
                   ? new Date(account.createdAt).toLocaleDateString("en-US", {
@@ -455,7 +455,7 @@ function AccountRow({
               </span>
             </div>
             <div>
-              <span className="text-parchment-600">Linked LS Accounts:</span>{" "}
+              <span className="text-parchment-400">Linked LS Accounts:</span>{" "}
               <span className="text-parchment-400">
                 {account.linkedLoginAccounts}
               </span>
@@ -464,7 +464,7 @@ function AccountRow({
 
           {/* Role management */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
+            <span className="text-[11px] font-display uppercase tracking-wider text-parchment-400">
               Set role:
             </span>
             {["admin", "moderator", null].map((role) => (
@@ -477,11 +477,11 @@ function AccountRow({
                   })
                 }
                 disabled={actionLoading === `${account.id}-set_role`}
-                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${
                   account.role === role ||
                   (role === null && !account.role)
                     ? "border-frost-400/30 bg-frost-400/10 text-frost-300"
-                    : "border-frost-400/8 text-parchment-600 hover:border-frost-400/20 hover:text-parchment-400"
+                    : "border-frost-400/8 text-parchment-400 hover:border-frost-400/20 hover:text-parchment-400"
                 }`}
               >
                 {role === null ? "None" : role}
@@ -492,7 +492,7 @@ function AccountRow({
           {/* OAuth Providers */}
           {account.oauthLinks.length > 0 && (
             <div className="space-y-2">
-              <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
+              <span className="text-[11px] font-display uppercase tracking-wider text-parchment-400">
                 Connected OAuth Providers
               </span>
               {account.oauthLinks.map((link) => (
@@ -501,16 +501,16 @@ function AccountRow({
                   className="flex items-center justify-between rounded border border-frost-400/8 bg-[#151b2e]/50 px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
-                    <Link2 className="h-3 w-3 text-frost-400/50" />
+                    <Link2 className="h-3 w-3 text-frost-300" />
                     <span className="text-xs text-parchment-300 font-medium capitalize">
                       {link.provider}
                     </span>
                     {link.providerEmail && (
-                      <span className="text-[10px] text-parchment-600">
+                      <span className="text-[11px] text-parchment-400">
                         ({link.providerEmail})
                       </span>
                     )}
-                    <span className="text-[10px] text-parchment-700">
+                    <span className="text-[11px] text-parchment-500">
                       {link.createdAt
                         ? new Date(link.createdAt).toLocaleDateString("en-US", {
                             month: "short",
@@ -528,7 +528,7 @@ function AccountRow({
                       })
                     }
                     disabled={actionLoading === `${account.id}-delete_oauth_link`}
-                    className="p-1 rounded text-parchment-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    className="p-1 rounded text-parchment-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
                     title={`Unlink ${link.provider}`}
                   >
                     <Unlink className="h-3 w-3" />
@@ -541,7 +541,7 @@ function AccountRow({
           {/* World Server Admins */}
           {account.worldServerAdmins.length > 0 && (
             <div className="space-y-2">
-              <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
+              <span className="text-[11px] font-display uppercase tracking-wider text-parchment-400">
                 World Server Accounts
               </span>
               {account.worldServerAdmins.map((wa) => (
@@ -550,11 +550,11 @@ function AccountRow({
                   className="rounded border border-frost-400/8 bg-[#151b2e]/50 p-3"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <Server className="h-3 w-3 text-frost-400/50" />
+                    <Server className="h-3 w-3 text-frost-300" />
                     <span className="text-xs text-parchment-300 font-medium">
                       {wa.accountName}
                     </span>
-                    <span className="text-[10px] text-parchment-700">
+                    <span className="text-[11px] text-parchment-500">
                       (Admin #{wa.adminId})
                     </span>
                   </div>
@@ -569,14 +569,14 @@ function AccountRow({
                           <span className="text-parchment-400">
                             {s.longName}
                           </span>
-                          <span className="text-parchment-700">
+                          <span className="text-parchment-500">
                             ({s.shortName})
                           </span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="ml-5 text-[10px] text-parchment-700">
+                    <p className="ml-5 text-[11px] text-parchment-500">
                       No servers connected
                     </p>
                   )}

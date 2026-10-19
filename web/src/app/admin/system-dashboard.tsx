@@ -208,7 +208,7 @@ export function SystemDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <RefreshCw className="h-5 w-5 animate-spin text-frost-400/50" />
+        <RefreshCw className="h-5 w-5 animate-spin text-frost-300" />
       </div>
     );
   }
@@ -267,7 +267,7 @@ export function SystemDashboard() {
               )}
             </div>
             {data.publishedAt && data.updateAvailable && (
-              <p className="mt-2 text-xs text-parchment-600">
+              <p className="mt-2 text-xs text-parchment-400">
                 Released {new Date(data.publishedAt).toLocaleDateString()}
               </p>
             )}
@@ -278,7 +278,7 @@ export function SystemDashboard() {
                 href={data.releaseUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+                className="flex items-center gap-1 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
               >
                 <ExternalLink className="h-3 w-3" />
                 GitHub
@@ -286,7 +286,7 @@ export function SystemDashboard() {
             )}
             <button
               onClick={() => fetchData()}
-              className="rounded border border-frost-400/10 p-2 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+              className="rounded border border-frost-400/10 p-2 text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -298,7 +298,7 @@ export function SystemDashboard() {
           <div className="mt-4 border-t border-frost-400/8 pt-4">
             <button
               onClick={() => setShowNotes(!showNotes)}
-              className="flex items-center gap-1.5 text-xs font-display uppercase tracking-wider text-parchment-500 hover:text-parchment-300 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-display uppercase tracking-wider text-parchment-400 hover:text-parchment-300 transition-colors"
             >
               {showNotes ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               Release Notes
@@ -325,7 +325,7 @@ export function SystemDashboard() {
                   <h4 className="text-xs font-display uppercase tracking-wider text-parchment-400">Upgrade to v{data.latestVersion}</h4>
 
                   <div>
-                    <p className="text-[10px] font-display uppercase tracking-wider text-amber-400/80 mb-1.5">What this upgrade does</p>
+                    <p className="text-[11px] font-display uppercase tracking-wider text-amber-400 mb-1.5">What this upgrade does</p>
                     <ul className="text-xs text-parchment-400 space-y-1">
                       <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">1.</span> Backs up your database (saved to <code className="text-parchment-300">backups/</code>)</li>
                       <li className="flex items-start gap-2"><span className="text-frost-400 mt-0.5">2.</span> Pulls new Docker images for web, loginserver, and upgrade-agent</li>
@@ -337,7 +337,7 @@ export function SystemDashboard() {
                   </div>
 
                   <div className="border-t border-frost-400/6 pt-3">
-                    <p className="text-[10px] font-display uppercase tracking-wider text-amber-400/80 mb-1.5">Files overwritten <span className="text-parchment-600 normal-case tracking-normal">(backup saved as .bak)</span></p>
+                    <p className="text-[11px] font-display uppercase tracking-wider text-amber-400 mb-1.5">Files overwritten <span className="text-parchment-400 normal-case tracking-normal">(backup saved as .bak)</span></p>
                     <ul className="text-xs text-parchment-400 space-y-1">
                       <li><code className="text-parchment-300">docker-compose.yml</code> — updated volume mounts, env vars, build args</li>
                       <li><code className="text-parchment-300">nginx/conf.d/default.conf</code> — re-rendered from template using your domain</li>
@@ -345,7 +345,7 @@ export function SystemDashboard() {
                   </div>
 
                   <div className="border-t border-frost-400/6 pt-3">
-                    <p className="text-[10px] font-display uppercase tracking-wider text-emerald-400/80 mb-1.5">Never touched</p>
+                    <p className="text-[11px] font-display uppercase tracking-wider text-emerald-400/80 mb-1.5">Never touched</p>
                     <ul className="text-xs text-parchment-400 space-y-1">
                       <li><code className="text-parchment-300">.env</code> — your credentials, domain, API keys</li>
                       <li><code className="text-parchment-300">loginserver/login.json</code> — your loginserver config</li>
@@ -355,7 +355,7 @@ export function SystemDashboard() {
                   </div>
 
                   <div className="border-t border-frost-400/6 pt-3">
-                    <p className="text-xs text-parchment-500">The site will be briefly unavailable during the restart (~10–30 seconds).</p>
+                    <p className="text-xs text-parchment-400">The site will be briefly unavailable during the restart (~10–30 seconds).</p>
                   </div>
                 </div>
 
@@ -370,7 +370,7 @@ export function SystemDashboard() {
                   </button>
                   <button
                     onClick={() => setShowUpgradeConfirm(false)}
-                    className="text-xs text-parchment-600 hover:text-parchment-400 transition-colors"
+                    className="text-xs text-parchment-400 hover:text-parchment-400 transition-colors"
                   >
                     Cancel
                   </button>
@@ -396,7 +396,7 @@ export function SystemDashboard() {
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm text-amber-300 font-medium">Upgrade agent not connected</p>
-            <p className="text-xs text-parchment-500 mt-1">
+            <p className="text-xs text-parchment-400 mt-1">
               The upgrade agent sidecar is required for upgrades and service restarts.
               Make sure <code className="text-parchment-400">eqemu-upgrade-agent</code> is running.
             </p>
@@ -418,11 +418,11 @@ export function SystemDashboard() {
               return (
                 <div key={name} className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <Icon className="h-4 w-4 text-parchment-600" />
+                    <Icon className="h-4 w-4 text-parchment-400" />
                     <div>
                       <span className="text-sm text-parchment-300 capitalize">{name}</span>
                       {svc.image && (
-                        <p className="text-[10px] text-parchment-700 font-mono truncate max-w-xs">
+                        <p className="text-[11px] text-parchment-500 font-mono truncate max-w-xs">
                           {svc.image}
                         </p>
                       )}
@@ -443,7 +443,7 @@ export function SystemDashboard() {
                           }
                         }}
                         disabled={!!actionLoading}
-                        className="rounded border border-frost-400/10 p-1.5 text-parchment-600 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+                        className="rounded border border-frost-400/10 p-1.5 text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
                         title={`Restart ${name}`}
                       >
                         <Power className="h-3 w-3" />
@@ -455,7 +455,7 @@ export function SystemDashboard() {
             })}
           </div>
         ) : (
-          <div className="px-5 py-8 text-center text-sm text-parchment-600">
+          <div className="px-5 py-8 text-center text-sm text-parchment-400">
             Service status unavailable (upgrade agent not connected)
           </div>
         )}
@@ -471,7 +471,7 @@ export function SystemDashboard() {
             <button
               onClick={() => doAction("backup")}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
             >
               <Database className="h-3 w-3" />
               Backup Database
@@ -479,7 +479,7 @@ export function SystemDashboard() {
             <button
               onClick={() => doAction("pull")}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
             >
               <Download className="h-3 w-3" />
               Pull Latest Images
@@ -487,7 +487,7 @@ export function SystemDashboard() {
             <button
               onClick={() => doAction("migrate")}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
             >
               <ArrowUpCircle className="h-3 w-3" />
               Run Migrations
@@ -506,7 +506,7 @@ export function SystemDashboard() {
                 pollUpgradeStatus();
               }}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 rounded border border-amber-400/15 px-3 py-1.5 text-xs text-amber-400/80 hover:text-amber-300 hover:border-amber-400/30 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded border border-amber-400/15 px-3 py-1.5 text-xs text-amber-400 hover:text-amber-300 hover:border-amber-400/30 transition-colors disabled:opacity-50"
             >
               <RefreshCw className="h-3 w-3" />
               Force Pull &amp; Restart
@@ -547,8 +547,8 @@ export function SystemDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-sm text-parchment-300">Public Status Page</span>
-            <p className="text-xs text-parchment-600 mt-0.5">
-              When disabled, the <code className="text-parchment-500">/status</code> page is only visible to admins.
+            <p className="text-xs text-parchment-400 mt-0.5">
+              When disabled, the <code className="text-parchment-400">/status</code> page is only visible to admins.
             </p>
           </div>
           <button
