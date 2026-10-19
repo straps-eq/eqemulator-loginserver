@@ -31,8 +31,8 @@ export function SiteFooter() {
           </div>
         </div>
         <p className="text-parchment-500 text-xs leading-relaxed mt-6 max-w-3xl">
-          EQEmulator.dev is a community project and is not affiliated with, endorsed by, or sponsored by
-          Daybreak Game Company LLC. EverQuest is a registered trademark of Daybreak Game Company LLC.
+          EQEmulator.dev is an independent community project. It is separate from eqemulator.org and is
+          not affiliated with, endorsed by, or sponsored by Daybreak Game Company LLC. EverQuest is a registered trademark of Daybreak Game Company LLC.
           Playing on emulated servers requires your own copy of the game.
           <span className="ml-2 font-mono text-[10px]">v{APP_VERSION}</span>
         </p>

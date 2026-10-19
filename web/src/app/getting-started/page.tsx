@@ -30,7 +30,7 @@ export default async function GettingStartedPage() {
         </span>
         <h1 className="font-display text-3xl font-bold text-parchment-100 mb-2">Getting Started</h1>
         <p className="text-parchment-400 mb-10">
-          Connect to EverQuest private servers through EQEmulator.dev. Your existing eqemulator.net account works automatically.
+          Connect to EverQuest private servers through EQEmulator.dev. If you already play on EQEmu servers, the game login you use today works here too.
           For the full official guide, see the{" "}
           <a href="https://docs.eqemu.dev/play/play-guide/" target="_blank" rel="noopener noreferrer" className="text-frost-400 hover:text-frost-300 transition-colors">EQEmu Play Guide</a>.
         </p>
@@ -106,7 +106,8 @@ export default async function GettingStartedPage() {
                 <div>
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">3. Launch and Play</h2>
                   <p className="text-parchment-400 text-sm mb-3">
-                    Start EverQuest and log in with your existing eqemulator.net username and password.
+                    Start the game and log in at the game&apos;s own login screen with your game login.
+                    Never type your game password into any website that asks for it.
                     You&apos;ll see a list of available servers to choose from.
                   </p>
                   <Link
@@ -132,16 +133,15 @@ export default async function GettingStartedPage() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">How does this work with my eqemulator.net account?</h2>
+                  <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Does my existing game login work?</h2>
                   <p className="text-parchment-400 text-sm mb-2">
-                    This login server runs an account proxy (LSPX). When you log in with your
-                    eqemulator.net credentials, they are verified against eqemulator.net and cached locally.
-                    Your account works seamlessly across both login servers.
+                    Yes. If you already log in to EQEmu servers through the EQEmulator forums&apos; login server,
+                    type the same username and password into the game client&apos;s login screen. Our login server
+                    checks it with theirs and lets you in.
                   </p>
                   <p className="text-parchment-500 text-xs">
-                    Password changes on eqemulator.net are automatically synced on your next login.
-                    No re-registration or migration steps required.
-                  </p>
+                    This only happens in the game client. EQEmulator.dev never asks for your forum password on a web page.
+                </p>
                 </div>
               </div>
             </CardContent>
@@ -195,10 +195,9 @@ export default async function GettingStartedPage() {
             </Card>
             <Card>
               <CardContent className="p-5">
-                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I changed my password on eqemulator.net. Does it update here?</h3>
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I changed my forum password. Does it update here?</h3>
                 <p className="text-parchment-400 text-sm">
-                  Yes. The next time you log in through the EQ client, your password is automatically
-                  re-synced from eqemulator.net.
+                  Yes. The next time you log in through the game client, the new password is picked up automatically.
                 </p>
               </CardContent>
             </Card>

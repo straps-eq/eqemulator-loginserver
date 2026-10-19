@@ -95,7 +95,7 @@ export default function WhatIsEqemuPage() {
       <p>
         <strong>EQEmulator.dev</strong> is a player hub for EQEmu worlds: a live server list with player
         counts and population history, plain-English guides, and a community login server that works with
-        every client from Titanium to the current one. Your EQEmulator forum login works here too.
+        every client from Titanium to the current one. It is an independent community site, separate from eqemulator.org. Game logins from the EQEmulator forums work at the game&apos;s login screen; we never ask for your forum password on a web page.
       </p>
 
       <h2>Can I run my own EQEmu server?</h2>

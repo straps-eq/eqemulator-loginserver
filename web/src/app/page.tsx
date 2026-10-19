@@ -252,7 +252,7 @@ export default async function HomePage() {
                 n: "3",
                 icon: Play,
                 title: "Make a login and pick a world",
-                desc: "Create a login here in a minute, or use the one you already have from the EQEmulator forums. Start the game, choose a world from the list, and you're in.",
+                desc: "Create a login here in a minute, or use the game login you already have. Type it at the game's login screen, choose a world from the list, and you're in.",
               },
             ].map(({ n, icon: Icon, title, desc }) => (
               <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#242c48]/85 p-6">
@@ -286,7 +286,7 @@ export default async function HomePage() {
             {[
               { title: "See who's playing", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
               { title: "One login, every world", desc: "Titanium, RoF2, The Outer Brood and the current client all log in here, and one login works on every world in the directory." },
-              { title: "Built by the community", desc: "Open source, run by players, and compatible with the EQEmulator forum logins people have used for twenty years." },
+              { title: "Built by the community", desc: "Open source and run by players. An independent community site, separate from the EQEmulator forums." },
             ].map(({ title, desc }) => (
               <div key={title}>
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-2">{title}</h3>

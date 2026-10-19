@@ -29,7 +29,7 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
             <Link href="/" className="flex items-center gap-2.5 group">
               <Shield className="h-4.5 w-4.5 text-frost-400/80 group-hover:text-frost-300 transition-colors" />
               <span className="font-display font-semibold text-lg tracking-wide text-gold-gradient">
-                EQEmulator
+                EQEmulator.dev
               </span>
             </Link>
             <div className="hidden md:flex items-center gap-1">
