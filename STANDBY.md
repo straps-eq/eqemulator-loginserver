@@ -74,6 +74,25 @@ docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" eqemu-mariadb mariadb -uroot eqemu_
       SELECT id, 'admin' FROM platform_accounts WHERE username = 'YOUR_USERNAME';"
 ```
 
+Live clients: a fresh node has no live opcode file, so port 15901 stays off.
+Copy the current one from the master and point `live_opcodes` at it (see
+[LIVE_CLIENT.md](LIVE_CLIENT.md)):
+
+```bash
+# on the master
+docker cp eqemu-loginserver:/opt/loginserver/data/login_opcodes_live_<date>.conf .
+# copy it to the standby, then on the standby
+docker cp login_opcodes_live_<date>.conf eqemu-loginserver:/opt/loginserver/data/
+# loginserver/login.json: "live_opcodes": "data/login_opcodes_live_<date>.conf"
+docker restart eqemu-loginserver
+```
+
+Optional sign-in and email keys: copy `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
+the Turnstile keys and the Google/Discord client IDs and secrets from the
+master's `.env`, then `docker compose up -d web`. Add
+`https://login-node2.eqemulator.dev/api/auth/callback/google` and
+`.../callback/discord` as redirect URIs in the Google and Discord consoles.
+
 ## 4. Pin the release and turn on updates
 
 `setup.sh` starts the `:latest` images. Hand the node to the updater so it runs
