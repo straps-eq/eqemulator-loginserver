@@ -6,6 +6,54 @@ import https from "https";
 import crypto from "crypto";
 import { signRequest } from "./crypto";
 import { getSelfNode, getActivePeers, auditLog } from "./node";
+import { pool } from "@/lib/db";
+import { compareVersions } from "@/lib/version";
+
+/** First version whose verifier understands recipient-bound signatures (security M1). */
+export const RECIPIENT_BINDING_MIN_VERSION = "1.7.0";
+
+export interface FederationRequestOptions {
+  /** Recipient's Ed25519 public key (hex). Looked up by endpoint URL if omitted. */
+  recipientPublicKey?: string | null;
+  /** Recipient's last reported software version. Looked up with the key if omitted. */
+  recipientVersion?: string | null;
+}
+
+const recipientCache = new Map<string, { publicKey: string | null; version: string | null; expires: number }>();
+const RECIPIENT_CACHE_TTL_MS = 60_000;
+
+/** Resolve the recipient node (public key + reported version) for an endpoint URL. */
+async function resolveRecipient(endpointUrl: string): Promise<{ publicKey: string | null; version: string | null }> {
+  const norm = endpointUrl.replace(/\/+$/, "");
+  const cached = recipientCache.get(norm);
+  if (cached && cached.expires > Date.now()) return cached;
+  let publicKey: string | null = null;
+  let version: string | null = null;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT public_key, software_version FROM federation_nodes
+        WHERE is_self = 0 AND TRIM(TRAILING '/' FROM endpoint_url) = ?
+        ORDER BY (status = 'active') DESC, id DESC LIMIT 1`,
+      [norm]
+    ) as unknown as [Array<{ public_key: string; software_version: string | null }>];
+    if (rows.length > 0 && /^[0-9a-f]{64}$/i.test(rows[0].public_key)) {
+      publicKey = rows[0].public_key;
+      version = rows[0].software_version;
+    }
+  } catch { /* fall back to unbound signing */ }
+  const entry = { publicKey, version, expires: Date.now() + RECIPIENT_CACHE_TTL_MS };
+  recipientCache.set(norm, entry);
+  return entry;
+}
+
+/**
+ * Bind the signature to the recipient only when the recipient is known to
+ * verify bound signatures (reports >= 1.7.0). Older peers verify the legacy
+ * message and would reject a bound one.
+ */
+function shouldBind(publicKey: string | null | undefined, version: string | null | undefined): boolean {
+  return !!publicKey && !!version && compareVersions(version, RECIPIENT_BINDING_MIN_VERSION) >= 0;
+}
 
 /**
  * Create a custom HTTPS agent that pins the server certificate to a known SHA-256 hash.
@@ -40,9 +88,10 @@ interface FederationResponse<T = unknown> {
 export async function federationGet<T = unknown>(
   endpointUrl: string,
   path: string,
-  tlsCertHash?: string | null
+  tlsCertHash?: string | null,
+  opts?: FederationRequestOptions
 ): Promise<FederationResponse<T>> {
-  return federationFetch<T>(endpointUrl, path, "GET", undefined, tlsCertHash);
+  return federationFetch<T>(endpointUrl, path, "GET", undefined, tlsCertHash, opts);
 }
 
 /** Make a signed POST request to a peer node. */
@@ -50,9 +99,10 @@ export async function federationPost<T = unknown>(
   endpointUrl: string,
   path: string,
   body: unknown,
-  tlsCertHash?: string | null
+  tlsCertHash?: string | null,
+  opts?: FederationRequestOptions
 ): Promise<FederationResponse<T>> {
-  return federationFetch<T>(endpointUrl, path, "POST", body, tlsCertHash);
+  return federationFetch<T>(endpointUrl, path, "POST", body, tlsCertHash, opts);
 }
 
 async function federationFetch<T>(
@@ -60,7 +110,8 @@ async function federationFetch<T>(
   path: string,
   method: string,
   body?: unknown,
-  tlsCertHash?: string | null
+  tlsCertHash?: string | null,
+  opts?: FederationRequestOptions
 ): Promise<FederationResponse<T>> {
   const self = await getSelfNode();
   if (!self) {
@@ -70,12 +121,22 @@ async function federationFetch<T>(
   const timestamp = Date.now().toString();
   const bodyStr = body ? JSON.stringify(body) : "";
 
+  let recipientKey = opts?.recipientPublicKey ?? null;
+  let recipientVersion = opts?.recipientVersion ?? null;
+  if (!recipientKey || opts?.recipientVersion === undefined) {
+    const r = await resolveRecipient(endpointUrl);
+    recipientKey = recipientKey || r.publicKey;
+    if (opts?.recipientVersion === undefined) recipientVersion = r.version;
+  }
+  const bind = shouldBind(recipientKey, recipientVersion);
+
   const signature = await signRequest(
     self.privateKey,
     timestamp,
     method,
     path,
-    bodyStr
+    bodyStr,
+    bind ? recipientKey : null
   );
 
   const url = `${endpointUrl.replace(/\/$/, "")}${path}`;
@@ -89,6 +150,7 @@ async function federationFetch<T>(
       "X-Federation-Timestamp": timestamp,
       "X-Federation-Signature": signature,
     };
+    if (bind && recipientKey) headers["X-Federation-Recipient"] = recipientKey.toLowerCase();
 
     // When TLS cert pinning is active, use https.request (which supports
     // custom agents) instead of fetch (which silently ignores the agent).
