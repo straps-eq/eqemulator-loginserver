@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2016 # single-quoted jq programs and in-container sh -c scripts are intended
 # ──────────────────────────────────────────────
 # EQEmulator.dev — node self-updater
 #
@@ -649,7 +650,7 @@ preflight() { # needs manifest loaded
   [ -w "$STATE_DIR" ] || errs+=("$STATE_DIR not writable (sudo chown $(id -un) $STATE_DIR)")
   mkdir -p "$BACKUP_DIR" 2>/dev/null || true
   [ -w "$BACKUP_DIR" ] || errs+=("backup dir $BACKUP_DIR not writable")
-  mkdir -p "$SNAP_ROOT" 2>/dev/null && chmod 700 "$UPDATER_HOME" 2>/dev/null || true
+  if mkdir -p "$SNAP_ROOT" 2>/dev/null; then chmod 700 "$UPDATER_HOME" 2>/dev/null || true; fi
   [ -w "$SNAP_ROOT" ] || errs+=("$SNAP_ROOT not writable")
   if [ "${#errs[@]}" -gt 0 ]; then
     local e; for e in "${errs[@]}"; do log "pre-flight: $e"; done
@@ -801,7 +802,7 @@ backfill_env() {
   for e in "${M_ENV_KEYS[@]}"; do
     k="${e%%=*}"; if [[ "$e" == *=* ]]; then v="${e#*=}"; else v=""; fi
     [[ " ${PIN_KEYS[*]} " == *" $k "* ]] && continue
-    grep -qE "^[[:space:]]*$k[[:space:]]*=" "$EQEMU_DIR/.env" && continue
+    grep -qE "^[[:space:]]*${k}[[:space:]]*=" "$EQEMU_DIR/.env" && continue
     if [ "$DRY_RUN" = 1 ]; then plan "append $k= to .env"; continue; fi
     [ "$added" = 1 ] || printf '\n# Added by scripts/deploy.sh for v%s (%s)\n' "$M_VERSION" "$(now_iso)" >>"$EQEMU_DIR/.env"
     printf '%s=%s\n' "$k" "$v" >>"$EQEMU_DIR/.env"
@@ -816,7 +817,8 @@ backfill_env() {
 take_snapshot() {
   local ts; ts="$(date -u +%Y%m%dT%H%M%SZ)"
   SNAP="$SNAP_ROOT/$ts-${CUR_VERSION}-to-${M_VERSION}"
-  mkdir -p -m 700 "$SNAP"
+  mkdir -p "$SNAP_ROOT"
+  mkdir -m 700 "$SNAP"
   ln -sfn "$SNAP" "$SNAP_ROOT/last"
 
   # 1. DB dump (consistent InnoDB snapshot, root password read inside the container).
@@ -1028,7 +1030,7 @@ pull_and_verify_images() {
     while IFS= read -r img; do
       [ -n "$img" ] || continue
       docker image inspect "$img" >/dev/null 2>&1 || docker pull -q "$img" >/dev/null || finish failed "$E_FAIL" "pull of $img failed"
-    done < <(cd "$STAGE/tree" && docker compose --project-directory "$STAGE/tree" config --images 2>/dev/null | grep -v "^${IMAGE_PREFIX}" || true)
+    done < <(cd "$STAGE/tree" || exit 0; docker compose --project-directory "$STAGE/tree" config --images 2>/dev/null | grep -v "^${IMAGE_PREFIX}" || true)
   fi
 }
 
@@ -1038,7 +1040,7 @@ rollback_changes() { # REASON -> 0 if the node is back and healthy
   ROLLING_BACK=1
   set +e
   log "ROLLBACK: $1"
-  [ -n "$SNAP" ] && [ -d "$SNAP" ] || { log "rollback: no snapshot"; return 1; }
+  if [ -z "$SNAP" ] || [ ! -d "$SNAP" ]; then log "rollback: no snapshot"; return 1; fi
   local prevv="$SNAP/versions.env.previous" k v s
   if [ -f "$prevv" ]; then
     cp -p "$prevv" "$SNAP/versions.env.rollback"
@@ -1071,7 +1073,7 @@ rollback_changes() { # REASON -> 0 if the node is back and healthy
 # ══════════════════════════════════════════════
 do_rollback_mode() {
   local last="$SNAP_ROOT/last"
-  [ -L "$last" ] && [ -d "$last" ] || finish needs_operator "$E_PREFLIGHT" "no snapshot found in $SNAP_ROOT"
+  if [ ! -L "$last" ] || [ ! -d "$last" ]; then finish needs_operator "$E_PREFLIGHT" "no snapshot found in $SNAP_ROOT"; fi
   SNAP="$(readlink -f "$last")"
   local from to
   from="$(kv_get "$SNAP/meta" TARGET_VERSION)"; to="$(kv_get "$SNAP/meta" CUR_VERSION)"
@@ -1266,5 +1268,6 @@ main() {
 # file (tests) defines the functions without running anything.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   main "$@"
+  # shellcheck disable=SC2317 # main normally exits itself
   exit $?
 fi

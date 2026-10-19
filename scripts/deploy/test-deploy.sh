@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck source-path=SCRIPTDIR
+# shellcheck disable=SC2016,SC2034,SC2317 # globals are read by the sourced functions; date() is called indirectly
 # ──────────────────────────────────────────────
 # Offline unit tests for scripts/deploy.sh (no docker, no network).
 # Sources deploy.sh (which then defines functions only) and checks the pure
@@ -11,7 +13,7 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=../deploy.sh
+# shellcheck source=scripts/deploy.sh
 . "$HERE/../deploy.sh"
 set +e
 
@@ -33,9 +35,9 @@ eq "$(ver_cmp 1.08.0 1.8.0)" 0 "ver_cmp leading zero"
 eq "$(ver_max 1.7.0 1.6.9)" 1.7.0 "ver_max"
 yes is_semver 1.7.0; no is_semver v1.7.0; no is_semver 1.7; no is_semver "1.7.0-rc1"
 
-CF_MAX_JUMP=minor; yes jump_allowed 1.6.2 1.9.0; no jump_allowed 1.6.2 2.0.0
-CF_MAX_JUMP=patch; yes jump_allowed 1.6.2 1.6.9; no jump_allowed 1.6.2 1.7.0
-CF_MAX_JUMP=major; yes jump_allowed 1.6.2 3.0.0
+CF_MAX_JUMP="minor"; yes jump_allowed 1.6.2 1.9.0; no jump_allowed 1.6.2 2.0.0
+CF_MAX_JUMP="patch"; yes jump_allowed 1.6.2 1.6.9; no jump_allowed 1.6.2 1.7.0
+CF_MAX_JUMP="major"; yes jump_allowed 1.6.2 3.0.0
 
 # ── window (date is faked) ──
 FAKE_HM="0400"; FAKE_DAY="Tue"; FAKE_YDAY="Mon"

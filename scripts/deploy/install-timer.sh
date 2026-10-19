@@ -104,8 +104,10 @@ case "$MODE" in
     echo "log: ${UPDATER_HOME:-$HOME/eqemu-updater}/updater.log"
     ;;
   systemd)
-    command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1 \
-      || { echo "systemd --user is not available in this session; use the default (cron)" >&2; exit 1; }
+    if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
+      echo "systemd --user is not available in this session; use the default (cron)" >&2
+      exit 1
+    fi
     remove_cron
     mkdir -p "$UNIT_DIR"
     service_unit >"$UNIT_DIR/eqemu-updater.service"
