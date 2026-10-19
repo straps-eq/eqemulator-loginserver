@@ -16,6 +16,8 @@ import { eq, and, sql } from "drizzle-orm";
 import { federationGet } from "./client";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
+import { computeStableHash, computeVolatileHash } from "./sync-hash";
+import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 
 // Changelog-based sync is DISABLED for loginserver tables.
 // The full data sync (applyFullDataSync) handles all loginserver tables with
@@ -121,17 +123,36 @@ const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
 /** Servers reclaimed as local during this sync cycle — skip re-adoption. */
 const reclaimedServers = new Set<string>();
 
-/** Track last sync_data hash per peer to skip unchanged data. */
-const lastSyncDataHash = new Map<number, string>();
+/**
+ * Last-applied sync_data hashes per peer. Kept in Redis (in-memory fallback via
+ * lib/redis) so a web restart does not force a full re-apply of every row.
+ * The stable hash is computed locally from the received payload, so this works
+ * against 1.5.x/1.6.x exporters whose `data_hash` still includes volatile columns.
+ */
+const SYNC_HASH_TTL_SECONDS = 7 * 24 * 3600;
+/** How often volatile columns (last_login_date, ...) are refreshed when only they changed. */
+const VOLATILE_REFRESH_MS = 10 * 60 * 1000;
+const knownHashPeers = new Set<number>();
+const stableKey = (id: number) => `fed:sync_hash:stable:${id}`;
+const volatileKey = (id: number) => `fed:sync_hash:volatile:${id}`;
+const volatileAtKey = (id: number) => `fed:sync_hash:volatile_at:${id}`;
 
 /** Clear cached sync data hashes — call after admin edits to synced tables
  *  so the next sync cycle forces a full re-apply even if the peer's hash hasn't changed. */
-export function clearSyncDataHash(sourceNodeId?: number) {
+export async function clearSyncDataHash(sourceNodeId?: number): Promise<void> {
+  let ids: number[];
   if (sourceNodeId !== undefined) {
-    lastSyncDataHash.delete(sourceNodeId);
+    ids = [sourceNodeId];
   } else {
-    lastSyncDataHash.clear();
+    ids = Array.from(knownHashPeers);
+    try {
+      const [rows] = await pool.execute(`SELECT id FROM federation_nodes WHERE is_self = 0`) as unknown as [Array<{ id: number }>];
+      rows.forEach((r) => ids.push(r.id));
+    } catch { /* best effort */ }
   }
+  const keys: string[] = [];
+  for (const id of Array.from(new Set(ids))) keys.push(stableKey(id), volatileKey(id), volatileAtKey(id));
+  await cacheDel(...keys);
 }
 
 /** Track our own local server list hash to detect when new servers join. */
@@ -481,8 +502,33 @@ function toMySQLDatetime(val: unknown): string {
 
 /** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
 async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
-  // Skip processing if data hasn't changed (hash match) — still update live servers
-  if (data.data_hash && lastSyncDataHash.get(sourceNodeId) === data.data_hash) {
+  knownHashPeers.add(sourceNodeId);
+  const collections = {
+    accounts: data.accounts, servers: data.servers, admins: data.admins, profiles: data.profiles,
+    platform_accounts: data.platform_accounts, oauth_links: data.oauth_links, login_links: data.login_links,
+    ws_admin_links: data.ws_admin_links, platform_admins: data.platform_admins,
+  };
+  const stableHash = computeStableHash(collections);
+  const volatileHash = computeVolatileHash(collections);
+  const [prevStable, prevVolatile, prevVolatileAt] = await Promise.all([
+    cacheGet(stableKey(sourceNodeId)),
+    cacheGet(volatileKey(sourceNodeId)),
+    cacheGet(volatileAtKey(sourceNodeId)),
+  ]);
+
+  // Skip processing if identity/credential data hasn't changed — still update live servers
+  if (prevStable === stableHash) {
+    // Volatile-only change (logins): refresh timestamps on a slow cadence.
+    // Not counted as "changes applied".
+    if (prevVolatile !== volatileHash && Date.now() - Number(prevVolatileAt || 0) >= VOLATILE_REFRESH_MS) {
+      try {
+        await applyVolatileRefresh(data, sourceNodeId);
+        await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
+        await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
+      } catch (err) {
+        console.error(`[sync_data] volatile refresh from node ${sourceNodeId} failed:`, err);
+      }
+    }
     // Only update live server cache (changes frequently)
     if (data.live_servers && data.live_servers.length > 0) {
       federatedLiveCache.set(sourceNodeId, {
@@ -1087,12 +1133,13 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Cache the hash for future skip detection
-    if (data.data_hash) {
-      lastSyncDataHash.set(sourceNodeId, data.data_hash);
-    }
-
     await conn.commit();
+
+    // Cache the hashes for future skip detection (after commit, so a rolled-back
+    // apply is retried next cycle)
+    await cacheSet(stableKey(sourceNodeId), stableHash, SYNC_HASH_TTL_SECONDS);
+    await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
+    await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
 
     if (applied > 0) {
       console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
@@ -1105,6 +1152,51 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   }
 
   return applied;
+}
+
+/**
+ * Refresh only volatile columns (login timestamps) from a peer's export,
+ * without re-running the full upsert/reconcile path. Rows are matched the same
+ * way the full apply matches them; rows that do not exist locally are skipped.
+ */
+async function applyVolatileRefresh(data: SyncDataResponse, sourceNodeId: number): Promise<void> {
+  const conn = await pool.getConnection();
+  try {
+    const accts = (data.accounts || []).filter((a) => typeof a.id === "number" && (a.id as number) > 0);
+    const CHUNK = 500;
+    for (let i = 0; i < accts.length; i += CHUNK) {
+      const chunk = accts.slice(i, i + CHUNK);
+      const params: (string | number)[] = [];
+      let caseLogin = "";
+      let caseUpdated = "";
+      for (const a of chunk) {
+        caseLogin += " WHEN ? THEN ?";
+        params.push(a.id as number, toMySQLDatetime(a.last_login_date));
+      }
+      for (const a of chunk) {
+        caseUpdated += " WHEN ? THEN ?";
+        params.push(a.id as number, toMySQLDatetime(a.updated_at));
+      }
+      const ids = chunk.map((a) => a.id as number);
+      params.push(...ids);
+      await conn.execute(
+        `UPDATE login_accounts SET
+           last_login_date = CASE id${caseLogin} ELSE last_login_date END,
+           updated_at = CASE id${caseUpdated} ELSE updated_at END
+         WHERE id IN (${ids.map(() => "?").join(",")})`,
+        params
+      );
+    }
+    for (const srv of data.servers || []) {
+      if (!srv.short_name) continue;
+      await conn.execute(
+        `UPDATE login_world_servers SET last_login_date = ? WHERE short_name = ? AND federation_source_node_id = ?`,
+        [toMySQLDatetime(srv.last_login_date), srv.short_name as string, sourceNodeId]
+      );
+    }
+  } finally {
+    conn.release();
+  }
 }
 
 /** Check if a change came from the origin node for a given record. */
