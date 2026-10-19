@@ -28,7 +28,8 @@ fail() { FAIL=$((FAIL + 1)); echo "  ✗ $1"; }
 warn() { WARN=$((WARN + 1)); echo "  ⚠ $1"; }
 
 db_exec() {
-  docker exec -i eqemu-mariadb mysql -u root -p"${DB_ROOT_PASSWORD}" eqemu_login -N -s -e "$1" 2>/dev/null
+  # Password via the environment (docker exec -e MYSQL_PWD inherits it), not argv.
+  MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i -e MYSQL_PWD eqemu-mariadb mysql -u root eqemu_login -N -s -e "$1" 2>/dev/null
 }
 
 echo ""
