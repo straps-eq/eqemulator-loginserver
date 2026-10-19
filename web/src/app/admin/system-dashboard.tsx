@@ -18,6 +18,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { FederationNodesPanel, type FederationOverview } from "./federation-nodes-panel";
+import { ClientProbePanel } from "./client-probe-panel";
 
 interface ServiceInfo {
   status: string;
@@ -534,6 +535,9 @@ export function SystemDashboard() {
           refresh={fetchData}
         />
       )}
+
+      {/* Client probe */}
+      <ClientProbePanel />
 
       {/* Settings */}
       <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-5">

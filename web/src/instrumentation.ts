@@ -64,5 +64,13 @@ export async function register() {
 
       console.log("[federation] auto-sync started (60s interval)");
     }, 15_000); // Wait 15s for app startup
+
+    // ── Client probe schedule (Node.js runtime only: it uses UDP sockets) ──
+    // Whether it actually probes is decided on every check (CLIENT_PROBE_ENABLED,
+    // or the federation master when unset); see docs/client-probe.md.
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+      const { startClientProbeScheduler } = await import("./lib/client-probe/scheduler");
+      startClientProbeScheduler();
+    }
   }
 }

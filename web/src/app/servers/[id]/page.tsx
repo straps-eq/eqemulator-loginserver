@@ -13,6 +13,7 @@ import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { serializeJsonLd } from "@/lib/json-ld";
+import { getClientSupportSummary } from "@/lib/client-probe/store";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +69,10 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
   const isClaimed = adminId > 0;
   const isTrusted = !!server.isServerTrusted || isClaimed;
 
-  const [profile, liveData] = await Promise.all([
+  const [profile, liveData, clientSupport] = await Promise.all([
     getProfile(server.id, adminId),
     getLiveData(server.shortName, server.longName),
+    getClientSupportSummary(server.id),
   ]);
 
   const serverJsonLd = {
@@ -119,6 +121,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               websiteUrl: profile?.websiteUrl,
               discordUrl: profile?.discordUrl,
               expansionEra: profile?.expansionEra,
+              clientSupport,
               description: profile?.description,
             }}
             initialPlayers={liveData?.players_online ?? 0}

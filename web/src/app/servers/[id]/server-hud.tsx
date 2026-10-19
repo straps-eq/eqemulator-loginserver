@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Users, Shield, ShieldCheck, Globe, MessageCircle, Activity } from "lucide-react";
+import { ClientSupportBadges, type ClientSupportView } from "@/components/client-badges";
 
 interface ServerInfo {
   longName: string;
@@ -13,6 +14,7 @@ interface ServerInfo {
   websiteUrl?: string | null;
   discordUrl?: string | null;
   expansionEra?: string | null;
+  clientSupport?: ClientSupportView | null;
   description?: string | null;
 }
 
@@ -265,6 +267,10 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
               <span className="text-parchment-300">{info.tagDescription}</span>
             </div>
           )}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-parchment-500">Clients</span>
+            <ClientSupportBadges summary={info.clientSupport} />
+          </div>
           <div className="flex-1" />
           {info.websiteUrl && (
             <a href={ensureProtocol(info.websiteUrl)} target="_blank" rel="noopener noreferrer"

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { serverPath } from "@/lib/slug";
 import type { PublicServer } from "@/lib/public-servers";
 import { WifiOff, ShieldCheck } from "lucide-react";
+import { ClientSupportInline } from "@/components/client-badges";
 
 type ServerData = PublicServer;
 
@@ -122,6 +123,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                           {server.tag_description && (
                             <span className="text-[11px] text-parchment-600 truncate block">{server.tag_description}</span>
                           )}
+                          <ClientSupportInline summary={server.client_support} />
                         </div>
                       </div>
                       <div className="text-right">

@@ -113,14 +113,40 @@ export interface ServerListItem {
   zones_booted: number;
   players_online: number;
   world_id: number;
+  local_ip?: string;
+  remote_ip?: string;
 }
 
 export interface ServerListResult {
   data: ServerListItem[];
 }
 
+/** The loginserver answers /v1/servers/list with a bare array. */
 export async function getServerList() {
-  return apiRequest<ServerListResult>("GET", "/v1/servers/list");
+  return apiRequest<ServerListItem[]>("GET", "/v1/servers/list");
+}
+
+/**
+ * Make the loginserver send ServerOP_LSClientAuth (account id, name and
+ * session key) to one of its connected worlds, as it does when a player picks
+ * that world. The world then accepts this key in OP_SendLoginInfo.
+ */
+export async function sendClientAuth(params: {
+  serverId: number;
+  accountId: number;
+  accountName: string;
+  loginKey: string;
+  loginserverName: string;
+  clientIp?: string;
+}) {
+  return apiRequest<{ message?: string }>("POST", "/v1/federation/auth_client", {
+    server_id: params.serverId,
+    account_id: params.accountId,
+    account_name: params.accountName,
+    login_key: params.loginKey,
+    loginserver_name: params.loginserverName,
+    client_ip: params.clientIp || "0.0.0.0",
+  });
 }
 
 /**
