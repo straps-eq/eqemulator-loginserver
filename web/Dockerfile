@@ -17,11 +17,20 @@ ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
 ARG NEXT_PUBLIC_SITE_URL=""
 ARG NEXT_PUBLIC_APP_URL=""
 
+# Release version stamped by CI (git tag without the leading "v").
+# Empty -> the app falls back to package.json's version.
+ARG APP_VERSION=""
+ENV APP_VERSION=${APP_VERSION}
+
 RUN npm run build
 
 # Production image
 FROM base AS runner
 WORKDIR /app
+
+ARG APP_VERSION=""
+ENV APP_VERSION=${APP_VERSION}
+LABEL org.opencontainers.image.version=${APP_VERSION}
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { platformAdmins } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { version as APP_VERSION } from "../../../../../package.json";
+import { APP_VERSION } from "@/lib/version";
 
 async function requireAdmin() {
   const session = await getSession();
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Not initialized" }, { status: 400 });
         }
         const { runSyncCycle, clearSyncDataHash } = await import("@/lib/federation/sync");
-        clearSyncDataHash(); // Force full re-apply on manual sync
+        await clearSyncDataHash(); // Force full re-apply on manual sync
         const result = await runSyncCycle();
         return NextResponse.json({ success: true, ...result });
       }
