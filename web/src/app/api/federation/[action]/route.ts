@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { version as APP_VERSION } from "../../../../../package.json";
+import { APP_VERSION } from "@/lib/version";
 
 type RouteContext = { params: Promise<{ action: string }> };
 
@@ -469,14 +469,29 @@ async function handleSyncData(req: NextRequest) {
     })
     .from(platformAdmins);
 
-  // Compute a content hash so receivers can skip processing when data is unchanged
-  const crypto = await import("crypto");
-  const hashInput = JSON.stringify({ accounts, servers, admins, profiles, platAccounts, oauthLinks, loginLinks, wsAdminLinks, platAdmins });
-  const dataHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 16);
+  // Content hashes so receivers can skip processing when data is unchanged.
+  // The stable hash excludes volatile columns (last_login_date, updated_at, ...)
+  // so logins no longer look like data changes. 1.7+ receivers recompute the
+  // stable hash themselves; `data_hash` is what 1.5.x/1.6.x receivers compare.
+  // For them it is the stable hash plus an hourly bucket, so they still pick up
+  // login timestamps hourly instead of re-applying every row every minute.
+  const { computeStableHash, computeVolatileHash } = await import("@/lib/federation/sync-hash");
+  const collections = {
+    accounts, servers, admins, profiles,
+    platform_accounts: platAccounts, oauth_links: oauthLinks, login_links: loginLinks,
+    ws_admin_links: wsAdminLinks, platform_admins: platAdmins,
+  } as Record<string, Array<Record<string, unknown>>>;
+  const stableHash = computeStableHash(collections);
+  const volatileHash = computeVolatileHash(collections);
+  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  const dataHash = crypto.createHash("sha256").update(`${stableHash}:${hourBucket}`).digest("hex").slice(0, 16);
 
   return NextResponse.json({
     node_id: self.id,
     data_hash: dataHash,
+    data_hash_version: 2,
+    stable_hash: stableHash,
+    volatile_hash: volatileHash,
     accounts,
     servers,
     admins,
