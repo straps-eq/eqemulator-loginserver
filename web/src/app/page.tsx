@@ -6,7 +6,7 @@ import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as Serv
 import { LiveStats } from "./live-stats";
 import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
-import { APP_VERSION } from "@/lib/version";
+import { SiteFooter } from "@/components/site-footer";
 import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
 import { serverPath } from "@/lib/slug";
 
@@ -16,18 +16,31 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "EQEmulator.dev",
-  url: "https://eqemulator.dev",
-  description: "EQ Emulator server directory with live player counts, setup guides and a community login server.",
-  potentialAction: {
-    "@type": "SearchAction",
-    target: "https://eqemulator.dev/servers?q={search_term_string}",
-    "query-input": "required name=search_term_string",
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://eqemulator.dev/#website",
+    name: "EQEmulator.dev",
+    alternateName: ["EQ Emulator", "EQEmulator", "EQEmu Server List"],
+    url: "https://eqemulator.dev",
+    description: "EQEmu server list with live player counts, guides for new players, and a community login server for EQ Emulator worlds.",
+    inLanguage: "en",
+    publisher: { "@id": "https://eqemulator.dev/#organization" },
   },
-};
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://eqemulator.dev/#organization",
+    name: "EQEmulator.dev",
+    url: "https://eqemulator.dev",
+    logo: "https://eqemulator.dev/android-chrome-512x512.png",
+    sameAs: [
+      "https://discord.gg/6T4n3DdPVB",
+      "https://github.com/straps-eq/eqemulator-loginserver",
+    ],
+  },
+];
 
 const TOP_WORLDS = 6;
 
@@ -91,7 +104,7 @@ export default async function HomePage() {
               <span className="text-gold-gradient">EQ Emulator</span>
             </h1>
             <p className="font-hero text-xl sm:text-2xl leading-snug text-parchment-100/95 mb-9 max-w-xl">
-              Find an EQ Emulator server, learn how to play, and join a welcoming community.
+              Find an EQEmu server, learn how to play, and join a welcoming community.
               New to emulators? We&apos;ll guide you every step of the way.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 [text-shadow:none]">
@@ -147,7 +160,7 @@ export default async function HomePage() {
             <h2 className="font-display text-2xl font-bold text-parchment-100">
               {online.length > 0
                 ? `${totalPlayers.toLocaleString()} adventurers across ${online.length} ${online.length === 1 ? "world" : "worlds"}`
-                : "Worlds on EQ Emulator"}
+                : "EQEmu worlds"}
             </h2>
           </div>
           <Link href="/servers" className="hover-frost text-xs font-display tracking-[0.15em] uppercase text-parchment-500 whitespace-nowrap">
@@ -285,6 +298,27 @@ export default async function HomePage() {
         <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
       </section>
 
+      {/* What is EQEmu? Plain answer for people who searched the name. */}
+      <section className="relative">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8 text-center">
+          <h2 className="font-display text-2xl font-bold text-parchment-100 mb-4">What is EQEmu?</h2>
+          <p className="text-parchment-200 text-base leading-relaxed mb-4">
+            EQEmu, short for EQ Emulator, is the open-source server that community worlds run on. Volunteers
+            have built it for over twenty years, and today there are classic, progression and custom EQEmu
+            servers to choose from. You play with your own copy of EQ, and this site helps you find a world
+            and get connected.
+          </p>
+          <p className="text-sm">
+            <Link href="/guides/what-is-eqemu" className="text-frost-300 hover:text-frost-200 underline underline-offset-4">More about EQEmu</Link>
+            <span className="mx-3 text-parchment-500" aria-hidden="true">&middot;</span>
+            <Link href="/guides/eq-clients" className="text-frost-300 hover:text-frost-200 underline underline-offset-4">Which client do I need?</Link>
+            <span className="mx-3 text-parchment-500" aria-hidden="true">&middot;</span>
+            <Link href="/guides" className="text-frost-300 hover:text-frost-200 underline underline-offset-4">All guides</Link>
+          </p>
+        </div>
+        <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
+      </section>
+
       {/* For server operators */}
       <section className="relative">
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
@@ -342,38 +376,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="mt-6">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2">
-              {[
-                { href: "/servers", label: "Servers" },
-                { href: "/getting-started", label: "Getting Started" },
-                { href: "/server-operators", label: "Server Ops" },
-                { href: "/about", label: "About" },
-                { href: "/status", label: "Status" },
-              ].map(({ href, label }) => (
-                <Link key={href} href={href} className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
-                  {label}
-                </Link>
-              ))}
-              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
-                Discord
-              </a>
-              <a href="https://github.com/straps-eq/eqemulator-loginserver" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
-                GitHub
-              </a>
-            </div>
-          </div>
-          <p className="text-parchment-700 text-[11px] leading-relaxed mt-6 max-w-3xl">
-            EQEmulator.dev is a community project and is not affiliated with, endorsed by, or sponsored by
-            Daybreak Game Company LLC. EverQuest is a registered trademark of Daybreak Game Company LLC.
-            Playing on emulated servers requires your own copy of the game.
-            <span className="ml-2 font-mono text-[10px]">v{APP_VERSION}</span>
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

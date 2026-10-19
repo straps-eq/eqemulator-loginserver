@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   try {
     const server = await getServer(decodeURIComponent(rawId));
     if (server) {
-      const title = `${server.longName} — EverQuest Private Server`;
+      const title = `${server.longName} — EQEmu Server`;
       const description = server.tagDescription
         ? `${server.longName}: ${server.tagDescription}. Live player counts, population history, and server details on EQEmulator.dev.`
         : `${server.longName} — live player counts, population history, and server details on EQEmulator.dev.`;
@@ -82,7 +82,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     url: `${SITE_URL}${canonicalPath}`,
     description: profile?.description
       ? profile.description.replace(/<[^>]*>/g, "").slice(0, 200)
-      : server.tagDescription || `${server.longName} — EverQuest private server on EQEmulator.dev`,
+      : server.tagDescription || `${server.longName}, an EQEmu server on EQEmulator.dev`,
     game: {
       "@type": "VideoGame",
       name: "EverQuest",
@@ -93,11 +93,21 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     }),
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "EQEmu Server List", item: `${SITE_URL}/servers` },
+      { "@type": "ListItem", position: 3, name: server.longName, item: `${SITE_URL}${canonicalPath}` },
+    ],
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: serializeJsonLd(serverJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd([serverJsonLd, breadcrumbJsonLd]) }}
       />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 

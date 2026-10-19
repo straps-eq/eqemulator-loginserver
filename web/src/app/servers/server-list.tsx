@@ -95,7 +95,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-400/60 block mb-3">
           Server Directory
         </span>
-        <h1 className="font-display text-3xl font-bold text-parchment-100">Active Servers</h1>
+        <h1 className="font-display text-3xl font-bold text-parchment-100">EQEmu Server List</h1>
         <p className="text-parchment-500 mt-2 text-sm">
           {servers.length} world{servers.length !== 1 ? "s" : ""} connected · <span className="text-frost-400">{totalPlayers}</span> adventurer{totalPlayers !== 1 ? "s" : ""} online
         </p>

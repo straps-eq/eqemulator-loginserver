@@ -17,7 +17,7 @@
 body {
   color: #e8e4da;
   background: #1a2140;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 /* EQ background image */
@@ -153,4 +153,57 @@ a {
 .uplot-dark .u-axis text,
 .uplot-dark .u-axis tspan {
   fill: rgba(156, 163, 175, 0.4) !important;
+}
+
+/* Long-form guide text (/guides). Large, high-contrast and easy to scan. */
+@layer components {
+  .guide-prose {
+    @apply text-base sm:text-[17px] leading-relaxed text-parchment-100;
+  }
+  .guide-prose h2 {
+    @apply font-display text-2xl font-semibold text-parchment-50 mt-10 mb-4;
+  }
+  .guide-prose h3 {
+    @apply font-display text-lg font-semibold text-parchment-50 mt-8 mb-3;
+  }
+  .guide-prose p {
+    @apply mb-4;
+  }
+  .guide-prose ul,
+  .guide-prose ol {
+    @apply mb-5 pl-6 space-y-2;
+  }
+  .guide-prose ul {
+    @apply list-disc;
+  }
+  .guide-prose ol {
+    @apply list-decimal;
+  }
+  .guide-prose li::marker {
+    @apply text-frost-300;
+  }
+  .guide-prose a {
+    @apply text-frost-300 underline underline-offset-4 decoration-frost-300/40 hover:text-frost-200 hover:decoration-frost-200;
+  }
+  .guide-prose strong {
+    @apply text-parchment-50 font-semibold;
+  }
+  .guide-prose code {
+    @apply font-mono text-[0.9em] text-frost-200 bg-[#151b2e] px-1.5 py-0.5 rounded;
+  }
+  .guide-prose pre {
+    @apply bg-[#151b2e] border border-frost-400/15 rounded-lg p-4 mb-5 overflow-x-auto font-mono text-sm text-parchment-100;
+  }
+  .guide-prose pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+  .guide-prose table {
+    @apply w-full mb-6 text-left border-collapse;
+  }
+  .guide-prose th {
+    @apply font-display text-sm text-parchment-50 border-b border-frost-400/25 py-2 pr-4;
+  }
+  .guide-prose td {
+    @apply border-b border-frost-400/10 py-2 pr-4 align-top;
+  }
 }

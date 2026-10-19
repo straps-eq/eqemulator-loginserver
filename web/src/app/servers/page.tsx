@@ -8,13 +8,13 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/servers" },
-  title: "EverQuest Private Server List — Live Player Counts",
+  title: "EQEmu Server List — Live EQ Emulator Servers & Player Counts",
   description:
-    "Browse active EverQuest private servers with real-time player counts, population tiers, and server profiles. Find your next EQ adventure.",
+    "Every EQEmu server on our login, with live player counts, population history, client support and server profiles. Find your next EQ Emulator world.",
   openGraph: {
     images: ["/opengraph-image"],
-    title: "EverQuest Private Server List — Live Player Counts",
-    description: "Browse active EverQuest private servers with real-time player counts and server profiles.",
+    title: "EQEmu Server List — Live EQ Emulator Servers & Player Counts",
+    description: "Every EQEmu server on our login, with live player counts, client support and server profiles.",
   },
 };
 

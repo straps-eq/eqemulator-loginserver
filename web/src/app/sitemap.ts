@@ -2,6 +2,7 @@ import { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { loginWorldServers } from "@/db/schema";
 import { serverPath } from "@/lib/slug";
+import { GUIDES } from "@/lib/guides";
 
 // Rendered per request: the Docker build has no database, so a prerendered
 // sitemap would be frozen with no server pages in it.
@@ -14,6 +15,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: SITE_URL, changeFrequency: "daily", priority: 1.0 },
     { url: `${SITE_URL}/servers`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE_URL}/getting-started`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/guides`, changeFrequency: "weekly", priority: 0.8 },
+    ...GUIDES.map((g) => ({
+      url: `${SITE_URL}/guides/${g.slug}`,
+      lastModified: g.updated,
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+    })),
     { url: `${SITE_URL}/server-operators`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/security`, changeFrequency: "monthly", priority: 0.5 },
