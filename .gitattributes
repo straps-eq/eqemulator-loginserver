@@ -1,0 +1,6 @@
+# Shell scripts and compose/env files run on Linux hosts: always LF.
+*.sh text eol=lf
+*.yml text eol=lf
+*.env.example text eol=lf
+*.conf.example text eol=lf
+*.template text eol=lf
