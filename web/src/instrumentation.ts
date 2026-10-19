@@ -26,9 +26,11 @@ export async function register() {
     }, 10_000); // Wait 10s for app + DB to be ready
 
     // ── Automatic federation sync cycle ──
-    // Next can call register() from more than one bundle; start the loop once
-    // per process (a second loop raced the first one's initial pull and
-    // duplicated every world server).
+    // Next calls register() once per runtime (nodejs and edge), and the edge
+    // sandbox has its own globalThis, so a flag alone still started two loops.
+    // Run it in the Node.js runtime only, and once per process there (a second
+    // loop raced the first one's initial pull and duplicated every world server).
+    if (process.env.NEXT_RUNTIME !== "nodejs") return;
     const g = globalThis as unknown as { __eqemuAutoSyncStarted?: boolean };
     if (g.__eqemuAutoSyncStarted) return;
     g.__eqemuAutoSyncStarted = true;
