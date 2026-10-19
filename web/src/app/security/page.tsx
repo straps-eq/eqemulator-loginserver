@@ -4,10 +4,12 @@ import { getSession } from "@/lib/session";
 import { Shield, Lock, Eye, Key, Server, CheckCircle, AlertTriangle } from "lucide-react";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/security" },
   title: "Security — How We Protect Your Account",
   description:
     "How EQEmulator.dev protects your EverQuest account and data. Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "Security — How EQEmulator.dev Protects Your Account",
     description: "Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
   },
@@ -62,7 +64,7 @@ export default async function SecurityPage() {
                 desc: "All accounts must verify their email address before they can log in. This prevents impersonation and ensures account recovery is possible.",
               },
             ].map(({ title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#202842]/60 p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-200 mb-2">{title}</h3>
                 <p className="text-xs text-parchment-500 leading-relaxed">{desc}</p>
               </div>
@@ -97,7 +99,7 @@ export default async function SecurityPage() {
                 desc: "Only modern, computationally expensive password hashes are allowed to sync across the federation. Weak or outdated hash formats are automatically rejected at both ends.",
               },
             ].map(({ title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#202842]/60 p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-200 mb-2">{title}</h3>
                 <p className="text-xs text-parchment-500 leading-relaxed">{desc}</p>
               </div>
@@ -132,7 +134,7 @@ export default async function SecurityPage() {
                 desc: "Security-relevant events are logged and retained for monitoring. This includes federation sync events, authentication attempts, and administrative actions.",
               },
             ].map(({ title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#202842]/60 p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-200 mb-2">{title}</h3>
                 <p className="text-xs text-parchment-500 leading-relaxed">{desc}</p>
               </div>
@@ -167,7 +169,7 @@ export default async function SecurityPage() {
                 desc: "The entire platform is open source on GitHub. Security through obscurity is not our model — we believe transparency makes software more secure, not less.",
               },
             ].map(({ title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#202842]/60 p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-200 mb-2">{title}</h3>
                 <p className="text-xs text-parchment-500 leading-relaxed">{desc}</p>
               </div>
@@ -177,7 +179,7 @@ export default async function SecurityPage() {
 
         {/* What we don't do */}
         <section className="mb-12">
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/60 p-6 sm:p-8">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-6 sm:p-8">
             <h2 className="font-display text-lg font-semibold text-parchment-100 mb-4">
               What We Don&apos;t Do
             </h2>

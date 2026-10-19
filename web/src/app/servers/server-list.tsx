@@ -1,38 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { serverPath } from "@/lib/slug";
+import type { PublicServer } from "@/lib/public-servers";
 import { WifiOff, ShieldCheck } from "lucide-react";
 
-interface ServerData {
-  server_long_name: string;
-  server_short_name: string;
-  server_list_type_id: number;
-  server_status: number;
-  zones_booted: number;
-  players_online: number;
-  world_id: number;
-  db_id?: number | null;
-  is_trusted?: boolean;
-  is_claimed?: boolean;
-  tag_description?: string | null;
-  display_tier?: string;
-  tier_override?: boolean;
-  show_player_count?: boolean;
-}
+type ServerData = PublicServer;
 
 const tierOrder = ["high", "medium", "low"] as const;
 
 const tierMeta: Record<string, { label: string; accent: string; headerBg: string; headerBorder: string }> = {
   high:   { label: "High Population",   accent: "text-forest-400",     headerBg: "bg-forest-400/[0.04]", headerBorder: "border-forest-400/10" },
   medium: { label: "Medium Population", accent: "text-amber-400/80",   headerBg: "bg-amber-400/[0.03]",  headerBorder: "border-amber-400/8" },
-  low:    { label: "Low Population",    accent: "text-parchment-500",  headerBg: "bg-[#0c1019]/60",      headerBorder: "border-frost-400/6" },
+  low:    { label: "Low Population",    accent: "text-parchment-500",  headerBg: "bg-[#1b2238]/60",      headerBorder: "border-frost-400/6" },
 };
 
 export function ServerList({ initial }: { initial: ServerData[] }) {
-  const router = useRouter();
   const [servers, setServers] = useState<ServerData[]>(initial);
-  const totalPlayers = servers.reduce((sum, s) => sum + s.players_online, 0);
+  const totalPlayers = servers.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
 
   useEffect(() => {
     const poll = async () => {
@@ -54,7 +40,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
     tier,
     servers: servers
       .filter((s) => (s.display_tier || "low") === tier)
-      .sort((a, b) => b.players_online - a.players_online),
+      .sort((a, b) => (b.players_online ?? 0) - (a.players_online ?? 0)),
   })).filter((g) => g.servers.length > 0);
 
   return (
@@ -70,7 +56,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
       </div>
 
       {servers.length === 0 ? (
-        <div className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/80 p-14 text-center">
+        <div className="rounded-lg border border-frost-400/10 bg-[#202842]/80 p-14 text-center">
           <WifiOff className="h-10 w-10 text-parchment-700 mx-auto mb-4" />
           <h3 className="font-display text-lg font-semibold text-parchment-300 mb-2">No Worlds Online</h3>
           <p className="text-parchment-500 text-sm">
@@ -81,10 +67,10 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <div className="space-y-4">
           {grouped.map(({ tier, servers: tierServers }) => {
             const meta = tierMeta[tier] || tierMeta.standard;
-            const tierPlayers = tierServers.reduce((sum, s) => sum + s.players_online, 0);
+            const tierPlayers = tierServers.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
 
             return (
-              <div key={tier} className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/60 overflow-hidden">
+              <div key={tier} className="rounded-lg border border-frost-400/10 bg-[#202842]/60 overflow-hidden">
                 {/* Tier section header */}
                 <div className={`flex items-center justify-between px-4 py-2.5 border-b ${meta.headerBorder} ${meta.headerBg}`}>
                   <div className="flex items-center gap-2.5">
@@ -101,7 +87,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                 </div>
 
                 {/* Column header */}
-                <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-2 border-b border-frost-400/5 bg-[#0c1019]/40">
+                <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-2 border-b border-frost-400/5 bg-[#1b2238]/40">
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display">Server</span>
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display text-right">Players</span>
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display text-center hidden sm:block">Status</span>
@@ -114,12 +100,13 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                   const hideCount = server.show_player_count === false;
 
                   return (
-                    <div
+                    <Link
                       key={`${server.server_short_name}-${i}`}
-                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] ${
-                        server.db_id ? "cursor-pointer" : ""
-                      } ${i < tierServers.length - 1 ? "border-b border-frost-400/5" : ""}`}
-                      onClick={() => server.server_short_name && router.push(`/servers/${encodeURIComponent(server.server_short_name)}`, { scroll: false })}
+                      href={serverPath(server.server_long_name)}
+                      scroll={false}
+                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] focus-visible:outline-none focus-visible:bg-frost-400/[0.06] ${
+                        i < tierServers.length - 1 ? "border-b border-frost-400/5" : ""
+                      }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`h-2 w-2 rounded-full flex-shrink-0 ${isOnline ? "bg-forest-500" : isLocked ? "bg-amber-400" : "bg-parchment-800"}`} />
@@ -141,7 +128,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                         {hideCount ? (
                           <span className="text-xs text-parchment-700 font-display">—</span>
                         ) : (
-                          <span className={`font-display text-sm font-bold ${server.players_online > 0 ? "text-frost-300" : "text-parchment-700"}`}>
+                          <span className={`font-display text-sm font-bold ${(server.players_online ?? 0) > 0 ? "text-frost-300" : "text-parchment-700"}`}>
                             {server.players_online}
                           </span>
                         )}
@@ -152,7 +139,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                           {isOnline ? "Online" : isLocked ? "Locked" : "Offline"}
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

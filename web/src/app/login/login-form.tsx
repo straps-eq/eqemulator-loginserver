@@ -186,7 +186,7 @@ function LoginFormInner() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-6 sm:p-8">
+        <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-6 sm:p-8">
           {!mfaRequired && registered && (
             <div className="rounded bg-forest-600/10 border border-forest-600/20 px-4 py-3 text-sm text-forest-400 mb-5">
               {needsVerify
@@ -238,7 +238,7 @@ function LoginFormInner() {
               {/* OAuth buttons */}
               <a
                 href="/api/auth/google"
-                className="flex items-center justify-center gap-3 w-full rounded-md border border-frost-400/15 bg-[#0a0e17]/60 hover:bg-[#0a0e17]/90 px-4 py-3 text-sm font-medium text-parchment-200 transition-colors"
+                className="flex items-center justify-center gap-3 w-full rounded-md border border-frost-400/15 bg-[#202842]/60 hover:bg-[#202842]/90 px-4 py-3 text-sm font-medium text-parchment-200 transition-colors"
               >
                 <GoogleIcon className="h-5 w-5" />
                 Sign in with Google
@@ -324,7 +324,7 @@ function LoginFormInner() {
                       value={digit}
                       onChange={(e) => handleCodeChange(i, e.target.value)}
                       onKeyDown={(e) => handleCodeKeyDown(i, e)}
-                      className="w-11 h-13 text-center text-xl font-mono font-bold rounded-md border border-frost-400/15 bg-[#0a0e17]/80 text-parchment-100 focus:border-frost-400/40 focus:outline-none focus:ring-1 focus:ring-frost-400/20 transition-colors"
+                      className="w-11 h-13 text-center text-xl font-mono font-bold rounded-md border border-frost-400/15 bg-[#202842]/80 text-parchment-100 focus:border-frost-400/40 focus:outline-none focus:ring-1 focus:ring-frost-400/20 transition-colors"
                     />
                   ))}
                 </div>

@@ -45,9 +45,9 @@ function UsageBar({ percent, color = "frost" }: { percent: number; color?: strin
   const glowColor =
     percent > 90 ? "rgba(248,113,113,0.3)" :
     percent > 70 ? "rgba(251,191,36,0.3)" :
-    "rgba(52,187,250,0.2)";
+    "rgba(212,166,80,0.2)";
   return (
-    <div className="w-full h-1.5 rounded-full bg-[#151b2a] overflow-hidden">
+    <div className="w-full h-1.5 rounded-full bg-[#242c48] overflow-hidden">
       <div
         className={`h-full rounded-full ${barColor} transition-all duration-700 ease-out`}
         style={{ width: `${Math.min(percent, 100)}%`, boxShadow: `0 0 8px ${glowColor}` }}
@@ -123,7 +123,7 @@ export function StatusDashboard() {
 
       {/* Disabled message */}
       {disabled && (
-        <div className="rounded-lg border border-frost-400/10 bg-[#0a0e16]/80 p-8 text-center">
+        <div className="rounded-lg border border-frost-400/10 bg-[#202842]/80 p-8 text-center">
           <Shield className="h-8 w-8 text-parchment-600 mx-auto mb-3" />
           <h2 className="font-display text-lg font-semibold text-parchment-200 mb-2">Status Page Unavailable</h2>
           <p className="text-parchment-500 text-sm">
@@ -168,7 +168,7 @@ export function StatusDashboard() {
           return (
             <div
               key={service.name}
-              className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5"
+              className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -218,26 +218,26 @@ export function StatusDashboard() {
       {/* Load average + uptime + summary row */}
       {data?.system && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4 text-center">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4 text-center">
             <Timer className="h-4 w-4 text-forest-400/50 mx-auto mb-1.5" />
             <span className="font-mono text-lg font-bold text-parchment-100 block">{data.system.uptime.formatted}</span>
             <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em]">Uptime</span>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4 text-center">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4 text-center">
             <Activity className="h-4 w-4 text-frost-400/50 mx-auto mb-1.5" />
             <span className="font-mono text-lg font-bold text-parchment-100 block">
               {data.system.load.load1} <span className="text-xs text-parchment-600">/ {data.system.load.load5} / {data.system.load.load15}</span>
             </span>
             <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em]">Load Avg</span>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4 text-center">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4 text-center">
             <Users className="h-4 w-4 text-frost-400/50 mx-auto mb-1.5" />
-            <span className="font-display text-lg font-bold text-frost-300 block" style={{ textShadow: "0 0 12px rgba(52,187,250,0.2)" }}>
+            <span className="font-display text-lg font-bold text-frost-300 block" style={{ textShadow: "0 0 12px rgba(212,166,80,0.2)" }}>
               {data.summary.totalPlayers}
             </span>
             <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em]">Players</span>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4 text-center">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4 text-center">
             <Globe className="h-4 w-4 text-forest-400/50 mx-auto mb-1.5" />
             <span className="font-display text-lg font-bold text-parchment-100 block">{data.summary.connectedWorlds}</span>
             <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em]">Worlds</span>
@@ -251,7 +251,7 @@ export function StatusDashboard() {
           <h2 className="font-display text-xs tracking-[0.2em] uppercase text-parchment-500 mb-3">Server Resources</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* CPU */}
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Cpu className="h-4 w-4 text-frost-400/50" />
@@ -264,7 +264,7 @@ export function StatusDashboard() {
             </div>
 
             {/* Memory */}
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <MemoryStick className="h-4 w-4 text-arcane-400/50" />
@@ -279,7 +279,7 @@ export function StatusDashboard() {
             </div>
 
             {/* Disk */}
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-4 w-4 text-forest-400/50" />
@@ -294,7 +294,7 @@ export function StatusDashboard() {
             </div>
 
             {/* Network */}
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/80 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Wifi className="h-4 w-4 text-frost-400/50" />
                 <span className="text-xs font-display text-parchment-300 uppercase tracking-wider">Network I/O</span>
@@ -319,15 +319,15 @@ export function StatusDashboard() {
         <div className="mb-8">
           <h2 className="font-display text-xs tracking-[0.2em] uppercase text-parchment-500 mb-3">Platform</h2>
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-4">
               <span className="text-[10px] font-display text-parchment-600 uppercase tracking-wider block mb-1">Accounts</span>
               <span className="font-display text-lg font-bold text-parchment-100">{data.platform.registeredAccounts.toLocaleString()}</span>
             </div>
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-4">
               <span className="text-[10px] font-display text-parchment-600 uppercase tracking-wider block mb-1">World Servers</span>
               <span className="font-display text-lg font-bold text-parchment-100">{data.platform.registeredWorldServers}</span>
             </div>
-            <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">
+            <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-4">
               <span className="text-[10px] font-display text-parchment-600 uppercase tracking-wider block mb-1">Operators</span>
               <span className="font-display text-lg font-bold text-parchment-100">{data.platform.serverOperators}</span>
             </div>
@@ -339,7 +339,7 @@ export function StatusDashboard() {
       <div className="space-y-4 mb-8">
         <h2 className="font-display text-xs tracking-[0.2em] uppercase text-parchment-500">Infrastructure</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-4">
             <h3 className="font-display text-xs font-semibold text-parchment-300 uppercase tracking-wider mb-2">Login Ports</h3>
             <ul className="text-parchment-500 text-xs space-y-1">
               <li><strong className="text-parchment-300">5998</strong> — Titanium clients</li>
@@ -347,7 +347,7 @@ export function StatusDashboard() {
               <li><strong className="text-parchment-300">15900</strong> — ToB clients</li>
             </ul>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-4">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-4">
             <h3 className="font-display text-xs font-semibold text-parchment-300 uppercase tracking-wider mb-2">Monitoring</h3>
             <ul className="text-parchment-500 text-xs space-y-1">
               <li>Health checks every <strong className="text-parchment-300">15 seconds</strong></li>
@@ -359,7 +359,7 @@ export function StatusDashboard() {
       </div>
 
       {/* Need help */}
-      <div className="rounded-lg border border-frost-400/10 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-6 text-center">
+      <div className="rounded-lg border border-frost-400/10 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-6 text-center">
         <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Need Help?</h2>
         <p className="text-parchment-400 text-sm mb-4">
           Join the EQEmulator community Discord for support and discussion.

@@ -1,18 +1,27 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { Compass, Shield, Activity, Settings } from "lucide-react";
+import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as ServerIcon, ShieldCheck, User, Users } from "lucide-react";
 import { LiveStats } from "./live-stats";
-import { StatusIndicator } from "./status-indicator";
+import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { APP_VERSION } from "@/lib/version";
+import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
+import { serverPath } from "@/lib/slug";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "EQEmulator.dev",
   url: "https://eqemulator.dev",
-  description: "EverQuest private server directory and community login infrastructure with live player counts.",
+  description: "EQ Emulator server directory with live player counts, setup guides and a community login server.",
   potentialAction: {
     "@type": "SearchAction",
     target: "https://eqemulator.dev/servers?q={search_term_string}",
@@ -20,8 +29,19 @@ const jsonLd = {
   },
 };
 
+const TOP_WORLDS = 6;
+
 export default async function HomePage() {
-  const session = await getSession();
+  const [session, servers] = await Promise.all([
+    getSession(),
+    getPublicServerList().catch(() => [] as PublicServer[]),
+  ]);
+
+  const online = servers.filter((s) => s.server_status > 0 && !s.is_offline);
+  const totalPlayers = online.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
+  const topWorlds = [...online]
+    .sort((a, b) => (b.players_online ?? 0) - (a.players_online ?? 0))
+    .slice(0, TOP_WORLDS);
 
   return (
     <>
@@ -31,201 +51,312 @@ export default async function HomePage() {
       />
       <Navbar accountName={session.accountName} isAdmin={session.isAdmin} />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="relative mx-auto max-w-5xl px-4 py-16 sm:py-24 sm:px-6 lg:px-8 text-center">
-          <div className="mb-4">
-            <span className="inline-block font-display text-[10px] tracking-[0.35em] uppercase text-frost-400/50">
-              EverQuest Emulator
-            </span>
-          </div>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-5">
-            <span className="text-parchment-100">Server Directory</span>
-            <br />
-            <span className="text-frost-300/70 text-2xl sm:text-3xl lg:text-4xl font-normal">
-              & Login Infrastructure
-            </span>
-          </h1>
-          <p className="mx-auto max-w-xl text-sm text-parchment-400/80 mb-8 leading-relaxed">
-            Browse EverQuest private servers with live telemetry.
-            Compatible with existing eqemulator.net accounts — just update your eqhost.txt and play.
-            Titanium, SoD+, RoF2 and ToB clients can all log in.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/servers"
-              className="rounded border border-frost-400/25 bg-frost-400/5 px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-frost-300 hover:bg-frost-400/10 hover:border-frost-400/40 hover:shadow-[0_0_20px_rgba(52,187,250,0.12)] transition-all duration-300"
-            >
-              Browse Servers
-            </Link>
-            <Link
-              href="/server-operators"
-              className="rounded border border-parchment-600/15 px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-parchment-400 hover:border-parchment-500/25 hover:text-parchment-300 transition-all duration-300"
-            >
-              Server Operators
-            </Link>
-          </div>
-          <LiveStats />
-          <StatusIndicator />
-        </div>
-        <div className="mx-auto max-w-3xl mt-1 h-px bg-gradient-to-r from-transparent via-frost-400/10 to-transparent" />
-      </section>
+      {/* Welcome */}
+      <section className="relative -mt-16 overflow-hidden">
+        <Image
+          src="/hero-norrath.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[65%_center]"
+        />
+        {/* Shade the left side for the text, and fade into the page at the bottom */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0d1226]/80 via-[#0d1226]/35 to-transparent" aria-hidden="true" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#1a2140] via-[#1a2140]/70 to-transparent" aria-hidden="true" />
 
-      {/* Features */}
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { icon: Compass, label: "Server Directory", desc: "Browse active worlds with live population counts and server profiles.", color: "frost" },
-            { icon: Shield, label: "Account Compatible", desc: "Your existing eqemulator.net login works here automatically. No re-registration required.", color: "arcane" },
-            { icon: Settings, label: "Operator Tools", desc: "Claim your server, manage your listing, and customize your server profile.", color: "arcane" },
-            { icon: Activity, label: "Status & Uptime", desc: "Public uptime monitoring, performance metrics, and service health dashboard.", color: "frost" },
-          ].map(({ icon: Icon, label, desc, color }) => (
-            <div key={label} className="relative group rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5 hover:border-frost-400/15 transition-all duration-500">
-              <div className="absolute top-0 left-0 w-8 h-px bg-gradient-to-r from-frost-400/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="absolute top-0 left-0 h-8 w-px bg-gradient-to-b from-frost-400/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className={`inline-flex items-center justify-center w-9 h-9 rounded border mb-4 ${
-                color === "frost" ? "border-frost-400/15 bg-frost-400/5" : "border-arcane-400/15 bg-arcane-400/5"
-              }`}>
-                <Icon className={`h-4 w-4 ${color === "frost" ? "text-frost-400/70" : "text-arcane-400/70"}`} />
-              </div>
-              <h3 className="font-display text-sm font-semibold text-parchment-200 mb-1.5">{label}</h3>
-              <p className="text-parchment-500 text-xs leading-relaxed">{desc}</p>
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 pt-36 sm:pt-44 pb-10">
+          <div className="max-w-2xl [text-shadow:0_2px_16px_rgba(10,14,35,0.65)]">
+            <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-parchment-200/90 mb-5">
+              Explore <span className="mx-2 text-frost-300">&middot;</span> Connect <span className="mx-2 text-frost-300">&middot;</span> Play
+            </p>
+            <h1 className="font-hero text-5xl sm:text-6xl lg:text-7xl font-semibold leading-[1.02] text-parchment-50 mb-6">
+              Welcome to
+              <br />
+              <span className="text-gold-gradient">EQ Emulator</span>
+            </h1>
+            <p className="font-hero text-xl sm:text-2xl leading-snug text-parchment-100/95 mb-9 max-w-xl">
+              Find an EQ Emulator server, learn how to play, and join a welcoming community.
+              New to emulators? We&apos;ll guide you every step of the way.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 [text-shadow:none]">
+              <Link
+                href="/servers"
+                className="inline-flex items-center justify-center gap-3 rounded bg-gradient-to-b from-[#f4d590] to-[#d4a650] px-8 py-4 text-sm font-semibold tracking-[0.18em] uppercase text-[#1b2350] shadow-[0_8px_28px_rgba(242,207,134,0.35)] hover:from-[#f8e0a8] hover:to-[#e0b562] transition-all duration-300"
+              >
+                <Compass className="h-5 w-5" aria-hidden="true" />
+                Find a server
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/getting-started"
+                className="inline-flex items-center justify-center gap-3 rounded border border-[#e3c27a]/70 bg-[#0d1226]/40 backdrop-blur px-8 py-4 text-sm font-medium tracking-[0.18em] uppercase text-parchment-50 hover:bg-[#0d1226]/60 hover:border-[#e3c27a] transition-all duration-300"
+              >
+                <BookOpen className="h-5 w-5 text-[#e3c27a]" aria-hidden="true" />
+                Get started
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Quick Start - Players */}
-      <section className="relative">
-        <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
-        <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="font-display text-[10px] tracking-[0.35em] uppercase text-frost-400/40 block mb-3">
-              For Players
-            </span>
-            <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Connect in Two Steps</h2>
-            <p className="text-parchment-500 text-sm">Your existing eqemulator.net account works automatically.</p>
+            <div className="mt-6 [text-shadow:none]">
+              <LiveStats />
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+
+          {/* Three ways in */}
+          <div className="mt-24 sm:mt-32 grid grid-cols-1 md:grid-cols-3 md:divide-x divide-parchment-100/15 text-center">
             {[
-              { n: "01", title: "Update eqhost.txt", desc: <span>Point your client to <code className="text-frost-400/80 bg-[#0a0e16] px-1 py-0.5 rounded text-[10px] font-mono">login.eqemulator.dev:5999</code></span> },
-              { n: "02", title: "Launch & Play", desc: "Log in with your existing credentials and choose a server." },
-            ].map(({ n, title, desc }) => (
-              <div key={n} className="text-center">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/60 text-xs mb-4">
-                  {n}
-                </div>
-                <h3 className="font-display text-sm font-semibold text-parchment-200 mb-1.5">{title}</h3>
-                <p className="text-parchment-500 text-xs leading-relaxed">{desc}</p>
+              { icon: User, title: "For players", desc: "Learn the basics, find a server, and make your first login.", href: "/getting-started", cta: "Get started" },
+              { icon: ServerIcon, title: "Explore servers", desc: "See who's playing, compare worlds, and find your playstyle.", href: "/servers", cta: "Browse servers" },
+              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Learn more" },
+            ].map(({ icon: Icon, title, desc, href, cta }) => (
+              <div key={title} className="px-6 py-6">
+                <Icon className="h-8 w-8 mx-auto mb-3 text-[#e3c27a]" strokeWidth={1.5} aria-hidden="true" />
+                <h2 className="text-sm tracking-[0.25em] uppercase text-parchment-50 mb-2">{title}</h2>
+                <p className="font-hero text-lg leading-snug text-parchment-200 mb-3 max-w-xs mx-auto">{desc}</p>
+                <Link href={href} className="inline-flex items-center gap-2 text-xs tracking-[0.2em] uppercase text-[#e3c27a] hover:text-[#f4d590]">
+                  {cta} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
               </div>
             ))}
           </div>
-          <div className="mt-10 max-w-2xl mx-auto">
-            <p className="text-center font-display text-[10px] tracking-[0.25em] uppercase text-parchment-600 mb-3">
-              Login port by client
-            </p>
-            <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-              {[
-                { client: "RoF2 / SoD+", port: "5999", note: "Most common — use if unsure" },
-                { client: "ToB", port: "15900", note: "Only on worlds that support ToB" },
-                { client: "Titanium", port: "5998", note: "Classic client" },
-              ].map(({ client, port, note }) => (
-                <div key={port} className="rounded border border-frost-400/6 bg-[#0a0e16]/60 px-4 py-3">
-                  <dt className="font-display text-xs font-semibold text-parchment-200">{client}</dt>
-                  <dd className="font-mono text-frost-400/80 text-sm my-1">{port}</dd>
-                  <dd className="text-parchment-500 text-[11px] leading-snug">{note}</dd>
-                </div>
-              ))}
-            </dl>
+        </div>
+      </section>
+
+      {/* Top worlds right now */}
+      <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="flex items-end justify-between gap-4 mb-6">
+          <div>
+            <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-400/60 block mb-2">
+              Playing right now
+            </span>
+            <h2 className="font-display text-2xl font-bold text-parchment-100">
+              {online.length > 0
+                ? `${totalPlayers.toLocaleString()} adventurers across ${online.length} ${online.length === 1 ? "world" : "worlds"}`
+                : "Worlds on EQ Emulator"}
+            </h2>
           </div>
+          <Link href="/servers" className="hover-frost text-xs font-display tracking-[0.15em] uppercase text-parchment-500 whitespace-nowrap">
+            All servers →
+          </Link>
+        </div>
+
+        {topWorlds.length === 0 ? (
+          <div className="rounded-lg border border-frost-400/15 bg-[#242c48]/85 p-10 text-center">
+            <Compass className="h-8 w-8 text-parchment-700 mx-auto mb-3" />
+            <p className="text-parchment-500 text-sm">
+              The live list is loading. <Link href="/servers" className="text-frost-400 hover:text-frost-300">Open the server directory</Link>.
+            </p>
+          </div>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {topWorlds.map((s) => (
+              <li key={s.server_short_name}>
+                <Link
+                  href={serverPath(s.server_long_name)}
+                  className="group flex h-full flex-col justify-between rounded-lg border border-frost-400/15 bg-[#242c48]/85 p-4 hover:border-frost-400/25 hover:bg-frost-400/[0.03] transition-all duration-300"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-display text-sm font-semibold text-parchment-100 truncate group-hover:text-frost-200">
+                          {s.server_long_name}
+                        </span>
+                        {s.is_trusted && <ShieldCheck className="h-3.5 w-3.5 text-forest-400 flex-shrink-0" aria-label="Verified operator" />}
+                      </div>
+                      {s.tag_description && (
+                        <p className="text-xs text-parchment-500 truncate mt-0.5">{s.tag_description}</p>
+                      )}
+                    </div>
+                    <span className="h-2 w-2 mt-1.5 rounded-full flex-shrink-0 bg-forest-500" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 flex items-center gap-1.5 text-sm">
+                    <Users className="h-3.5 w-3.5 text-frost-400/60" aria-hidden="true" />
+                    {s.show_player_count === false ? (
+                      <span className="text-parchment-600">Online</span>
+                    ) : (
+                      <>
+                        <span className="font-display font-bold text-frost-300">{s.players_online ?? 0}</span>
+                        <span className="text-parchment-500">online</span>
+                      </>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* New here? Three steps */}
+      <section className="relative">
+        <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
+        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-400/50 block mb-3">
+              New to emulators?
+            </span>
+            <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Here&apos;s how it works</h2>
+            <p className="text-parchment-300 text-sm max-w-xl mx-auto">
+              EQ Emulator worlds are run by the community and use your own copy of EverQuest. Getting in takes three steps, and our guide walks you through each one.
+            </p>
+          </div>
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                n: "1",
+                icon: Download,
+                title: "Have the game installed",
+                desc: "You play with your own copy of EverQuest. Most worlds use the Rain of Fear 2 version; some use Titanium, The Outer Brood or the current client. Each world's page says which, and the guide helps you check what you have.",
+              },
+              {
+                n: "2",
+                icon: FileText,
+                title: "Tell the game where to connect",
+                desc: (
+                  <>
+                    Edit <code className="text-frost-400/90 bg-[#151b2e] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
+                    game folder to <code className="text-frost-400/90 bg-[#151b2e] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
+                    It&apos;s one line, and the guide shows exactly where it goes.
+                  </>
+                ),
+              },
+              {
+                n: "3",
+                icon: Play,
+                title: "Make a login and pick a world",
+                desc: "Create a login here in a minute, or use the one you already have from the EQEmulator forums. Start the game, choose a world from the list, and you're in.",
+              },
+            ].map(({ n, icon: Icon, title, desc }) => (
+              <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#242c48]/85 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">
+                    {n}
+                  </span>
+                  <Icon className="h-4 w-4 text-frost-400/60" aria-hidden="true" />
+                  <h3 className="font-display text-sm font-semibold text-parchment-100">{title}</h3>
+                </div>
+                <p className="text-parchment-300 text-sm leading-relaxed">{desc}</p>
+              </li>
+            ))}
+          </ol>
           <div className="text-center mt-8">
             <Link
               href="/getting-started"
-              className="hover-frost text-xs font-display tracking-[0.15em] uppercase text-parchment-600"
+              className="rounded border border-frost-400/25 bg-frost-400/5 px-8 py-3 text-xs font-display font-medium tracking-wider uppercase text-frost-300 hover:bg-frost-400/10 hover:border-frost-400/40 transition-all duration-300"
             >
-              Full setup guide →
+              Step-by-step guide
             </Link>
           </div>
         </div>
       </section>
 
-      {/* For Server Operators */}
+      {/* Why here */}
       <section className="relative">
         <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
-        <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="font-display text-[10px] tracking-[0.35em] uppercase text-arcane-400/40 block mb-3">
-              For Server Operators
-            </span>
-            <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">List Your Server</h2>
-            <p className="text-parchment-500 text-sm">One config line. No registration required. Your server appears instantly.</p>
+        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+            {[
+              { title: "See who's playing", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
+              { title: "One login, every world", desc: "Titanium, RoF2, The Outer Brood and the current client all log in here, and one login works on every world in the directory." },
+              { title: "Built by the community", desc: "Open source, run by players, and compatible with the EQEmulator forum logins people have used for twenty years." },
+            ].map(({ title, desc }) => (
+              <div key={title}>
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-2">{title}</h3>
+                <p className="text-parchment-300 text-sm leading-relaxed">{desc}</p>
+              </div>
+            ))}
           </div>
-          <div className="max-w-2xl mx-auto">
-            <pre className="bg-[#0a0e17] border border-frost-400/6 rounded-lg p-5 text-sm text-parchment-300 overflow-x-auto font-mono mb-6">
+        </div>
+        <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
+      </section>
+
+      {/* For server operators */}
+      <section className="relative">
+        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="rounded-lg border border-arcane-400/20 bg-[#242c48]/85 p-6 sm:p-10">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
+              <div>
+                <span className="font-display text-xs tracking-[0.35em] uppercase text-arcane-400/70 block mb-3">
+                  For server operators
+                </span>
+                <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">
+                  Running a world? Plug into the next generation of EQ login.
+                </h2>
+                <p className="text-parchment-300 text-sm leading-relaxed mb-5">
+                  A federated login mesh instead of one box that everyone depends on. Every client
+                  from Titanium to The Outer Brood and the current live client, live player counts
+                  your players can see, and a profile you control. It runs alongside your existing
+                  login server, so there is nothing to migrate.
+                </p>
+                <ul className="space-y-2 text-sm text-parchment-300 mb-6">
+                  {[
+                    "One config line to list your world; it appears here within a minute.",
+                    "No single point of failure: official nodes sync accounts and listings in real time.",
+                    "Your players keep their existing logins. Nothing changes on their side.",
+                    "Claim your listing: description, links, banner, client support and population history.",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-2.5">
+                      <ShieldCheck className="h-4 w-4 mt-0.5 text-arcane-400/80 flex-shrink-0" aria-hidden="true" />
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/server-operators"
+                  className="inline-block rounded border border-arcane-400/30 bg-arcane-400/5 px-8 py-3 text-xs font-display font-medium tracking-wider uppercase text-arcane-400 hover:bg-arcane-400/10 hover:border-arcane-400/50 transition-all duration-300"
+                >
+                  Server operator guide
+                </Link>
+              </div>
+              <div>
+                <p className="font-display text-[10px] tracking-[0.25em] uppercase text-parchment-500 mb-2">
+                  Add to your world&apos;s config
+                </p>
+                <pre className="bg-[#151b2e] border border-frost-400/15 rounded-lg p-5 text-sm text-parchment-200 overflow-x-auto font-mono">
 {`"loginserver2": {
   "host": "worldserver.eqemulator.dev",
   "port": "5998"
 }`}
-            </pre>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="font-display text-sm font-semibold text-parchment-200 mb-1">Runs Alongside</p>
-                <p className="text-parchment-500 text-xs">Keep eqemulator.net as loginserver1</p>
-              </div>
-              <div>
-                <p className="font-display text-sm font-semibold text-parchment-200 mb-1">Account Compatible</p>
-                <p className="text-parchment-500 text-xs">Player eqemulator.net logins work here</p>
-              </div>
-              <div>
-                <p className="font-display text-sm font-semibold text-parchment-200 mb-1">Claim Your Profile</p>
-                <p className="text-parchment-500 text-xs">Manage description, links, and branding</p>
+                </pre>
+                <p className="text-parchment-500 text-xs mt-3">
+                  Keep your current login server as loginserver1. Both work at the same time.
+                </p>
               </div>
             </div>
           </div>
-          <div className="text-center mt-8">
-            <Link
-              href="/server-operators"
-              className="hover-frost text-xs font-display tracking-[0.15em] uppercase text-parchment-600"
-            >
-              Full operator guide →
-            </Link>
-          </div>
         </div>
-        <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
       </section>
 
       {/* Footer */}
       <footer className="mt-6">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="font-display text-xs tracking-wider text-parchment-700">EQEmulator</span>
-              <span className="text-frost-400/10">|</span>
-              <p className="text-parchment-700 text-[10px]">
-                Not affiliated with Daybreak Game Company
-              </p>
-              <span className="text-frost-400/10">|</span>
-              <span className="font-mono text-parchment-700 text-[10px]">v{APP_VERSION}</span>
-            </div>
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2">
               {[
                 { href: "/servers", label: "Servers" },
                 { href: "/getting-started", label: "Getting Started" },
                 { href: "/server-operators", label: "Server Ops" },
+                { href: "/about", label: "About" },
                 { href: "/status", label: "Status" },
               ].map(({ href, label }) => (
-                <Link key={href} href={href} className="hover-frost text-parchment-700 text-[10px] uppercase tracking-wider transition-colors">
+                <Link key={href} href={href} className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
                   {label}
                 </Link>
               ))}
-              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-700 text-[10px] uppercase tracking-wider transition-colors">
+              <a href="https://discord.gg/6T4n3DdPVB" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
                 Discord
               </a>
-              <a href="https://github.com/EQEmu" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-700 text-[10px] uppercase tracking-wider transition-colors">
+              <a href="https://github.com/straps-eq/eqemulator-loginserver" target="_blank" rel="noopener noreferrer" className="hover-frost text-parchment-600 text-xs uppercase tracking-wider transition-colors">
                 GitHub
               </a>
             </div>
           </div>
+          <p className="text-parchment-700 text-[11px] leading-relaxed mt-6 max-w-3xl">
+            EQEmulator.dev is a community project and is not affiliated with, endorsed by, or sponsored by
+            Daybreak Game Company LLC. EverQuest is a registered trademark of Daybreak Game Company LLC.
+            Playing on emulated servers requires your own copy of the game.
+            <span className="ml-2 font-mono text-[10px]">v{APP_VERSION}</span>
+          </p>
         </div>
       </footer>
     </>

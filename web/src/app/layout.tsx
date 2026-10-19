@@ -5,11 +5,11 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eqemulator.dev";
 
 export const metadata: Metadata = {
   title: {
-    default: "EQEmulator.dev — EverQuest Private Server Directory & Login",
+    default: "EverQuest Emulator Servers — Live Server List & How to Play | EQEmulator.dev",
     template: "%s | EQEmulator.dev",
   },
   description:
-    "Browse EverQuest private servers with live player counts. Community-run login infrastructure compatible with existing eqemulator.net accounts. Server directory, operator tools, and federated login.",
+    "Find a free, community-run EverQuest Emulator server and start playing. Live player counts for every world, setup guides for Titanium, RoF2, ToB and live clients, and a login that works with your existing EQEmulator forum account.",
   keywords: [
     "everquest", "eq emulator", "eqemu", "everquest private server",
     "eq private server", "eqemu server list", "everquest emulator",
@@ -21,18 +21,14 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: "EQEmulator.dev",
-    title: "EQEmulator.dev — EverQuest Private Server Directory & Login",
+    title: "EverQuest Emulator Servers — Live Server List & How to Play",
     description:
-      "Browse EverQuest private servers with live player counts. Community-run login infrastructure compatible with existing eqemulator.net accounts.",
+      "Find a free, community-run EverQuest Emulator server and start playing. Live player counts, setup guides, and a login that works with your existing forum account.",
   },
   twitter: {
-    card: "summary",
-    title: "EQEmulator.dev — EverQuest Private Server Directory & Login",
-    description:
-      "Browse EverQuest private servers with live player counts. Community-run login infrastructure.",
-  },
-  alternates: {
-    canonical: SITE_URL,
+    card: "summary_large_image",
+    title: "EverQuest Emulator Servers — Live Server List & How to Play",
+    description: "Find a free, community-run EverQuest Emulator server and start playing.",
   },
   icons: {
     icon: [
@@ -53,7 +49,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-obsidian-950 text-parchment-300 antialiased font-body relative">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+        />
+      </head>
+      <body className="min-h-screen bg-[#1a2140] text-parchment-300 antialiased font-body relative">
         <div className="relative z-10">
           {children}
         </div>

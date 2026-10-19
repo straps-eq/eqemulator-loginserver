@@ -25,9 +25,9 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
       const ctx = u.ctx;
       const { top, height } = u.bbox;
       const grad = ctx.createLinearGradient(0, top, 0, top + height);
-      grad.addColorStop(0, "rgba(52,187,250,0.18)");
-      grad.addColorStop(0.4, "rgba(52,187,250,0.06)");
-      grad.addColorStop(1, "rgba(52,187,250,0.0)");
+      grad.addColorStop(0, "rgba(212,166,80,0.18)");
+      grad.addColorStop(0.4, "rgba(212,166,80,0.06)");
+      grad.addColorStop(1, "rgba(212,166,80,0.0)");
       return grad;
     };
 
@@ -40,17 +40,17 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
         y: false,
         points: {
           size: 8,
-          fill: "rgba(52,187,250,0.9)",
-          stroke: "rgba(52,187,250,0.4)",
+          fill: "rgba(212,166,80,0.9)",
+          stroke: "rgba(212,166,80,0.4)",
           width: 2,
         },
       },
       legend: { show: false },
       axes: [
         {
-          stroke: "rgba(52,187,250,0.06)",
-          grid: { stroke: "rgba(52,187,250,0.04)", width: 1 },
-          ticks: { stroke: "rgba(52,187,250,0.06)", width: 1, size: 4 },
+          stroke: "rgba(212,166,80,0.06)",
+          grid: { stroke: "rgba(212,166,80,0.04)", width: 1 },
+          ticks: { stroke: "rgba(212,166,80,0.06)", width: 1, size: 4 },
           font: "9px 'JetBrains Mono', monospace",
           labelFont: "9px 'JetBrains Mono', monospace",
           gap: 4,
@@ -62,9 +62,9 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
             }),
         },
         {
-          stroke: "rgba(52,187,250,0.06)",
-          grid: { stroke: "rgba(52,187,250,0.035)", width: 1 },
-          ticks: { stroke: "rgba(52,187,250,0.06)", width: 1, size: 4 },
+          stroke: "rgba(212,166,80,0.06)",
+          grid: { stroke: "rgba(212,166,80,0.035)", width: 1 },
+          ticks: { stroke: "rgba(212,166,80,0.06)", width: 1, size: 4 },
           font: "9px 'JetBrains Mono', monospace",
           labelFont: "9px 'JetBrains Mono', monospace",
           gap: 6,
@@ -87,7 +87,7 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
         {},
         {
           label: "Players",
-          stroke: "rgba(52,187,250,0.85)",
+          stroke: "rgba(212,166,80,0.85)",
           width: 2,
           fill: gradientFill as any,
           points: { show: false },
@@ -165,7 +165,7 @@ export function PopulationChart({ serverId, shortName }: { serverId: number; sho
 
   return (
     <div className={`relative overflow-hidden rounded-lg border border-frost-400/10 transition-all duration-700 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-[#080b12] via-[#0c1019] to-[#080d14]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#151b2e] via-[#1b2238] to-[#080d14]" />
       <div className="absolute top-0 left-0 w-16 h-px bg-gradient-to-r from-frost-400/20 to-transparent" />
       <div className="absolute top-0 left-0 h-16 w-px bg-gradient-to-b from-frost-400/20 to-transparent" />
       <div className="absolute bottom-0 right-0 w-16 h-px bg-gradient-to-l from-frost-400/20 to-transparent" />

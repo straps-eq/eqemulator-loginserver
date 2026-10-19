@@ -7,10 +7,12 @@ import Link from "next/link";
 import { ClientChooser } from "./client-chooser";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/getting-started" },
   title: "How to Play EverQuest on Private Servers",
   description:
     "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "How to Play EverQuest on Private Servers",
     description: "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev.",
   },
@@ -82,7 +84,7 @@ export default async function GettingStartedPage() {
                 <div className="min-w-0 flex-1">
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">2. Update eqhost.txt</h2>
                   <p className="text-parchment-400 text-sm mb-4">
-                    Find <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> in
+                    Find <code className="text-frost-400 bg-[#1b2238] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> in
                     your EverQuest directory. Pick your client below to get the right port.
                     If unsure, use <strong className="text-parchment-200">5999</strong>.
                   </p>

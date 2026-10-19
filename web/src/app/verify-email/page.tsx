@@ -11,7 +11,7 @@ export default function VerifyEmailPage() {
       <>
         <Navbar />
         <div className="mx-auto max-w-md px-4 py-16 text-center">
-          <div className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/80 p-10">
+          <div className="rounded-lg border border-frost-400/10 bg-[#202842]/80 p-10">
             <div className="h-2 w-2 rounded-full bg-frost-400/40 animate-pulse mx-auto mb-4" />
             <p className="text-parchment-400 text-sm">Verifying your email...</p>
           </div>
@@ -60,7 +60,7 @@ function VerifyEmailContent() {
     <>
       <Navbar />
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <div className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/80 p-10">
+        <div className="rounded-lg border border-frost-400/10 bg-[#202842]/80 p-10">
           {status === "loading" && (
             <>
               <div className="h-2 w-2 rounded-full bg-frost-400/40 animate-pulse mx-auto mb-4" />

@@ -1,48 +1,26 @@
 import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { dedupeLiveServers } from "@/lib/loginserver-api";
+import { getPublicServerList } from "@/lib/public-servers";
 import { ServerList } from "./server-list";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/servers" },
   title: "EverQuest Private Server List — Live Player Counts",
   description:
     "Browse active EverQuest private servers with real-time player counts, population tiers, and server profiles. Find your next EQ adventure.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "EverQuest Private Server List — Live Player Counts",
     description: "Browse active EverQuest private servers with real-time player counts and server profiles.",
   },
 };
 
-async function getServers() {
-  const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
-  const token = process.env.LOGINSERVER_API_TOKEN || "";
-  return new Promise<any[]>((resolve) => {
-    const http = require("http");
-    const req = http.get(`${apiUrl}/v1/servers/list`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, (res: any) => {
-      let data = "";
-      res.on("data", (chunk: string) => data += chunk);
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(dedupeLiveServers(Array.isArray(json) ? json : json?.data || []));
-        } catch {
-          resolve([]);
-        }
-      });
-    });
-    req.on("error", () => resolve([]));
-    req.setTimeout(5000, () => { req.destroy(); resolve([]); });
-  });
-}
-
 export default async function ServersPage() {
   const session = await getSession();
-  const servers = await getServers();
+  const servers = await getPublicServerList().catch(() => []);
 
   return (
     <>

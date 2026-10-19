@@ -243,7 +243,7 @@ export function SystemDashboard() {
   return (
     <div className="space-y-8">
       {/* Version & Update */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-6">
+      <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-6">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-3">
@@ -404,7 +404,7 @@ export function SystemDashboard() {
       )}
 
       {/* Service Health */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+      <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 overflow-hidden">
         <div className="px-5 py-3 border-b border-frost-400/8">
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
             Service Health
@@ -462,7 +462,7 @@ export function SystemDashboard() {
 
       {/* Quick Actions */}
       {data.agentConnected && (
-        <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-5">
+        <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-5">
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-3">
             Quick Actions
           </h3>
@@ -536,7 +536,7 @@ export function SystemDashboard() {
       )}
 
       {/* Settings */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-5">
+      <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-5">
         <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-3">
           Settings
         </h3>
@@ -562,7 +562,7 @@ export function SystemDashboard() {
               } catch {}
             }}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              data.statusPagePublic ? "bg-emerald-400/30 border border-emerald-400/40" : "bg-[#151b2a] border border-frost-400/10"
+              data.statusPagePublic ? "bg-emerald-400/30 border border-emerald-400/40" : "bg-[#242c48] border border-frost-400/10"
             }`}
           >
             <span
