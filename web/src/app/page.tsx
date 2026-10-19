@@ -135,7 +135,7 @@ export default async function HomePage() {
             {[
               { icon: User, title: "For players", desc: "Learn the basics, find a server, and make your first login.", href: "/getting-started", cta: "Get started" },
               { icon: ServerIcon, title: "Explore servers", desc: "See who's playing, compare worlds, and find your playstyle.", href: "/servers", cta: "Browse servers" },
-              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Learn more" },
+              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Server owner guide" },
             ].map(({ icon: Icon, title, desc, href, cta }) => (
               <div key={title} className="px-6 py-6">
                 <Icon className="h-8 w-8 mx-auto mb-3 text-[#e3c27a]" strokeWidth={1.5} aria-hidden="true" />
@@ -154,7 +154,7 @@ export default async function HomePage() {
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
-            <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-400/60 block mb-2">
+            <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-300 block mb-2">
               Playing right now
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100">
@@ -220,7 +220,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-400/50 block mb-3">
+            <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-300 block mb-3">
               New to emulators?
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Here&apos;s how it works</h2>
