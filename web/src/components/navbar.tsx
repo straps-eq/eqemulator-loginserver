@@ -13,10 +13,10 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
 
   const navLinks = [
     { href: "/servers", label: "Servers" },
-    { href: "/about", label: "About" },
     { href: "/getting-started", label: "Getting Started" },
+    { href: "/guides", label: "Guides" },
     { href: "/server-operators", label: "Server Ops" },
-    { href: "/security", label: "Security" },
+    { href: "/about", label: "About" },
     { href: "/status", label: "Status" },
   ];
 

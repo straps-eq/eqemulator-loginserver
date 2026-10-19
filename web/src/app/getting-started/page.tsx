@@ -8,13 +8,13 @@ import { ClientChooser } from "./client-chooser";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/getting-started" },
-  title: "How to Play EverQuest on Private Servers",
+  title: "How to Play on EQEmu Servers — Getting Started",
   description:
-    "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
+    "Step-by-step guide to playing on EQEmu (EverQuest Emulator) servers. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
   openGraph: {
     images: ["/opengraph-image"],
-    title: "How to Play EverQuest on Private Servers",
-    description: "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev.",
+    title: "How to Play on EQEmu Servers — Getting Started",
+    description: "Step-by-step guide to playing on EQEmu servers through EQEmulator.dev.",
   },
 };
 
@@ -204,6 +204,12 @@ export default async function GettingStartedPage() {
             </Card>
           </div>
         </div>
+
+        <p className="mt-10 text-parchment-300 text-sm">
+          Want more detail? See the <Link href="/guides" className="hover-frost text-frost-400">EQEmu guides</Link>, including{" "}
+          <Link href="/guides/eqhost-txt" className="hover-frost text-frost-400">eqhost.txt help</Link> and{" "}
+          <Link href="/guides/mac-and-linux" className="hover-frost text-frost-400">playing on Mac and Linux</Link>.
+        </p>
 
         {/* CTA */}
         <div className="mt-12 text-center">
