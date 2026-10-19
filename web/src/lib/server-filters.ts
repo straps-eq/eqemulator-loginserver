@@ -46,7 +46,20 @@ export function byPlayers(a: FilterableServer, b: FilterableServer): number {
   return (b.players_online ?? 0) - (a.players_online ?? 0);
 }
 
+/**
+ * Test, dev and installer worlds, matched the way the loginserver tags them in
+ * the in-game list (|T| / |D| / |I|): a leading |x| tag, a [bracketed] tag, or
+ * the word test/dev/installer in the name.
+ */
+export function isTestServer(name: string): boolean {
+  const n = name.trim();
+  return /^\|[A-Za-z*]\|/.test(n) || /\[[^\]]*\b(test|dev|beta)\b[^\]]*\]/i.test(n) || /\b(test|dev|installer)\b/i.test(n);
+}
+
+/** A–Z, with test/dev worlds after all the others. */
 export function byName(a: FilterableServer, b: FilterableServer): number {
+  const ta = isTestServer(a.server_long_name), tb = isTestServer(b.server_long_name);
+  if (ta !== tb) return ta ? 1 : -1;
   return a.server_long_name.localeCompare(b.server_long_name, "en", { sensitivity: "base" });
 }
 

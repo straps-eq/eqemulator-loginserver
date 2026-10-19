@@ -113,25 +113,23 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                   onClick={(e) => choose(e, id, sort)}
                   aria-current={active ? "true" : undefined}
                   title={id ? `Worlds that work with ${clientName(id)}` : "Every world in the directory"}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-display tracking-wider transition-colors duration-200 ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-display tracking-wider transition-colors duration-200 ${
                     active
                       ? "border-transparent bg-gradient-to-b from-[#f4d590] to-[#d4a650] text-[#1b2350] font-semibold shadow-[0_4px_14px_rgba(242,207,134,0.25)]"
                       : "border-frost-400/20 bg-[#202842]/70 text-parchment-200 hover:border-frost-400/40 hover:text-frost-200"
                   }`}
                 >
-                  {id ? CLIENT_LABELS[id] : "All"}
                   {id === "tob" && (
-                    <span className={`rounded px-1 text-[9px] font-bold uppercase tracking-widest ${active ? "bg-[#1b2350] text-[#f4d590]" : "bg-frost-300/15 text-frost-200"}`}>
-                      New
-                    </span>
+                    <span aria-hidden="true" className={active ? "text-[#1b2350]" : "text-[#f4d590]"}>★</span>
                   )}
-                  <span className={active ? "text-[#1b2350]/70" : "text-parchment-600"}>{count}</span>
+                  {id ? CLIENT_LABELS[id] : "All"}
+                  <span className={active ? "text-[#1b2350]/70" : "text-parchment-400"}>{count}</span>
                 </a>
               );
             })}
           </nav>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-parchment-600 font-display uppercase tracking-[0.15em] text-[10px]">Sort</span>
+            <span className="text-parchment-400 font-display uppercase tracking-[0.15em] text-[11px]">Sort</span>
             <div className="inline-flex rounded-full border border-frost-400/15 bg-[#202842]/70 p-0.5">
               {sortOptions.map((o) => (
                 <a
