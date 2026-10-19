@@ -411,6 +411,78 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ success: true });
     }
+    case "client_probe_status": {
+      const runner = await import("@/lib/client-probe/runner");
+      const store = await import("@/lib/client-probe/store");
+      const [enabled, rows, optedOut, last] = await Promise.all([
+        runner.isProbeEnabled(),
+        store.getAllProbeRows(),
+        store.getOptedOutWorldIds(),
+        store.getLastProbeTime(),
+      ]);
+      const st = runner.getProbeState();
+      const ids = Array.from(new Set(rows.map((r) => Number(r.world_server_id))));
+      let worlds: Array<{ id: number; long_name: string; short_name: string }> = [];
+      if (ids.length > 0) {
+        const { pool } = await import("@/lib/db");
+        const [w] = await pool.query(
+          `SELECT id, long_name, short_name FROM login_world_servers WHERE id IN (${ids.map(() => "?").join(",")})`,
+          ids
+        );
+        worlds = w as typeof worlds;
+      }
+      return NextResponse.json({
+        enabled: enabled.enabled,
+        reason: enabled.reason,
+        intervalHours: runner.probeIntervalMs() / 3_600_000,
+        clients: runner.probeClients().map((c) => c.id),
+        account: runner.PROBE_ACCOUNT_NAME,
+        running: st.running,
+        lastRun: st.last,
+        lastResultAt: last ? last.toISOString() : null,
+        optedOut: Array.from(optedOut),
+        worlds,
+        results: rows,
+      });
+    }
+    case "client_probe_run": {
+      // Starts a cycle in the background (it takes ~1 minute per world);
+      // poll client_probe_status for the outcome.
+      const runner = await import("@/lib/client-probe/runner");
+      if (runner.getProbeState().running) {
+        return NextResponse.json({ error: "A probe cycle is already running" }, { status: 409 });
+      }
+      const rawId = body.world_server_id;
+      const worldServerId = rawId === undefined || rawId === null || rawId === "" ? undefined : parseInt(String(rawId), 10);
+      if (worldServerId !== undefined && (!Number.isInteger(worldServerId) || worldServerId <= 0)) {
+        return NextResponse.json({ error: "world_server_id must be a positive integer" }, { status: 400 });
+      }
+      void runner.runProbeCycle({ trigger: `admin:${session.accountName || "unknown"}`, worldServerId });
+      try {
+        const { auditLog, getSelfNode } = await import("@/lib/federation/node");
+        const self = await getSelfNode();
+        await auditLog(self?.id || 0, "client_probe_started", { admin: session.accountName || null, world_server_id: worldServerId ?? null });
+      } catch {}
+      return NextResponse.json({ started: true, world_server_id: worldServerId ?? null }, { status: 202 });
+    }
+    case "client_probe_optout": {
+      const worldServerId = parseInt(String(body.world_server_id), 10);
+      if (!Number.isInteger(worldServerId) || worldServerId <= 0 || typeof body.opt_out !== "boolean") {
+        return NextResponse.json({ error: "world_server_id (number) and opt_out (boolean) required" }, { status: 400 });
+      }
+      const { setWorldOptOut } = await import("@/lib/client-probe/store");
+      try {
+        await setWorldOptOut(worldServerId, body.opt_out, typeof body.note === "string" ? body.note : "");
+      } catch {
+        return NextResponse.json({ error: "Could not save (has migration 013 been applied?)" }, { status: 500 });
+      }
+      try {
+        const { auditLog, getSelfNode } = await import("@/lib/federation/node");
+        const self = await getSelfNode();
+        await auditLog(self?.id || 0, "client_probe_optout", { admin: session.accountName || null, world_server_id: worldServerId, opt_out: body.opt_out });
+      } catch {}
+      return NextResponse.json({ success: true, world_server_id: worldServerId, opt_out: body.opt_out });
+    }
     case "toggle_status_page": {
       const { enabled } = body;
       if (typeof enabled !== "boolean") {

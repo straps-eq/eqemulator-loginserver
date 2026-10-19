@@ -36,6 +36,10 @@ GRANT ALL ON eqemu_login.federation_audit_log TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.federation_origin_map TO 'eqemu_web'@'%';
 GRANT ALL ON eqemu_login.federation_server_status TO 'eqemu_web'@'%';
 
+-- Client probe tables (created by migration 013)
+GRANT ALL ON eqemu_login.world_client_support TO 'eqemu_web'@'%';
+GRANT ALL ON eqemu_login.world_client_probe_optout TO 'eqemu_web'@'%';
+
 -- Seed API token for loginserver <-> web communication
 INSERT INTO login_api_tokens (token, can_write, can_read, created_at)
   VALUES ('${LOGINSERVER_API_TOKEN}', 1, 1, NOW())
