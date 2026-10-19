@@ -26,6 +26,13 @@ export async function register() {
     }, 10_000); // Wait 10s for app + DB to be ready
 
     // ── Automatic federation sync cycle ──
+    // Next can call register() from more than one bundle; start the loop once
+    // per process (a second loop raced the first one's initial pull and
+    // duplicated every world server).
+    const g = globalThis as unknown as { __eqemuAutoSyncStarted?: boolean };
+    if (g.__eqemuAutoSyncStarted) return;
+    g.__eqemuAutoSyncStarted = true;
+
     const SYNC_INTERVAL_MS = 60_000; // 60 seconds
     let syncRunning = false;
 
