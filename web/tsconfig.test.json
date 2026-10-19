@@ -11,6 +11,8 @@
     "types": ["node"]
   },
   "files": [
-    "src/lib/federation/__tests__/sync-hash.test.ts"
+    "src/lib/federation/__tests__/sync-hash.test.ts",
+    "src/lib/federation/__tests__/sync-remap.test.ts",
+    "src/lib/__tests__/session-identity.test.ts"
   ]
 }

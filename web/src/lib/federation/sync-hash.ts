@@ -57,6 +57,13 @@ export function computeStableHash(data: SyncCollections): string {
   return digest(parts);
 }
 
+/** Stable hash of each collection on its own, to log what changed between applies. */
+export function computeStableCollectionHashes(data: SyncCollections): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of COLLECTIONS) out[c] = digest(project(data[c], VOLATILE_COLUMNS[c], false));
+  return out;
+}
+
 /** Hash over volatile columns only (with row keys so reorders are detected). */
 export function computeVolatileHash(data: SyncCollections): string {
   const parts: Record<string, unknown[]> = {};
