@@ -1,6 +1,7 @@
 -- Client support per world, filled by the client probe.
 -- Additive and idempotent: new tables only, nothing existing is changed.
 -- See docs/client-probe.md.
+-- verify: SELECT COUNT(*)=2 FROM information_schema.TABLES WHERE table_schema=DATABASE() AND table_name IN ('world_client_support','world_client_probe_optout')
 --   world_client_support       latest probe result per (world, client)
 --     status             supported | blocked | unsupported | error | unreachable
 --     detail             short reason for the status (admin view only)
