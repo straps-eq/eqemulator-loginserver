@@ -1,0 +1,85 @@
+name: Deploy scripts
+
+# Static checks for the node self-updater and the compose files it drives.
+on:
+  pull_request:
+    paths:
+      - 'scripts/deploy.sh'
+      - 'scripts/deploy/**'
+      - 'docker-compose*.yml'
+      - 'versions.env.example'
+      - '.env.example'
+      - '.github/workflows/deploy-scripts.yml'
+      - '.github/workflows/release.yml'
+  push:
+    branches: ['**']
+    paths:
+      - 'scripts/deploy.sh'
+      - 'scripts/deploy/**'
+      - 'docker-compose*.yml'
+      - 'versions.env.example'
+      - '.env.example'
+      - '.github/workflows/deploy-scripts.yml'
+      - '.github/workflows/release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: bash -n
+        run: for f in scripts/deploy.sh scripts/deploy/*.sh; do bash -n "$f"; done
+
+      - name: shellcheck
+        run: shellcheck --version && shellcheck -x scripts/deploy.sh scripts/deploy/*.sh
+
+      - name: unit tests
+        run: bash scripts/deploy/test-deploy.sh
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Without pins, nodes keep the legacy :latest images
+        run: |
+          cp .env.example .env
+          for f in docker-compose.yml docker-compose.release.yml; do
+            imgs="$(docker compose -f "$f" config --images)"
+            echo "$imgs"
+            for s in web loginserver upgrade-agent; do
+              grep -qx "ghcr.io/straps-eq/eqemu-$s:latest" <<<"$imgs" || { echo "::error::$f: $s not on :latest"; exit 1; }
+            done
+            docker compose -f "$f" config | grep -q '/host-state' || { echo "::error::$f: no /host-state mount"; exit 1; }
+            ! docker compose -f "$f" config | grep -q 'build:' || { echo "::error::$f still builds"; exit 1; }
+          done
+
+      - name: With the pin block in .env, images are pinned by digest
+        run: |
+          d="$(printf 'a%.0s' $(seq 64))"
+          {
+            echo "# >>> eqemu-updater pins (managed by scripts/deploy.sh from versions.env; do not edit) >>>"
+            echo "EQEMU_VERSION=1.7.0"
+            echo "WEB_IMAGE=ghcr.io/straps-eq/eqemu-web@sha256:$d"
+            echo "LOGINSERVER_IMAGE=ghcr.io/straps-eq/eqemu-loginserver@sha256:$d"
+            echo "UPGRADE_AGENT_IMAGE=ghcr.io/straps-eq/eqemu-upgrade-agent@sha256:$d"
+            echo "# <<< eqemu-updater pins <<<"
+          } >> .env
+          for f in docker-compose.yml docker-compose.release.yml; do
+            imgs="$(docker compose -f "$f" config --images)"
+            for s in web loginserver upgrade-agent; do
+              grep -qx "ghcr.io/straps-eq/eqemu-$s@sha256:$d" <<<"$imgs" || { echo "::error::$f: $s not pinned"; echo "$imgs"; exit 1; }
+            done
+          done
+
+      - name: Dev override builds into local :dev tags
+        run: |
+          out="$(docker compose -f docker-compose.yml -f docker-compose.dev.yml config)"
+          for s in web loginserver upgrade-agent; do
+            grep -q "image: eqemu-$s:dev" <<<"$out" || { echo "::error::dev override: $s not eqemu-$s:dev"; exit 1; }
+          done
+          grep -q 'APP_VERSION' <<<"$out"

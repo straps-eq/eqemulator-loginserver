@@ -13,9 +13,12 @@ import {
   serverProfiles,
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { federationGet } from "./client";
+import { federationGet, federationPost, RECIPIENT_BINDING_MIN_VERSION } from "./client";
+import { compareVersions } from "@/lib/version";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
+import { computeStableHash, computeVolatileHash } from "./sync-hash";
+import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 
 // Changelog-based sync is DISABLED for loginserver tables.
 // The full data sync (applyFullDataSync) handles all loginserver tables with
@@ -89,6 +92,11 @@ interface HeartbeatResponse {
   latest_seq: number;
   latest_config_version: number;
   software_version?: string;
+  federation_protocol?: number;
+  updater_status?: unknown;
+  desired_version_stable?: string | null;
+  desired_version_canary?: string | null;
+  desired_updated_at?: string | null;
   timestamp: number;
   active_peers?: Array<{ public_key: string; name: string; endpoint_url: string; node_tier: string }>;
 }
@@ -121,18 +129,42 @@ const LIVE_CACHE_TTL_MS = 90_000; // 90 seconds (sync runs every 60s)
 /** Servers reclaimed as local during this sync cycle — skip re-adoption. */
 const reclaimedServers = new Set<string>();
 
-/** Track last sync_data hash per peer to skip unchanged data. */
-const lastSyncDataHash = new Map<number, string>();
+/**
+ * Last-applied sync_data hashes per peer. Kept in Redis (in-memory fallback via
+ * lib/redis) so a web restart does not force a full re-apply of every row.
+ * The stable hash is computed locally from the received payload, so this works
+ * against 1.5.x/1.6.x exporters whose `data_hash` still includes volatile columns.
+ */
+const SYNC_HASH_TTL_SECONDS = 7 * 24 * 3600;
+/** How often volatile columns (last_login_date, ...) are refreshed when only they changed. */
+const VOLATILE_REFRESH_MS = 10 * 60 * 1000;
+const knownHashPeers = new Set<number>();
+const stableKey = (id: number) => `fed:sync_hash:stable:${id}`;
+const volatileKey = (id: number) => `fed:sync_hash:volatile:${id}`;
+const volatileAtKey = (id: number) => `fed:sync_hash:volatile_at:${id}`;
 
 /** Clear cached sync data hashes — call after admin edits to synced tables
  *  so the next sync cycle forces a full re-apply even if the peer's hash hasn't changed. */
-export function clearSyncDataHash(sourceNodeId?: number) {
+export async function clearSyncDataHash(sourceNodeId?: number): Promise<void> {
+  let ids: number[];
   if (sourceNodeId !== undefined) {
-    lastSyncDataHash.delete(sourceNodeId);
+    ids = [sourceNodeId];
   } else {
-    lastSyncDataHash.clear();
+    ids = Array.from(knownHashPeers);
+    try {
+      const [rows] = await pool.execute(`SELECT id FROM federation_nodes WHERE is_self = 0`) as unknown as [Array<{ id: number }>];
+      rows.forEach((r) => ids.push(r.id));
+    } catch { /* best effort */ }
   }
+  const keys: string[] = [];
+  for (const id of Array.from(new Set(ids))) keys.push(stableKey(id), volatileKey(id), volatileAtKey(id));
+  await cacheDel(...keys);
 }
+
+/** The hashes live in the persistent Redis volume, so after a database restore
+ *  they could make this node skip re-applying peer data it no longer has. The
+ *  first sync cycle of each process clears them and does a full re-apply. */
+let syncHashesClearedAtStartup = false;
 
 /** Track our own local server list hash to detect when new servers join. */
 let lastLocalServerHash: string | null = null;
@@ -159,10 +191,22 @@ export async function runSyncCycle(): Promise<{
 }> {
   const self = await getSelfNode();
   if (!self) return { peersChecked: 0, changesApplied: 0, errors: ["Not initialized"] };
+  if (!syncHashesClearedAtStartup) {
+    syncHashesClearedAtStartup = true;
+    try { await clearSyncDataHash(); } catch (err) { console.error("[sync] clearing cached sync hashes failed:", err); }
+  }
 
   const peers = await getActivePeers();
   let changesApplied = 0;
   const errors: string[] = [];
+
+  // Keep our own federation_nodes row (is_self = 1) current: version + updater status.
+  const status = await import("./status");
+  try {
+    await status.updateSelfStatus();
+  } catch (err) {
+    errors.push(`self status update failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Reclaim servers that reconnected to the local loginserver BEFORE syncing.
   // This MUST run before applyFullDataSync so that locally-connected servers
@@ -212,23 +256,55 @@ export async function runSyncCycle(): Promise<{
       // Skip pulling from mesh-tier peers — they are read-only consumers
       if (peer.nodeTier === "mesh") continue;
 
-      // Heartbeat first
-      const hb = await federationGet<HeartbeatResponse>(
-        peer.endpointUrl,
-        "/api/federation/heartbeat",
-        peer.tlsCertHash
-      );
+      // Heartbeat first. Peers known to run >= 1.7.0 get a signed POST that
+      // carries our status; older peers get the legacy GET.
+      const peerIsCurrent = compareVersions(peer.softwareVersion, RECIPIENT_BINDING_MIN_VERSION) >= 0;
+      const recipient = { recipientPublicKey: peer.publicKey, recipientVersion: peer.softwareVersion };
+      let hb = peerIsCurrent
+        ? await federationPost<HeartbeatResponse>(
+            peer.endpointUrl, "/api/federation/heartbeat", await status.buildLocalStatus(), peer.tlsCertHash, recipient)
+        : await federationGet<HeartbeatResponse>(
+            peer.endpointUrl, "/api/federation/heartbeat", peer.tlsCertHash, recipient);
+      let sentStatus = peerIsCurrent && hb.ok;
+      if (peerIsCurrent && !hb.ok && (hb.status === 404 || hb.status === 405)) {
+        // Peer rolled back (no POST heartbeat / no bound signatures): legacy GET, unbound.
+        hb = await federationGet<HeartbeatResponse>(
+          peer.endpointUrl, "/api/federation/heartbeat", peer.tlsCertHash,
+          { recipientPublicKey: peer.publicKey, recipientVersion: null });
+      }
 
       if (!hb.ok || !hb.data) {
         errors.push(`${peer.name}: heartbeat failed — ${hb.error}`);
         continue;
       }
 
-      // Update heartbeat timestamp and peer's reported software version
-      const { updatePeerHeartbeat, updatePeerVersion } = await import("./node");
+      // Update heartbeat timestamp and peer's reported status
+      const { updatePeerHeartbeat } = await import("./node");
       await updatePeerHeartbeat(peer.id);
-      if (hb.data.software_version) {
-        await updatePeerVersion(peer.id, hb.data.software_version);
+      await status.storeNodeStatus(peer.id, {
+        software_version: hb.data.software_version,
+        federation_protocol: hb.data.federation_protocol,
+        updater_status: hb.data.updater_status,
+      });
+
+      // First contact after the peer upgraded to >= 1.7.0: send our status now
+      // instead of waiting a cycle (also teaches it our version, so it starts
+      // binding signatures to us).
+      if (!sentStatus && compareVersions(hb.data.software_version, RECIPIENT_BINDING_MIN_VERSION) >= 0) {
+        const r = await federationPost(
+          peer.endpointUrl, "/api/federation/heartbeat", await status.buildLocalStatus(), peer.tlsCertHash,
+          { recipientPublicKey: peer.publicKey, recipientVersion: hb.data.software_version });
+        sentStatus = r.ok;
+      }
+
+      // Desired versions published by the master (advisory; our updater decides)
+      if (peer.isMaster && "desired_version_stable" in hb.data) {
+        try {
+          await status.storeMasterDesired(
+            peer.id, hb.data.desired_version_stable, hb.data.desired_version_canary, hb.data.desired_updated_at);
+        } catch (err) {
+          errors.push(`storing master desired versions failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       // Reconcile peer list: if this peer (typically master) provides an active_peers list,
@@ -481,8 +557,35 @@ function toMySQLDatetime(val: unknown): string {
 
 /** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
 async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
-  // Skip processing if data hasn't changed (hash match) — still update live servers
-  if (data.data_hash && lastSyncDataHash.get(sourceNodeId) === data.data_hash) {
+  knownHashPeers.add(sourceNodeId);
+  let rowErrors = 0;
+  const collections = {
+    accounts: data.accounts, servers: data.servers, admins: data.admins, profiles: data.profiles,
+    platform_accounts: data.platform_accounts, oauth_links: data.oauth_links, login_links: data.login_links,
+    ws_admin_links: data.ws_admin_links, platform_admins: data.platform_admins,
+  };
+  const stableHash = computeStableHash(collections);
+  const volatileHash = computeVolatileHash(collections);
+  const [prevStable, prevVolatile, prevVolatileAt] = await Promise.all([
+    cacheGet(stableKey(sourceNodeId)),
+    cacheGet(volatileKey(sourceNodeId)),
+    cacheGet(volatileAtKey(sourceNodeId)),
+  ]);
+
+  // Skip processing if identity/credential data hasn't changed — still update live servers
+  if (prevStable === stableHash) {
+    // Volatile-only change (logins): refresh timestamps on a slow cadence.
+    // Not counted as "changes applied".
+    if (prevVolatile !== volatileHash && Date.now() - Number(prevVolatileAt || 0) >= VOLATILE_REFRESH_MS) {
+      try {
+        await applyVolatileRefresh(data, sourceNodeId);
+        await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
+        await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
+      } catch (err) {
+        rowErrors++;
+        console.error(`[sync_data] volatile refresh from node ${sourceNodeId} failed:`, err);
+      }
+    }
     // Only update live server cache (changes frequently)
     if (data.live_servers && data.live_servers.length > 0) {
       federatedLiveCache.set(sourceNodeId, {
@@ -630,6 +733,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [acctResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (acctResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] account upsert error for ${acct.account_name}:`, err);
       }
     }
@@ -695,6 +799,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [srvResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (srvResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] server upsert error for ${srv.short_name}:`, err);
       }
     }
@@ -753,6 +858,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [admResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (admResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
       }
     }
@@ -817,6 +923,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             if (profResult[0].c > 0) applied++;
           }
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
         }
       }
@@ -878,6 +985,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] platform_accounts upsert error for id ${pa.id}:`, err);
         }
       }
@@ -899,6 +1007,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           }
         }
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] AUTO_INCREMENT bump error:`, err);
       }
     }
@@ -922,6 +1031,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] oauth_links upsert error for id ${ol.id}:`, err);
         }
       }
@@ -945,6 +1055,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] login_links upsert error for id ${ll.id}:`, err);
         }
       }
@@ -981,6 +1092,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] platform_admins upsert error for id ${pa.id}:`, err);
         }
       }
@@ -1004,6 +1116,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] ws_admin_links upsert error for id ${wl.id}:`, err);
         }
       }
@@ -1017,6 +1130,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
          WHERE lws.id IS NULL`
       );
     } catch (err) {
+      rowErrors++;
       console.error(`[sync_data] orphan profile cleanup error:`, err);
     }
 
@@ -1087,12 +1201,19 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
       }
     }
 
-    // Cache the hash for future skip detection
-    if (data.data_hash) {
-      lastSyncDataHash.set(sourceNodeId, data.data_hash);
-    }
-
     await conn.commit();
+
+    // Cache the hashes for future skip detection (after commit, so a rolled-back
+    // apply is retried next cycle). Row errors are swallowed above so one bad
+    // row cannot block the rest; if any happened, do not cache, so the whole
+    // set is re-applied next cycle instead of being skipped for days.
+    if (rowErrors > 0) {
+      console.warn(`[sync_data] ${rowErrors} row error(s) applying data from node ${sourceNodeId}; will re-apply next cycle`);
+      return applied;
+    }
+    await cacheSet(stableKey(sourceNodeId), stableHash, SYNC_HASH_TTL_SECONDS);
+    await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
+    await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
 
     if (applied > 0) {
       console.log(`[sync_data] Applied ${applied} changes from node ${sourceNodeId}: ${data.accounts.length} accounts, ${data.servers.length} servers, ${data.admins.length} admins, ${profileCount} profiles, ${data.live_servers?.length || 0} live`);
@@ -1105,6 +1226,51 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   }
 
   return applied;
+}
+
+/**
+ * Refresh only volatile columns (login timestamps) from a peer's export,
+ * without re-running the full upsert/reconcile path. Rows are matched the same
+ * way the full apply matches them; rows that do not exist locally are skipped.
+ */
+async function applyVolatileRefresh(data: SyncDataResponse, sourceNodeId: number): Promise<void> {
+  const conn = await pool.getConnection();
+  try {
+    const accts = (data.accounts || []).filter((a) => typeof a.id === "number" && (a.id as number) > 0);
+    const CHUNK = 500;
+    for (let i = 0; i < accts.length; i += CHUNK) {
+      const chunk = accts.slice(i, i + CHUNK);
+      const params: (string | number)[] = [];
+      let caseLogin = "";
+      let caseUpdated = "";
+      for (const a of chunk) {
+        caseLogin += " WHEN ? THEN ?";
+        params.push(a.id as number, toMySQLDatetime(a.last_login_date));
+      }
+      for (const a of chunk) {
+        caseUpdated += " WHEN ? THEN ?";
+        params.push(a.id as number, toMySQLDatetime(a.updated_at));
+      }
+      const ids = chunk.map((a) => a.id as number);
+      params.push(...ids);
+      await conn.execute(
+        `UPDATE login_accounts SET
+           last_login_date = CASE id${caseLogin} ELSE last_login_date END,
+           updated_at = CASE id${caseUpdated} ELSE updated_at END
+         WHERE id IN (${ids.map(() => "?").join(",")})`,
+        params
+      );
+    }
+    for (const srv of data.servers || []) {
+      if (!srv.short_name) continue;
+      await conn.execute(
+        `UPDATE login_world_servers SET last_login_date = ? WHERE short_name = ? AND federation_source_node_id = ?`,
+        [toMySQLDatetime(srv.last_login_date), srv.short_name as string, sourceNodeId]
+      );
+    }
+  } finally {
+    conn.release();
+  }
 }
 
 /** Check if a change came from the origin node for a given record. */

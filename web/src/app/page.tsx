@@ -6,6 +6,7 @@ import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as Serv
 import { LiveStats } from "./live-stats";
 import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
+import { APP_VERSION } from "@/lib/version";
 import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
 import { serverPath } from "@/lib/slug";
 
@@ -354,6 +355,7 @@ export default async function HomePage() {
             EQEmulator.dev is a community project and is not affiliated with, endorsed by, or sponsored by
             Daybreak Game Company LLC. EverQuest is a registered trademark of Daybreak Game Company LLC.
             Playing on emulated servers requires your own copy of the game.
+            <span className="ml-2 font-mono text-[10px]">v{APP_VERSION}</span>
           </p>
         </div>
       </footer>
