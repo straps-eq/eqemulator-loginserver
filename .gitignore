@@ -49,3 +49,6 @@ updater.conf
 state/*
 !state/.gitkeep
 nginx/conf.d/default.conf.bak*
+
+# Runtime logs written on the node
+logs/*.log
