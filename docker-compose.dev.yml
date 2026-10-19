@@ -1,0 +1,34 @@
+# ──────────────────────────────────────────────
+# EQEmulator.dev — local development override
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Builds web, loginserver and upgrade-agent from this checkout. The builds are
+# tagged eqemu-*:dev so a local build can never masquerade as a ghcr.io
+# release image (and is never picked up by scripts/deploy.sh). Not for
+# production nodes: they run the signed release images pinned in versions.env.
+# ──────────────────────────────────────────────
+
+services:
+  loginserver:
+    build:
+      context: ./loginserver
+      dockerfile: Dockerfile
+    image: eqemu-loginserver:dev
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-0.0.0-dev}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-localhost}
+        NEXT_PUBLIC_APP_URL: https://${DOMAIN:-localhost}
+    image: eqemu-web:dev
+
+  upgrade-agent:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.upgrade-agent
+    image: eqemu-upgrade-agent:dev
