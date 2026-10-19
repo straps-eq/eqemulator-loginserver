@@ -3,6 +3,7 @@ import { loginWorldServers, serverProfiles, platformConfig, federationNodes } fr
 import { inArray, eq } from "drizzle-orm";
 import http from "http";
 import { dedupeLiveServers } from "@/lib/loginserver-api";
+import { getClientSupportSummaries, type ClientSupportSummary } from "@/lib/client-probe/store";
 
 /**
  * The public server directory: live worlds from the loginserver, federated
@@ -29,6 +30,8 @@ export interface PublicServer {
   is_offline?: boolean;
   federation_node_id?: number | null;
   federation_node_name?: string | null;
+  /** Clients the world accepts, from the client probe; null = not checked yet. */
+  client_support?: ClientSupportSummary | null;
   [key: string]: unknown;
 }
 
@@ -77,11 +80,12 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
     return cachedResponse.data;
   }
 
-  const [liveServers, dbServers, profiles, fedNodes] = await Promise.all([
+  const [liveServers, dbServers, profiles, fedNodes, clientSupport] = await Promise.all([
     getLiveServers(),
     db.select().from(loginWorldServers).catch(() => [] as any[]),
     db.select().from(serverProfiles).catch(() => [] as any[]),
     db.select({ id: federationNodes.id, name: federationNodes.name }).from(federationNodes).catch(() => [] as any[]),
+    getClientSupportSummaries().catch(() => new Map<number, ClientSupportSummary>()),
   ]);
   const nodeMap = new Map(fedNodes.map((n: any) => [n.id, n.name]));
 
@@ -229,7 +233,10 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
-  });
+  }).map((s) => ({
+    ...s,
+    client_support: s.db_id ? clientSupport.get(s.db_id) ?? null : null,
+  }));
 
   // Cache the response
   cachedResponse = { data: allServers, expires: now + CACHE_TTL_MS };
