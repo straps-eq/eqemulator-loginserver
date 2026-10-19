@@ -138,12 +138,17 @@ else
   echo "  Resend (https://resend.com) enables email verification and MFA codes."
   echo "  Press Enter to skip if you don't have one yet."
   echo ""
-  read -rp "  Resend API Key (or Enter to skip): " RESEND_API_KEY
+  # RESEND_API_KEY / RESEND_FROM_EMAIL may be passed in the environment for unattended runs.
+  if [ -z "${RESEND_API_KEY+x}" ] && [ -t 0 ]; then
+    read -rp "  Resend API Key (or Enter to skip): " RESEND_API_KEY
+  fi
   RESEND_API_KEY="${RESEND_API_KEY:-}"
 
   if [ -n "$RESEND_API_KEY" ]; then
     echo "  ✓ Resend API key configured"
-    read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@eqemulator.dev]: " RESEND_FROM_EMAIL
+    if [ -z "${RESEND_FROM_EMAIL:-}" ] && [ -t 0 ]; then
+      read -rp "  From email (e.g. noreply@yourdomain.com) [noreply@eqemulator.dev]: " RESEND_FROM_EMAIL
+    fi
     RESEND_FROM_EMAIL="${RESEND_FROM_EMAIL:-noreply@eqemulator.dev}"
     echo "  ✓ From email: ${RESEND_FROM_EMAIL}"
   else
@@ -212,7 +217,13 @@ mkdir -p loginserver
 if [ -d "loginserver/login.json" ]; then
   rm -rf loginserver/login.json
 fi
-sed "s/CHANGE_ME_DB_PASSWORD/${DB_PASSWORD}/" \
+# Keep the live client opcode file across re-runs (it is set by hand, see LIVE_CLIENT.md)
+LIVE_OPCODES=""
+if [ -f loginserver/login.json ]; then
+  LIVE_OPCODES="$(sed -n 's/.*"live_opcodes"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' loginserver/login.json | head -n1)"
+fi
+sed -e "s/CHANGE_ME_DB_PASSWORD/${DB_PASSWORD}/" \
+    -e "s|\"live_opcodes\": \"\"|\"live_opcodes\": \"${LIVE_OPCODES}\"|" \
   loginserver/login.json.example > loginserver/login.json
 echo "  ✓ loginserver/login.json"
 

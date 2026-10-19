@@ -50,7 +50,32 @@ usermod -aG docker straps
 mkdir -p /opt/eqemu && chown straps: /opt/eqemu
 ```
 
-Log in again as `straps` for the rest.
+Lock it down (still as root):
+
+```bash
+cat > /etc/ssh/sshd_config.d/00-hardening.conf <<'CONF'
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AllowUsers straps
+MaxAuthTries 3
+CONF
+systemctl restart ssh
+
+apt-get install -y ufw fail2ban unattended-upgrades
+ufw default deny incoming && ufw default allow outgoing
+ufw allow from <your IP> to any port 22 proto tcp
+ufw allow 80,443/tcp
+ufw allow 5998:5999/tcp && ufw allow 5998:5999/udp
+ufw allow 15900:15901/tcp && ufw allow 15900:15901/udp
+ufw --force enable
+systemctl enable --now fail2ban
+dpkg-reconfigure -f noninteractive unattended-upgrades
+```
+
+Docker-published ports bypass ufw, so the provider firewall is the real
+perimeter; ufw is the second layer. Test a new SSH login as `straps` before
+closing the root session. Log in again as `straps` for the rest.
 
 ## 3. Install the stack
 
@@ -58,14 +83,16 @@ Log in again as `straps` for the rest.
 cd /opt/eqemu
 git clone https://github.com/straps-eq/eqemulator-loginserver.git .
 docker logout ghcr.io            # images are public; never log in on a node
-scripts/setup.sh login-node2.eqemulator.dev you@example.com
+RESEND_API_KEY= scripts/setup.sh login-node2.eqemulator.dev you@example.com
 ```
 
 `setup.sh` generates `.env` and `login.json`, gets the certificate, pulls the
-images, starts everything and runs the migrations. For email, reuse the
-master's Resend key and `noreply@eqemulator.dev`, or skip it.
+images, starts everything and runs the migrations. `RESEND_API_KEY=` skips the
+email prompt; the key is copied from the master below.
 
-Create the admin account: register on `https://login-node2.eqemulator.dev`, then
+Create a temporary admin account, needed only to click **Join** in section 5:
+sign in on `https://login-node2.eqemulator.dev` with Discord or Google (after
+the redirect URIs below are added), then
 
 ```bash
 set -a; . ./.env; set +a
@@ -79,17 +106,20 @@ Copy the current one from the master and point `live_opcodes` at it (see
 [LIVE_CLIENT.md](LIVE_CLIENT.md)):
 
 ```bash
-# on the master
-docker cp eqemu-loginserver:/opt/loginserver/data/login_opcodes_live_<date>.conf .
-# copy it to the standby, then on the standby
-docker cp login_opcodes_live_<date>.conf eqemu-loginserver:/opt/loginserver/data/
-# loginserver/login.json: "live_opcodes": "data/login_opcodes_live_<date>.conf"
+# from a PC with SSH to both (aliases eqemu = master, login2 = standby)
+ssh eqemu "docker exec eqemu-loginserver sh -c 'cat /opt/loginserver/data/login_opcodes_live_*.conf'" \
+  | ssh login2 "cat > ~/login_opcodes_live.conf"
+# on the standby
+docker cp ~/login_opcodes_live.conf eqemu-loginserver:/opt/loginserver/data/
+# loginserver/login.json: "live_opcodes": "data/login_opcodes_live.conf"
 docker restart eqemu-loginserver
 ```
 
-Optional sign-in and email keys: copy `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
-the Turnstile keys and the Google/Discord client IDs and secrets from the
-master's `.env`, then `docker compose up -d web`. Add
+`setup.sh` keeps `live_opcodes` when it rebuilds `login.json`.
+
+Sign-in and email keys: copy `RESEND_API_KEY`, `RESEND_FROM_EMAIL` and the
+Google/Discord client IDs and secrets from the master's `.env`, then
+`docker compose up -d web`. Leave `TURNSTILE_SECRET_KEY` empty. Add
 `https://login-node2.eqemulator.dev/api/auth/callback/google` and
 `.../callback/discord` as redirect URIs in the Google and Discord consoles.
 
@@ -119,7 +149,15 @@ Use the current release instead of 1.7.2 if a newer one exists. Leave
    name and endpoint, master URL `https://eqemulator.dev`, paste the token.
 
 Sync runs inside the web app every 60 seconds; there is no cron to add. The
-first pull brings over all accounts and world listings.
+first pull brings over all accounts, world listings and the master's admin
+list. From then on, sign in to the standby with your master account. The
+temporary account loses its admin role and sign-in link when the master's
+accounts arrive (it is moved to a high id), so delete it afterwards:
+
+```bash
+docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" eqemu-mariadb mariadb -uroot eqemu_login \
+  -e "DELETE FROM platform_accounts WHERE username = 'YOUR_TEMP_USERNAME';"
+```
 
 Check it:
 
