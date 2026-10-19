@@ -142,13 +142,13 @@ export function LoginserverAccountsDashboard() {
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-parchment-600" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-parchment-400" />
           <input
             type="text"
             placeholder="Search by name, email, or ID..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 py-2 pl-10 pr-3 text-sm text-parchment-300 placeholder:text-parchment-700 focus:border-frost-400/30 focus:outline-none"
+            className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 py-2 pl-10 pr-3 text-sm text-parchment-300 placeholder:text-parchment-500 focus:border-frost-400/30 focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -159,7 +159,7 @@ export function LoginserverAccountsDashboard() {
               className={`rounded-md px-3 py-2 text-xs font-display uppercase tracking-wider transition-colors ${
                 sourceFilter === f
                   ? "bg-frost-400/15 text-frost-300 border border-frost-400/30"
-                  : "bg-obsidian-800 text-parchment-600 border border-frost-400/8 hover:text-parchment-400"
+                  : "bg-obsidian-800 text-parchment-400 border border-frost-400/8 hover:text-parchment-400"
               }`}
             >
               {f === "all" ? "All" : f === "eqemu" ? "LSPX" : "Local"}
@@ -168,7 +168,7 @@ export function LoginserverAccountsDashboard() {
         </div>
         <button
           onClick={() => { setLoading(true); fetchData(); }}
-          className="flex items-center gap-1.5 rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-2 text-xs text-parchment-500 hover:text-parchment-300 transition-colors"
+          className="flex items-center gap-1.5 rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-2 text-xs text-parchment-400 hover:text-parchment-300 transition-colors"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh
@@ -176,7 +176,7 @@ export function LoginserverAccountsDashboard() {
       </div>
 
       {/* Count */}
-      <p className="text-xs text-parchment-600">
+      <p className="text-xs text-parchment-400">
         Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length} accounts{filtered.length !== accounts.length ? ` (${accounts.length} total)` : ""}
       </p>
 
@@ -185,23 +185,23 @@ export function LoginserverAccountsDashboard() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-frost-400/8 bg-obsidian-900/50">
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">ID</th>
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">Account</th>
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">Source</th>
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">Platform Link</th>
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">Last Login</th>
-              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-600">Created</th>
-              <th className="px-3 py-2.5 text-right text-xs font-display uppercase tracking-wider text-parchment-600">Actions</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">ID</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">Account</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">Source</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">Platform Link</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">Last Login</th>
+              <th className="px-3 py-2.5 text-left text-xs font-display uppercase tracking-wider text-parchment-400">Created</th>
+              <th className="px-3 py-2.5 text-right text-xs font-display uppercase tracking-wider text-parchment-400">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-frost-400/5">
             {paginated.map((acct) => (
               <tr key={acct.id} className="hover:bg-obsidian-800/50 transition-colors">
-                <td className="px-3 py-2 text-parchment-500 font-mono text-xs">{acct.id}</td>
+                <td className="px-3 py-2 text-parchment-400 font-mono text-xs">{acct.id}</td>
                 <td className="px-3 py-2">
                   <div className="text-parchment-300 font-medium">{acct.accountName}</div>
                   {acct.accountEmail && (
-                    <div className="text-xs text-parchment-600">{acct.accountEmail}</div>
+                    <div className="text-xs text-parchment-400">{acct.accountEmail}</div>
                   )}
                 </td>
                 <td className="px-3 py-2">
@@ -226,16 +226,16 @@ export function LoginserverAccountsDashboard() {
                       {acct.linkedPlatformAccount.platformUsername}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-xs text-parchment-700">
+                    <span className="inline-flex items-center gap-1 text-xs text-parchment-500">
                       <Unlink className="h-3 w-3" />
                       None
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-xs text-parchment-500">
+                <td className="px-3 py-2 text-xs text-parchment-400">
                   {acct.lastLoginDate ? new Date(acct.lastLoginDate).toLocaleDateString() : "—"}
                 </td>
-                <td className="px-3 py-2 text-xs text-parchment-500">
+                <td className="px-3 py-2 text-xs text-parchment-400">
                   {acct.createdAt ? new Date(acct.createdAt).toLocaleDateString() : "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -258,7 +258,7 @@ export function LoginserverAccountsDashboard() {
                         </button>
                         <button
                           onClick={() => { setResetPasswordId(null); setNewPassword(""); }}
-                          className="rounded px-2 py-1 text-xs text-parchment-600 hover:text-parchment-400 transition-colors"
+                          className="rounded px-2 py-1 text-xs text-parchment-400 hover:text-parchment-400 transition-colors"
                         >
                           ✕
                         </button>
@@ -268,7 +268,7 @@ export function LoginserverAccountsDashboard() {
                         <button
                           onClick={() => setResetPasswordId(acct.id)}
                           title="Reset password"
-                          className="rounded p-1.5 text-parchment-600 hover:bg-obsidian-700 hover:text-parchment-300 transition-colors"
+                          className="rounded p-1.5 text-parchment-400 hover:bg-obsidian-700 hover:text-parchment-300 transition-colors"
                         >
                           <Lock className="h-3.5 w-3.5" />
                         </button>
@@ -280,7 +280,7 @@ export function LoginserverAccountsDashboard() {
                           }}
                           disabled={actionLoading === `${acct.id}-delete`}
                           title="Delete account"
-                          className="rounded p-1.5 text-parchment-600 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+                          className="rounded p-1.5 text-parchment-400 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -292,7 +292,7 @@ export function LoginserverAccountsDashboard() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-sm text-parchment-600">
+                <td colSpan={7} className="px-3 py-8 text-center text-sm text-parchment-400">
                   {search || sourceFilter !== "all" ? "No accounts match your filters" : "No loginserver accounts found"}
                 </td>
               </tr>
@@ -307,17 +307,17 @@ export function LoginserverAccountsDashboard() {
           <button
             onClick={() => setPage(Math.max(0, safePage - 1))}
             disabled={safePage === 0}
-            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-500 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-400 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             ← Previous
           </button>
-          <span className="text-xs text-parchment-600">
+          <span className="text-xs text-parchment-400">
             Page {safePage + 1} of {totalPages}
           </span>
           <button
             onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
             disabled={safePage >= totalPages - 1}
-            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-500 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="rounded-md bg-obsidian-800 border border-frost-400/8 px-3 py-1.5 text-xs text-parchment-400 hover:text-parchment-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             Next →
           </button>
@@ -373,12 +373,12 @@ function ImportAccounts({ onImported }: { onImported: () => void }) {
       >
         <Upload className="h-3.5 w-3.5" />
         Import Account Names
-        <span className="ml-auto text-parchment-700">{open ? "▲" : "▼"}</span>
+        <span className="ml-auto text-parchment-500">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
         <div className="mt-4 space-y-3">
-          <p className="text-[11px] text-parchment-500 leading-relaxed">
+          <p className="text-[11px] text-parchment-400 leading-relaxed">
             Paste the output of this query from a world server database:
           </p>
           <pre className="rounded bg-obsidian-900 border border-frost-400/8 px-3 py-2 text-[11px] text-frost-300 font-mono overflow-x-auto">
@@ -387,7 +387,7 @@ FROM account
 WHERE ls_id = 'eqemu' AND lsaccount_id > 0
 ORDER BY name;`}
           </pre>
-          <p className="text-[11px] text-parchment-600">
+          <p className="text-[11px] text-parchment-400">
             Format: TSV or CSV with columns <code className="text-frost-300">lsaccount_id, name</code>. Existing accounts are skipped.
           </p>
           <textarea
@@ -395,7 +395,7 @@ ORDER BY name;`}
             onChange={(e) => setData(e.target.value)}
             placeholder={"lsaccount_id\tname\n312782\tenine\n160814\tmoguay3"}
             rows={8}
-            className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 px-3 py-2 text-xs text-parchment-300 font-mono placeholder:text-parchment-700 focus:border-frost-400/30 focus:outline-none resize-y"
+            className="w-full rounded-md bg-obsidian-800 border border-frost-400/10 px-3 py-2 text-xs text-parchment-300 font-mono placeholder:text-parchment-500 focus:border-frost-400/30 focus:outline-none resize-y"
           />
           {result && (
             <div
@@ -436,7 +436,7 @@ function StatCard({
     <div className="rounded-lg border border-frost-400/8 bg-obsidian-900/50 px-4 py-3">
       <div className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${color}`} />
-        <span className="text-xs font-display uppercase tracking-wider text-parchment-600">{label}</span>
+        <span className="text-xs font-display uppercase tracking-wider text-parchment-400">{label}</span>
       </div>
       <p className={`mt-1 text-xl font-semibold ${color}`}>{value}</p>
     </div>
