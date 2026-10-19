@@ -423,3 +423,54 @@ export async function auditLog(nodeId: number, action: string, detail?: unknown)
     createdAt: new Date(),
   });
 }
+
+// ── Node-local config ──
+
+/**
+ * federation_config keys that belong to this node only. They are never sent to
+ * peers (config endpoint, registration bootstrap) and never overwritten from a
+ * peer, so a master cannot e.g. switch on remote commands on a peer.
+ */
+const LOCAL_ONLY_CONFIG_KEYS = new Set([
+  "allow_remote_commands",
+  "desired_version_stable",
+  "desired_version_canary",
+  "master_desired_version_stable",
+  "master_desired_version_canary",
+  "master_desired_updated_at",
+  "update_check_requested_at",
+]);
+
+export function isLocalOnlyConfigKey(key: string): boolean {
+  return LOCAL_ONLY_CONFIG_KEYS.has(key);
+}
+
+/** Read one config value (raw JSON value) or null. */
+export async function getConfigValue(key: string): Promise<{ value: unknown; updatedAt: Date | null } | null> {
+  const rows = await db
+    .select()
+    .from(federationConfig)
+    .where(eq(federationConfig.configKey, key))
+    .limit(1);
+  if (rows.length === 0) return null;
+  return { value: rows[0].configValue, updatedAt: rows[0].updatedAt ?? null };
+}
+
+/** Read a config value as a string ("" / null → null). */
+export async function getConfigString(key: string): Promise<string | null> {
+  const row = await getConfigValue(key);
+  if (!row || row.value === null || row.value === undefined) return null;
+  const s = typeof row.value === "string" ? row.value : JSON.stringify(row.value);
+  return s.trim() === "" ? null : s.trim();
+}
+
+/** Whether this node accepts master-triggered remote commands (default: no). */
+export async function remoteCommandsAllowed(): Promise<boolean> {
+  try {
+    const row = await getConfigValue("allow_remote_commands");
+    const v = row?.value;
+    return v === true || v === "true";
+  } catch {
+    return false;
+  }
+}
