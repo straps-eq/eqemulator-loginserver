@@ -91,7 +91,7 @@ function resultClass(r: string | null): string {
     case "needs_operator":
       return "bg-amber-400/10 text-amber-400";
     default:
-      return "bg-frost-400/5 text-parchment-500";
+      return "bg-frost-400/5 text-parchment-300";
   }
 }
 
@@ -128,13 +128,13 @@ function DesiredVersionControl({
 
   return (
     <div className="flex items-center gap-2">
-      <label className="w-14 text-[10px] font-display uppercase tracking-wider text-parchment-500">{channel}</label>
+      <label className="w-14 text-[11px] font-display uppercase tracking-wider text-parchment-300">{channel}</label>
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={placeholder}
         disabled={disabled || saving}
-        className="w-32 rounded border border-frost-400/10 bg-[#060a12] px-2 py-1 text-xs font-mono text-parchment-300 placeholder:text-parchment-700 focus:border-frost-400/30 focus:outline-none disabled:opacity-50"
+        className="w-32 rounded border border-frost-400/10 bg-[#060a12] px-2 py-1 text-xs font-mono text-parchment-300 placeholder:text-parchment-500 focus:border-frost-400/30 focus:outline-none disabled:opacity-50"
       />
       <button
         onClick={async () => {
@@ -150,7 +150,7 @@ function DesiredVersionControl({
           }
         }}
         disabled={disabled || saving || !dirty}
-        className="flex items-center gap-1 rounded border border-frost-400/10 px-2 py-1 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="flex items-center gap-1 rounded border border-frost-400/10 px-2 py-1 text-xs text-parchment-300 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {saving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
         Save
@@ -257,11 +257,11 @@ export function FederationNodesPanel({
       {/* Desired versions */}
       <div className="px-5 py-4 border-b border-frost-400/8 space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-[10px] font-display uppercase tracking-wider text-amber-400/80">
+          <p className="text-[11px] font-display uppercase tracking-wider text-amber-400/80">
             Desired version {isMaster ? "(published)" : `(source: ${desired.source})`}
           </p>
           {desired.updated_at && (
-            <span className="text-[10px] text-parchment-700">updated {relTime(desired.updated_at)}</span>
+            <span className="text-[11px] text-parchment-500">updated {relTime(desired.updated_at)}</span>
           )}
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -282,14 +282,14 @@ export function FederationNodesPanel({
             notify={notify}
           />
         </div>
-        <p className="text-xs text-parchment-600">{sourceNote}</p>
+        <p className="text-xs text-parchment-400">{sourceNote}</p>
       </div>
 
       {/* Nodes table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-frost-400/8 text-[10px] font-display uppercase tracking-wider text-parchment-600">
+            <tr className="border-b border-frost-400/8 text-[11px] font-display uppercase tracking-wider text-parchment-400">
               <th className="px-5 py-2 font-normal">Node</th>
               <th className="px-3 py-2 font-normal">Tier</th>
               <th className="px-3 py-2 font-normal">Status</th>
@@ -308,36 +308,36 @@ export function FederationNodesPanel({
                 <tr key={node.id} className="align-top">
                   <td className="px-5 py-3">
                     <div className="flex items-start gap-2">
-                      <Globe className="h-4 w-4 mt-0.5 text-parchment-600 flex-shrink-0" />
+                      <Globe className="h-4 w-4 mt-0.5 text-parchment-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-sm text-parchment-300">{node.name}</span>
-                          {node.isSelf && <span className="rounded bg-frost-400/10 px-1.5 py-0.5 text-[10px] text-frost-300">this node</span>}
-                          {node.isMaster && <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400">master</span>}
+                          {node.isSelf && <span className="rounded bg-frost-400/10 px-1.5 py-0.5 text-[11px] text-frost-300">this node</span>}
+                          {node.isMaster && <span className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[11px] text-amber-400">master</span>}
                         </div>
-                        <span className="block text-[10px] text-parchment-700 font-mono truncate max-w-[16rem]">{node.endpointUrl}</span>
+                        <span className="block text-[11px] text-parchment-500 font-mono truncate max-w-[16rem]">{node.endpointUrl}</span>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-parchment-500 capitalize">{node.nodeTier}</td>
+                  <td className="px-3 py-3 text-parchment-300 capitalize">{node.nodeTier}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-1.5">
                       <div className={`h-2 w-2 rounded-full ${node.status === "active" ? "bg-emerald-400" : "bg-parchment-600"}`} />
-                      <span className={`capitalize ${node.status === "active" ? "text-emerald-400" : "text-parchment-600"}`}>{node.status}</span>
+                      <span className={`capitalize ${node.status === "active" ? "text-emerald-400" : "text-parchment-400"}`}>{node.status}</span>
                     </div>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {node.softwareVersion ? (
-                        <span className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${node.behindDesired ? "bg-amber-400/10 text-amber-400" : "bg-emerald-400/10 text-emerald-400"}`}>
+                        <span className={`font-mono px-1.5 py-0.5 rounded text-[11px] ${node.behindDesired ? "bg-amber-400/10 text-amber-400" : "bg-emerald-400/10 text-emerald-400"}`}>
                           v{node.softwareVersion}
                         </span>
                       ) : (
-                        <span className="text-parchment-700">unknown</span>
+                        <span className="text-parchment-500">unknown</span>
                       )}
                       {node.behindDesired && (
                         <span
-                          className="flex items-center gap-1 rounded bg-amber-400/10 px-1.5 py-0.5 text-[10px] text-amber-400"
+                          className="flex items-center gap-1 rounded bg-amber-400/10 px-1.5 py-0.5 text-[11px] text-amber-400"
                           title={`Desired ${u?.channel || "stable"} version is ${node.desiredVersion}`}
                         >
                           <AlertTriangle className="h-2.5 w-2.5" />
@@ -346,24 +346,24 @@ export function FederationNodesPanel({
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 font-mono text-parchment-500">{node.federationProtocol ?? "—"}</td>
-                  <td className="px-3 py-3 text-parchment-500 whitespace-nowrap" title={node.lastHeartbeat || ""}>
+                  <td className="px-3 py-3 font-mono text-parchment-300">{node.federationProtocol ?? "—"}</td>
+                  <td className="px-3 py-3 text-parchment-300 whitespace-nowrap" title={node.lastHeartbeat || ""}>
                     {node.isSelf ? "—" : relTime(node.lastHeartbeat)}
                   </td>
                   <td className="px-3 py-3">
                     {u ? (
                       <div className="space-y-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={`rounded px-1.5 py-0.5 text-[10px] ${resultClass(u.lastResult)}`} title={u.lastError || ""}>
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] ${resultClass(u.lastResult)}`} title={u.lastError || ""}>
                             {u.lastResult || "no result"}
                           </span>
-                          {u.channel && <span className="text-[10px] text-parchment-600">{u.channel}{u.auto === false ? " · manual" : u.auto ? " · auto" : ""}</span>}
+                          {u.channel && <span className="text-[11px] text-parchment-400">{u.channel}{u.auto === false ? " · manual" : u.auto ? " · auto" : ""}</span>}
                         </div>
-                        <div className="text-[10px] text-parchment-600">checked {relTime(u.lastCheckAt)}</div>
-                        {u.pendingVersion && <div className="text-[10px] text-frost-300">pending v{u.pendingVersion}</div>}
+                        <div className="text-[11px] text-parchment-400">checked {relTime(u.lastCheckAt)}</div>
+                        {u.pendingVersion && <div className="text-[11px] text-frost-300">pending v{u.pendingVersion}</div>}
                       </div>
                     ) : (
-                      <span className="text-parchment-700">not reported</span>
+                      <span className="text-parchment-500">not reported</span>
                     )}
                   </td>
                   {isMaster && (
@@ -387,7 +387,7 @@ export function FederationNodesPanel({
                                   : { text: r.data.error || `Failed to notify ${node.name}`, type: "error" });
                               }}
                               disabled={busy || notifying === node.id || !!remoteNodeId}
-                              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-300 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Ask this node's updater to check for updates now. Executes nothing on the node."
                             >
                               {notifying === node.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <BellRing className="h-3 w-3" />}
@@ -395,7 +395,7 @@ export function FederationNodesPanel({
                             </button>
                             <button
                               onClick={() => setLegacyOpen(legacyOpen === node.id ? null : node.id)}
-                              className="flex items-center gap-1 text-[10px] text-parchment-600 hover:text-parchment-400 transition-colors"
+                              className="flex items-center gap-1 text-[11px] text-parchment-400 hover:text-parchment-400 transition-colors"
                               title="Advanced / legacy remote commands"
                             >
                               {legacyOpen === node.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -433,7 +433,7 @@ Only do this if its operator rolled it back below 1.7.0. Until it reports a vers
                                   : { text: r.data.error || `Failed to reset ${node.name}`, type: "error" });
                               }}
                               disabled={busy || !!remoteNodeId}
-                              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-300 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50"
                               title="Clear the version recorded for this node, after its operator rolled it back below 1.7.0"
                             >
                               <RefreshCw className="h-3 w-3" />
@@ -443,7 +443,7 @@ Only do this if its operator rolled it back below 1.7.0. Until it reports a vers
                           <button
                             onClick={() => legacyCommand(node, "restart")}
                             disabled={busy || !!remoteNodeId}
-                            className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-300 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50"
                           >
                             <Power className="h-3 w-3" />
                             Restart LS

@@ -130,14 +130,14 @@ export function LogsDashboard() {
               <div className="flex items-center gap-1.5 text-xs">
                 <div className="h-2 w-2 rounded-full bg-red-400" />
                 <span className="text-red-400 font-mono">{data.summary.errors}</span>
-                <span className="text-parchment-600">errors</span>
+                <span className="text-parchment-400">errors</span>
               </div>
               <div className="flex items-center gap-1.5 text-xs">
                 <div className="h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-amber-400 font-mono">{data.summary.warnings}</span>
-                <span className="text-parchment-600">warnings</span>
+                <span className="text-parchment-400">warnings</span>
               </div>
-              <span className="text-[10px] text-parchment-700">last hour</span>
+              <span className="text-[11px] text-parchment-500">last hour</span>
             </>
           )}
         </div>
@@ -171,7 +171,7 @@ export function LogsDashboard() {
             className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs transition-colors ${
               autoRefresh
                 ? "border-emerald-400/20 text-emerald-400/80 hover:text-emerald-300"
-                : "border-frost-400/10 text-parchment-600 hover:text-parchment-400"
+                : "border-frost-400/10 text-parchment-400 hover:text-parchment-400"
             }`}
           >
             <RefreshCw className={`h-3 w-3 ${autoRefresh ? "animate-spin" : ""}`} style={autoRefresh ? { animationDuration: "3s" } : {}} />
@@ -180,7 +180,7 @@ export function LogsDashboard() {
           {/* Manual refresh */}
           <button
             onClick={fetchLogs}
-            className="rounded border border-frost-400/10 p-1.5 text-parchment-600 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+            className="rounded border border-frost-400/10 p-1.5 text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
@@ -193,7 +193,7 @@ export function LogsDashboard() {
           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm text-amber-300">{error}</p>
-            <p className="text-xs text-parchment-600 mt-1">
+            <p className="text-xs text-parchment-400 mt-1">
               Make sure the upgrade agent is running.
             </p>
           </div>
@@ -207,7 +207,7 @@ export function LogsDashboard() {
             Recent Events
           </h3>
           {data && (
-            <span className="text-[10px] text-parchment-700">
+            <span className="text-[11px] text-parchment-500">
               {data.events.length} shown / {data.buffer_size} buffered
             </span>
           )}
@@ -221,7 +221,7 @@ export function LogsDashboard() {
                 <div key={`${event.ts}-${i}`}>
                   {showDate && (
                     <div className="px-5 py-1.5 bg-[#060a12]/80 border-b border-frost-400/5">
-                      <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
+                      <span className="text-[11px] font-display uppercase tracking-wider text-parchment-400">
                         {formatDate(event.ts)}
                       </span>
                     </div>
@@ -230,11 +230,11 @@ export function LogsDashboard() {
                     <div className="flex items-center gap-2 pt-0.5 flex-shrink-0">
                       <div className={`h-1.5 w-1.5 rounded-full ${levelDot(event.level)}`} />
                     </div>
-                    <span className="text-[10px] text-parchment-700 font-mono w-16 flex-shrink-0 pt-0.5">
+                    <span className="text-[11px] text-parchment-500 font-mono w-16 flex-shrink-0 pt-0.5">
                       {formatTime(event.ts)}
                     </span>
                     <span
-                      className={`text-[10px] font-display uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0 ${sourceBadge(event.source)}`}
+                      className={`text-[11px] font-display uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0 ${sourceBadge(event.source)}`}
                     >
                       {event.source}
                     </span>
@@ -248,8 +248,8 @@ export function LogsDashboard() {
           </div>
         ) : (
           <div className="px-5 py-12 text-center">
-            <Info className="h-5 w-5 text-parchment-700 mx-auto mb-2" />
-            <p className="text-sm text-parchment-600">
+            <Info className="h-5 w-5 text-parchment-500 mx-auto mb-2" />
+            <p className="text-sm text-parchment-400">
               {error ? "Unable to load events" : "No events yet — logs will appear as activity occurs"}
             </p>
           </div>
@@ -305,12 +305,12 @@ function ContainerLogs() {
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
             Container Logs
           </h3>
-          <span className="text-[10px] text-parchment-700">on-demand</span>
+          <span className="text-[11px] text-parchment-500">on-demand</span>
         </div>
         {open ? (
-          <ChevronDown className="h-4 w-4 text-parchment-600" />
+          <ChevronDown className="h-4 w-4 text-parchment-400" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-parchment-600" />
+          <ChevronRight className="h-4 w-4 text-parchment-400" />
         )}
       </button>
 
@@ -345,7 +345,7 @@ function ContainerLogs() {
               {loading ? "Loading..." : "Fetch Logs"}
             </button>
             {meta && (
-              <span className="text-[10px] text-parchment-700 ml-auto">
+              <span className="text-[11px] text-parchment-500 ml-auto">
                 {meta.container} — {meta.count} lines
               </span>
             )}
@@ -362,11 +362,11 @@ function ContainerLogs() {
           {/* Log output */}
           <div className="max-h-[600px] overflow-y-auto overflow-x-auto">
             {lines.length > 0 ? (
-              <pre className="px-5 py-3 text-[11px] leading-relaxed font-mono text-parchment-500 whitespace-pre">{lines.join("\n")}</pre>
+              <pre className="px-5 py-3 text-[11px] leading-relaxed font-mono text-parchment-300 whitespace-pre">{lines.join("\n")}</pre>
             ) : !loading && !error ? (
               <div className="px-5 py-8 text-center">
-                <Terminal className="h-5 w-5 text-parchment-700 mx-auto mb-2" />
-                <p className="text-xs text-parchment-600">Click "Fetch Logs" to load container output</p>
+                <Terminal className="h-5 w-5 text-parchment-500 mx-auto mb-2" />
+                <p className="text-xs text-parchment-400">Click "Fetch Logs" to load container output</p>
               </div>
             ) : null}
           </div>
