@@ -135,7 +135,7 @@ export default async function HomePage() {
             {[
               { icon: User, title: "For players", desc: "Learn the basics, find a server, and make your first login.", href: "/getting-started", cta: "Get started" },
               { icon: ServerIcon, title: "Explore servers", desc: "See who's playing, compare worlds, and find your playstyle.", href: "/servers", cta: "Browse servers" },
-              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Learn more" },
+              { icon: Users, title: "For server owners", desc: "List your world, manage your profile, and reach new players.", href: "/server-operators", cta: "Server owner guide" },
             ].map(({ icon: Icon, title, desc, href, cta }) => (
               <div key={title} className="px-6 py-6">
                 <Icon className="h-8 w-8 mx-auto mb-3 text-[#e3c27a]" strokeWidth={1.5} aria-hidden="true" />
@@ -154,7 +154,7 @@ export default async function HomePage() {
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
-            <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-400/60 block mb-2">
+            <span className="font-display text-xs tracking-[0.3em] uppercase text-frost-300 block mb-2">
               Playing right now
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100">
@@ -220,7 +220,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-400/50 block mb-3">
+            <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-300 block mb-3">
               New to emulators?
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Here&apos;s how it works</h2>
@@ -252,7 +252,7 @@ export default async function HomePage() {
                 n: "3",
                 icon: Play,
                 title: "Make a login and pick a world",
-                desc: "Create a login here in a minute, or use the one you already have from the EQEmulator forums. Start the game, choose a world from the list, and you're in.",
+                desc: "Create a login here in a minute, or use the game login you already have. Type it at the game's login screen, choose a world from the list, and you're in.",
               },
             ].map(({ n, icon: Icon, title, desc }) => (
               <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#242c48]/85 p-6">
@@ -286,7 +286,7 @@ export default async function HomePage() {
             {[
               { title: "See who's playing", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
               { title: "One login, every world", desc: "Titanium, RoF2, The Outer Brood and the current client all log in here, and one login works on every world in the directory." },
-              { title: "Built by the community", desc: "Open source, run by players, and compatible with the EQEmulator forum logins people have used for twenty years." },
+              { title: "Built by the community", desc: "Open source and run by players. An independent community site, separate from the EQEmulator forums." },
             ].map(({ title, desc }) => (
               <div key={title}>
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-2">{title}</h3>
