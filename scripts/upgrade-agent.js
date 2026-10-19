@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 // EQEmulator Upgrade Agent — lightweight HTTP API for Docker operations
 // Runs inside a node:alpine container with Docker socket access.
+//
+// Legacy (1.5.x / 1.6.x) control path. Configuration (docker-compose.yml,
+// nginx) is NOT managed here: it comes from the git tag via scripts/deploy.sh,
+// which also updates this agent. The agent only pulls exactly the image
+// references the host compose file names, keeps the running images as
+// <repo>:previous for POST /rollback, and fails loudly.
 
 const http = require("http");
-const { execSync, exec, spawnSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const PORT = parseInt(process.env.AGENT_PORT || "9090", 10);
 const TOKEN = process.env.AGENT_TOKEN || "";
 const COMPOSE_DIR = process.env.COMPOSE_DIR || "/host";
 const BACKUP_DIR = path.join(COMPOSE_DIR, "backups");
-const MIGRATIONS_DIR = "/migrations";
+const MIGRATIONS_DIR = process.env.MIGRATIONS_DIR || "/migrations";
 const DB_ROOT_PASSWORD = process.env.DB_ROOT_PASSWORD || "";
 
 if (!TOKEN) {
@@ -20,45 +27,54 @@ if (!TOKEN) {
   process.exit(1);
 }
 
+// Strip anything that looks like a credential before it reaches the log.
+function redact(s) {
+  let out = String(s);
+  for (const secret of [TOKEN, DB_ROOT_PASSWORD]) {
+    if (secret && secret.length >= 4) out = out.split(secret).join("***");
+  }
+  return out
+    .replace(/-p"[^"]*"/g, '-p"***"')
+    .replace(/\b(MYSQL_PWD|[A-Z_]*(?:PASSWORD|TOKEN|SECRET))=("[^"]*"|'[^']*'|\S+)/g, "$1=***")
+    .replace(/(Bearer\s+)\S+/gi, "$1***");
+}
+
 function log(msg) {
-  console.log(`[upgrade-agent] ${msg}`);
+  console.log(`[upgrade-agent] ${redact(msg)}`);
 }
 
 function run(cmd, opts = {}) {
   try {
-    const safeCmd = cmd.replace(/-p"[^"]*"/g, '-p"***"');
-    log(`  $ ${safeCmd.slice(0, 200)}`);
+    log(`  $ ${cmd.slice(0, 200)}`);
     return execSync(cmd, { encoding: "utf8", timeout: 300000, ...opts }).trim();
   } catch (err) {
     const msg = err.stderr ? err.stderr.trim() : err.message;
-    log(`  ✗ ${msg.replace(/-p"[^"]*"/g, '-p"***"').slice(0, 300)}`);
+    log(`  ✗ ${msg.slice(0, 300)}`);
     return msg;
   }
 }
 
 // Variant that throws on failure — use for critical paths where errors must not be swallowed
 function runChecked(cmd, opts = {}) {
-  const safeCmd = cmd.replace(/-p"[^"]*"/g, '-p"***"');
-  log(`  $ ${safeCmd.slice(0, 200)}`);
+  log(`  $ ${cmd.slice(0, 200)}`);
   try {
     return execSync(cmd, { encoding: "utf8", timeout: 300000, ...opts }).trim();
   } catch (err) {
     const msg = err.stderr ? err.stderr.trim() : err.message;
-    log(`  ✗ ${msg.replace(/-p"[^"]*"/g, '-p"***"').slice(0, 300)}`);
-    throw new Error(msg);
+    log(`  ✗ ${msg.slice(0, 300)}`);
+    throw new Error(redact(msg));
   }
 }
 
 // Variant that returns {ok, output} — use where callers need to distinguish success/failure
 function runResult(cmd, opts = {}) {
-  const safeCmd = cmd.replace(/-p"[^"]*"/g, '-p"***"');
-  log(`  $ ${safeCmd.slice(0, 200)}`);
+  log(`  $ ${cmd.slice(0, 200)}`);
   try {
     const out = execSync(cmd, { encoding: "utf8", timeout: 300000, ...opts }).trim();
     return { ok: true, output: out };
   } catch (err) {
-    const msg = err.stderr ? err.stderr.trim() : err.message;
-    log(`  ✗ ${msg.replace(/-p"[^"]*"/g, '-p"***"').slice(0, 300)}`);
+    const msg = ((err.stdout || "") + (err.stderr || "")).trim() || err.message;
+    log(`  ✗ ${msg.slice(0, 300)}`);
     return { ok: false, output: msg };
   }
 }
@@ -96,18 +112,31 @@ if (!COMPOSE_FILE) {
   process.exit(1);
 }
 log(`Project: ${PROJECT_NAME} | Host dir: ${HOST_DIR} | Compose: ${path.basename(COMPOSE_FILE)}`);
+function composeBase() {
+  return `docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env"`;
+}
 function compose(args) {
-  return run(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" ${args} 2>&1`);
+  return run(`${composeBase()} ${args} 2>&1`);
+}
+function composeResult(args, opts = {}) {
+  return runResult(`${composeBase()} ${args} 2>&1`, opts);
 }
 
-// ── Safe DB Operations (no shell injection via DB_ROOT_PASSWORD) ──
+// ── Safe DB Operations ──
+// The root password is passed through the environment (`docker exec -e MYSQL_PWD`
+// with no value inherits it), never on any command line, so it does not show
+// up in `ps` on the host or in our logs.
+function mysqlEnv() {
+  return { ...process.env, MYSQL_PWD: DB_ROOT_PASSWORD };
+}
+
 function mysqlDump(outputFile) {
   const result = spawnSync("docker", [
-    "exec", "-e", `MYSQL_PWD=${DB_ROOT_PASSWORD}`,
+    "exec", "-e", "MYSQL_PWD",
     "eqemu-mariadb", "mysqldump", "-u", "root", "eqemu_login"
-  ], { encoding: "utf8", timeout: 60000, maxBuffer: 100 * 1024 * 1024 });
+  ], { encoding: "utf8", timeout: 60000, maxBuffer: 100 * 1024 * 1024, env: mysqlEnv() });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr || "mysqldump failed");
+  if (result.status !== 0) throw new Error(redact(result.stderr || "mysqldump failed"));
   const output = result.stdout || "";
   if (output.length < 100) throw new Error(`Backup too small (${output.length} bytes)`);
   if (!output.includes("-- Dump completed")) throw new Error("Backup truncated — missing completion marker");
@@ -118,22 +147,23 @@ function mysqlDump(outputFile) {
 function mysqlExec(sqlFile) {
   const sql = fs.readFileSync(sqlFile, "utf8");
   const result = spawnSync("docker", [
-    "exec", "-i", "-e", `MYSQL_PWD=${DB_ROOT_PASSWORD}`,
+    "exec", "-i", "-e", "MYSQL_PWD",
     "eqemu-mariadb", "mysql", "-u", "root", "eqemu_login"
-  ], { input: sql, encoding: "utf8", timeout: 300000 });
+  ], { input: sql, encoding: "utf8", timeout: 300000, env: mysqlEnv() });
   return {
     ok: result.status === 0,
-    output: ((result.stdout || "") + (result.stderr || "")).trim(),
+    output: redact(((result.stdout || "") + (result.stderr || "") + (result.error ? result.error.message : "")).trim()),
   };
 }
 
 function mysqlExecRaw(sql) {
   const result = spawnSync("docker", [
-    "exec", "-i", "-e", `MYSQL_PWD=${DB_ROOT_PASSWORD}`,
+    "exec", "-i", "-e", "MYSQL_PWD",
     "eqemu-mariadb", "mysql", "-N", "-u", "root", "eqemu_login"
-  ], { input: sql, encoding: "utf8", timeout: 10000 });
+  ], { input: sql, encoding: "utf8", timeout: 10000, env: mysqlEnv() });
   return { ok: result.status === 0, output: (result.stdout || "").trim() };
 }
+
 
 // ── Timing-safe token comparison ──
 function safeTokenCompare(provided, expected) {
@@ -163,13 +193,13 @@ function isMigrationApplied(filename) {
   return r.ok && r.output === "1";
 }
 function recordMigration(filename) {
-  mysqlExecRaw(`INSERT IGNORE INTO ${MIGRATION_TABLE} (filename) VALUES ('${filename.replace(/'/g, "''")}')`);
+  return mysqlExecRaw(`INSERT IGNORE INTO ${MIGRATION_TABLE} (filename) VALUES ('${filename.replace(/'/g, "''")}')`).ok;
 }
 
 // Upgrade state — tracked so the dashboard can poll /upgrade/status
 let upgradeState = { running: false, step: "", error: "", result: null };
 
-// ── Upgrade state persistence (survives self-update restarts) ──
+// ── Upgrade state persistence (survives agent restarts, e.g. by deploy.sh) ──
 const UPGRADE_STATE_FILE = path.join(COMPOSE_DIR, ".upgrade-state.json");
 function persistUpgradeState() {
   try { fs.writeFileSync(UPGRADE_STATE_FILE, JSON.stringify(upgradeState)); } catch {}
@@ -177,7 +207,7 @@ function persistUpgradeState() {
 function loadPersistedUpgradeState() {
   try {
     const data = JSON.parse(fs.readFileSync(UPGRADE_STATE_FILE, "utf8"));
-    if (data && data.step === "done") {
+    if (data && (data.step === "done" || data.step === "failed")) {
       upgradeState = data;
       fs.unlinkSync(UPGRADE_STATE_FILE);
       log("Restored upgrade state from previous run");
@@ -248,51 +278,316 @@ function doBackup(res) {
   }
 }
 
+// ── Image references ──
+// Services whose images the agent manages. The agent never invents a tag: it
+// pulls exactly what the host compose file names for each service.
+const IMAGE_SERVICES = ["web", "loginserver", "upgrade-agent"];
+// Services an upgrade/rollback recreates. The agent never recreates itself;
+// it is updated by scripts/deploy.sh.
+const UPGRADE_SERVICES = ["web", "loginserver"];
+const ROLLBACK_STATE_FILE = path.join(COMPOSE_DIR, ".rollback-state.json");
+
+// Split "registry/ns/name:tag@sha256:..." into { repo, tag, digest }.
+function parseImageRef(ref) {
+  let rest = String(ref || "").trim();
+  let digest = "";
+  const at = rest.indexOf("@");
+  if (at !== -1) { digest = rest.slice(at + 1); rest = rest.slice(0, at); }
+  let tag = "";
+  const slash = rest.lastIndexOf("/");
+  const colon = rest.lastIndexOf(":");
+  if (colon > slash) { tag = rest.slice(colon + 1); rest = rest.slice(0, colon); }
+  if (!tag && !digest) tag = "latest";
+  return { repo: rest, tag, digest };
+}
+
+function isSafeImageRef(ref) {
+  return /^[A-Za-z0-9][A-Za-z0-9._\-/:@]*$/.test(ref || "") && !/^sha256:/.test(ref);
+}
+
+function inspectContainer(container, format) {
+  const r = spawnSync("docker", ["inspect", "--format", format, container], { encoding: "utf8", timeout: 10000 });
+  if (r.error || r.status !== 0) return "";
+  return (r.stdout || "").trim().replace(/^'|'$/g, "");
+}
+
+// Resolve the image reference each service uses, from `docker compose config`
+// (env-interpolated). Falls back to the running container's configured image.
+// The config output contains resolved environment values (passwords), so it is
+// parsed in memory and never logged.
+function resolveServiceImages(services = IMAGE_SERVICES) {
+  let cfg = null;
+  try {
+    const out = execSync(`${composeBase()} config --format json`, {
+      encoding: "utf8", timeout: 30000, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 20 * 1024 * 1024,
+    });
+    cfg = JSON.parse(out);
+  } catch (e) {
+    log("  ⚠ 'docker compose config' failed; falling back to the running containers' image references");
+  }
+  const images = {};
+  for (const svc of services) {
+    let ref = cfg && cfg.services && cfg.services[svc] && cfg.services[svc].image;
+    if (!ref) ref = inspectContainer(`eqemu-${svc}`, "{{.Config.Image}}");
+    if (!ref || !isSafeImageRef(ref)) {
+      throw new Error(`Cannot determine the image reference for service '${svc}' from ${path.basename(COMPOSE_FILE)}`);
+    }
+    images[svc] = ref;
+  }
+  return images;
+}
+
+// Warn if a docker client config visible to the agent holds a ghcr.io login.
+// A stale saved PAT makes pulls of the public images fail with "denied".
+// (Mount the host's ~/.docker read-only and set HOST_DOCKER_CONFIG to check it.)
+function warnIfGhcrLogin() {
+  const dirs = [process.env.HOST_DOCKER_CONFIG, process.env.DOCKER_CONFIG, path.join(os.homedir(), ".docker")].filter(Boolean);
+  for (const dir of [...new Set(dirs)]) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(dir, "config.json"), "utf8"));
+      const keys = [...Object.keys(cfg.auths || {}), ...Object.keys(cfg.credHelpers || {})];
+      if (keys.some(k => k.includes("ghcr.io"))) {
+        logEvent("warn", "agent", "system",
+          `Docker config ${path.join(dir, "config.json")} has a saved ghcr.io login. Images are public; it is ignored for pulls. Run 'docker logout ghcr.io' on the host.`);
+      }
+    } catch { /* no config or unreadable — nothing to warn about */ }
+  }
+}
+
+// Run a docker CLI command with a fresh, empty DOCKER_CONFIG so a stale saved
+// registry login on the host can never turn an anonymous public pull into "denied".
+function dockerAnonymous(args, opts = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-docker-config-"));
+  try {
+    return spawnSync(args[0], args.slice(1), {
+      encoding: "utf8", timeout: 300000, ...opts, env: { ...process.env, DOCKER_CONFIG: dir },
+    });
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+function pullImage(ref) {
+  log(`  $ docker pull ${ref}   (empty DOCKER_CONFIG)`);
+  const r = dockerAnonymous(["docker", "pull", ref]);
+  if (r.error || r.status !== 0) {
+    const msg = redact(((r.stderr || "") || (r.error ? r.error.message : "") || "unknown error").trim());
+    log(`  ✗ Pull failed for ${ref}: ${msg.slice(0, 300)}`);
+    throw new Error(`Image pull failed for ${ref}: ${msg.slice(0, 200)}`);
+  }
+  log(`  ✓ Pulled ${ref}`);
+}
+
+function composePull(services) {
+  log(`  $ docker compose pull ${services.join(" ")}   (empty DOCKER_CONFIG)`);
+  const args = ["docker", "compose", "-p", PROJECT_NAME, "--project-directory", HOST_DIR, "-f", COMPOSE_FILE,
+    "--env-file", `${COMPOSE_DIR}/.env`, "pull", ...services];
+  const r = dockerAnonymous(args);
+  if (r.error || r.status !== 0) {
+    const msg = redact(((r.stdout || "") + (r.stderr || "") || (r.error ? r.error.message : "")).trim());
+    throw new Error(`Compose pull failed: ${msg.slice(0, 200)}`);
+  }
+  log(`  ✓ Compose pulled ${services.join(", ")}`);
+}
+
+// Pull exactly the reference each service uses — :latest only if compose says :latest.
+function pullServiceImages(images, services, useCompose = false) {
+  warnIfGhcrLogin();
+  if (useCompose) return composePull(services);
+  for (const svc of services) pullImage(images[svc]);
+}
+
+// Tag the image every running service uses as <repo>:previous so POST /rollback
+// can return to it. Called before anything is pulled or changed.
+function tagPreviousImages(images, services = IMAGE_SERVICES) {
+  const state = { tagged_at: new Date().toISOString(), services: {} };
+  for (const svc of services) {
+    const container = `eqemu-${svc}`;
+    const imageId = inspectContainer(container, "{{.Image}}");
+    if (!imageId) {
+      log(`  ⊘ ${container} not found — nothing to keep as :previous`);
+      continue;
+    }
+    const { repo } = parseImageRef(images[svc]);
+    const prevRef = `${repo}:previous`;
+    log(`  $ docker tag ${imageId.slice(0, 19)} ${prevRef}`);
+    const r = spawnSync("docker", ["tag", imageId, prevRef], { encoding: "utf8", timeout: 30000 });
+    if (r.error || r.status !== 0) {
+      throw new Error(`Could not tag ${container} image as ${prevRef}: ${((r.stderr || "") || (r.error ? r.error.message : "")).trim().slice(0, 200)}`);
+    }
+    log(`  ✓ ${container} (${imageId.slice(7, 19)}) kept as ${prevRef}`);
+    state.services[svc] = { ref: images[svc], previous: prevRef, image_id: imageId };
+  }
+  try { fs.writeFileSync(ROLLBACK_STATE_FILE, JSON.stringify(state, null, 2)); } catch (e) {
+    log(`  ⚠ Could not write ${ROLLBACK_STATE_FILE}: ${e.message}`);
+  }
+  return state;
+}
+
+// ── Migrations ──
+// MariaDB error codes that mean "this object already exists". They are the
+// ONLY tolerated migration failures, and only when they come from the LAST
+// statement of the file: the mysql client stops at the first error, so every
+// earlier statement has already succeeded and the failing one is a no-op
+// (e.g. 011's ADD UNIQUE INDEX on a DB that already has uq_name_source).
+// Anything else — including the same codes on an earlier statement, which
+// would leave the rest of the file unapplied — aborts the upgrade.
+const IDEMPOTENT_NOOP_ERRORS = {
+  1050: "table already exists",
+  1060: "duplicate column name",
+  1061: "duplicate key name",
+  1826: "duplicate foreign key constraint name",
+};
+
+// Line numbers (1-based) at which each SQL statement starts, skipping comments
+// and string literals. Good enough for our migration files (no DELIMITER).
+function statementStartLines(sql) {
+  const starts = [];
+  let line = 1, inStmt = false, i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const c = sql[i], d = sql[i + 1];
+    if (c === "\n") { line++; i++; continue; }
+    if ((c === "-" && d === "-" && /\s/.test(sql[i + 2] || " ")) || c === "#") {
+      while (i < n && sql[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && d === "*") {
+      i += 2;
+      while (i < n && !(sql[i] === "*" && sql[i + 1] === "/")) { if (sql[i] === "\n") line++; i++; }
+      i += 2;
+      continue;
+    }
+    if (/\s/.test(c)) { i++; continue; }
+    if (!inStmt && c !== ";") { starts.push(line); inStmt = true; }
+    if (c === "'" || c === '"' || c === "`") {
+      i++;
+      while (i < n && sql[i] !== c) { if (sql[i] === "\\") i++; else if (sql[i] === "\n") line++; i++; }
+      i++;
+      continue;
+    }
+    if (c === ";") inStmt = false;
+    i++;
+  }
+  return starts;
+}
+
+// Returns a reason string if the failure is a documented idempotent no-op, else "".
+function idempotentNoopReason(sql, output) {
+  const errs = [...String(output).matchAll(/ERROR (\d+) \([0-9A-Z]+\) at line (\d+)/g)];
+  if (errs.length !== 1) return "";
+  const code = parseInt(errs[0][1], 10);
+  const line = parseInt(errs[0][2], 10);
+  if (!IDEMPOTENT_NOOP_ERRORS[code]) return "";
+  const starts = statementStartLines(sql);
+  if (!starts.length || line < starts[starts.length - 1]) return "";
+  return `${IDEMPOTENT_NOOP_ERRORS[code]} (MariaDB ${code}) on the last statement`;
+}
+
+function firstErrorLine(output) {
+  const lines = String(output || "").split("\n").map(l => l.trim()).filter(Boolean);
+  return (lines.find(l => /^ERROR\b/.test(l)) || lines[0] || "unknown error").slice(0, 300);
+}
+
+// Copy /app/migrations out of the given web image. Throws on any failure: a
+// stale migrations directory must never be mistaken for the new release's.
+function extractMigrations(webImage) {
+  try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
+  log(`  $ docker create ${webImage}`);
+  const created = spawnSync("docker", ["create", webImage], { encoding: "utf8", timeout: 60000 });
+  const cid = (created.stdout || "").trim();
+  if (created.status !== 0 || !isContainerId(cid)) {
+    throw new Error(`Could not create a container from ${webImage} to read migrations: ${((created.stderr || "") || "no container id").trim().slice(0, 200)}`);
+  }
+  try {
+    const cp = spawnSync("docker", ["cp", `${cid}:/app/migrations/.`, `${MIGRATIONS_DIR}/`], { encoding: "utf8", timeout: 60000 });
+    if (cp.status !== 0) throw new Error(`Could not copy migrations from ${webImage}: ${(cp.stderr || "").trim().slice(0, 200)}`);
+  } finally {
+    spawnSync("docker", ["rm", cid], { encoding: "utf8", timeout: 30000 });
+  }
+}
+
+// Apply every unapplied migration in order. Throws on the first real failure.
+function applyMigrations(webImage) {
+  extractMigrations(webImage);
+  if (!ensureMigrationTable()) throw new Error(`Could not create/read ${MIGRATION_TABLE} table`);
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
+  let applied = 0;
+  const noops = [];
+  for (const fname of files) {
+    if (isMigrationApplied(fname)) { log(`  ⊘ ${fname} (already applied)`); continue; }
+    const fpath = path.join(MIGRATIONS_DIR, fname);
+    const result = mysqlExec(fpath);
+    if (!result.ok) {
+      const reason = idempotentNoopReason(fs.readFileSync(fpath, "utf8"), result.output);
+      if (!reason) {
+        log(`  ✗ ${fname}: ${result.output.slice(0, 300)}`);
+        const err = new Error(`Migration ${fname} failed: ${firstErrorLine(result.output)}`);
+        err.applied = applied;
+        throw err;
+      }
+      logEvent("warn", "agent", "system", `Migration ${fname}: ${reason} — already applied, recording as done`);
+      noops.push(fname);
+    } else {
+      applied++;
+      log(`  ✓ ${fname}`);
+    }
+    if (!recordMigration(fname)) {
+      const err = new Error(`Migration ${fname} ran but could not be recorded in ${MIGRATION_TABLE}`);
+      err.applied = applied;
+      throw err;
+    }
+  }
+  return { applied, noops };
+}
+
+// Final post-restart verdict for an upgrade/rollback.
+function finishWithHealth(kind, healthy, result) {
+  if (healthy) {
+    logEvent("info", "agent", "system", `${kind} completed successfully`);
+    upgradeState = { running: false, step: "done", error: "", result: { ...result, healthy: true } };
+  } else {
+    const hint = kind === "Rollback"
+      ? "Manual intervention needed (scripts/deploy.sh <previous version>)."
+      : "POST /rollback restores the previous images.";
+    const error = `${kind} applied but the post-restart health check failed. ${hint}`;
+    logEvent("error", "agent", "system", error);
+    upgradeState = { running: false, step: "failed", error, result: { ...result, healthy: false } };
+  }
+  releaseUpgradeLock();
+  persistUpgradeState();
+}
+
+function failUpgrade(kind, message, result = null) {
+  logEvent("error", "agent", "system", `${kind} failed: ${message}`);
+  upgradeState = { running: false, step: "failed", error: message, result };
+  releaseUpgradeLock();
+  persistUpgradeState();
+}
+
 function doPull(res) {
   log("POST /pull");
-  const output = compose("pull web loginserver");
-  log("Pull complete");
-  jsonResponse(res, 200, { ok: true, output: output.slice(0, 500) });
+  try {
+    const images = resolveServiceImages(UPGRADE_SERVICES);
+    pullServiceImages(images, UPGRADE_SERVICES);
+    log("Pull complete");
+    jsonResponse(res, 200, { ok: true, output: UPGRADE_SERVICES.map(s => `pulled ${images[s]}`).join("\n") });
+  } catch (err) {
+    jsonResponse(res, 500, { ok: false, error: err.message });
+  }
 }
 
 function doMigrate(res) {
   log("POST /migrate");
-  let applied = 0;
-  const errors = [];
-
-  // Copy migrations from the new web image
   try {
-    const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
-    if (isContainerId(tempContainer)) {
-      run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
-      run(`docker rm ${tempContainer} 2>/dev/null`);
-    }
-  } catch {}
-
-  try {
-    ensureMigrationTable();
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
-    for (const fname of files) {
-      if (isMigrationApplied(fname)) { log(`  ⊘ ${fname} (already applied)`); continue; }
-      const fpath = path.join(MIGRATIONS_DIR, fname);
-      const result = mysqlExec(fpath);
-      if (!result.ok) {
-        const realErrors = result.output.split("\n").filter(l => l && !/Duplicate column|Duplicate key|already exists|Warning/i.test(l)).join("; ");
-        if (realErrors) errors.push(`${fname}: ${realErrors}`);
-      }
-      if (result.ok) {
-        recordMigration(fname);
-        applied++;
-        log(`  ✓ ${fname}`);
-      } else {
-        log(`  ✗ ${fname}`);
-      }
-    }
+    const images = resolveServiceImages(["web"]);
+    const { applied, noops } = applyMigrations(images.web);
+    jsonResponse(res, 200, { ok: true, applied, noops: noops.length ? noops : undefined });
   } catch (err) {
-    errors.push(err.message);
+    log(`Migrate failed: ${err.message}`);
+    // 200 + ok:false keeps the shape the dashboard already parses ({applied, errors}).
+    jsonResponse(res, 200, { ok: false, applied: err.applied || 0, errors: [err.message], error: err.message });
   }
-
-  jsonResponse(res, 200, { ok: true, applied, errors: errors.length ? errors : undefined });
 }
 
 function doRestart(res, service) {
@@ -311,392 +606,191 @@ function doRestart(res, service) {
   jsonResponse(res, 200, { ok: true, service, output: output.slice(0, 300) });
 }
 
-// ── Force Pull & Restart ──
-// Lightweight upgrade: pull images, restart web + agent. No backup/migrations.
-// Bypasses compose's cached image digest by using direct docker pull + stop/rm.
-// Query param ?mode=compose uses compose pull instead of direct docker pull.
-function doForcePullRestart(res, mode) {
-  const useCompose = mode === "compose";
-  log(`POST /force_pull_restart (${useCompose ? "compose" : "direct"} mode)`);
+function recreateFailed(r) {
+  return !r.ok || /\bError\b/.test(r.output || "");
+}
 
+// ── Shared upgrade pipeline ──
+// backup? → tag :previous → pull exact refs → migrate? → recreate web+loginserver → health gate
+async function runUpgradePipeline({ kind, backup, migrate, useCompose = false }) {
+  const total = 4 + (backup ? 1 : 0) + (migrate ? 1 : 0);
+  let n = 0;
+  const step = (name, label) => { upgradeState.step = name; n++; log(`Step ${n}/${total}: ${label}`); };
+  const result = {};
+
+  if (backup) {
+    step("backup", "Backing up database");
+    try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
+    const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
+    const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
+    try {
+      result.backup_size = mysqlDump(backupFile);
+      result.backup = `pre-upgrade-${stamp}.sql`;
+    } catch (err) {
+      try { fs.unlinkSync(backupFile); } catch {}
+      return failUpgrade(kind, "backup failed: " + err.message);
+    }
+    log(`  ✓ Backup saved (${result.backup_size} bytes)`);
+  }
+
+  let images;
+  try {
+    images = resolveServiceImages(IMAGE_SERVICES);
+    for (const svc of IMAGE_SERVICES) log(`  ${svc}: ${images[svc]}`);
+  } catch (err) {
+    return failUpgrade(kind, err.message, result);
+  }
+  result.images = { web: images.web, loginserver: images.loginserver };
+
+  step("tag_previous", "Keeping running images as :previous");
+  try {
+    tagPreviousImages(images, IMAGE_SERVICES);
+  } catch (err) {
+    return failUpgrade(kind, `${err.message} — aborted before any change (rollback would not be possible)`, result);
+  }
+
+  step("pull", `Pulling ${UPGRADE_SERVICES.map(s => images[s]).join(", ")}`);
+  try {
+    pullServiceImages(images, UPGRADE_SERVICES, useCompose);
+  } catch (err) {
+    return failUpgrade(kind, `${err.message} (nothing was restarted)`, result);
+  }
+
+  if (migrate) {
+    step("migrate", "Running migrations");
+    try {
+      const m = applyMigrations(images.web);
+      result.migrations = m.applied;
+      if (m.noops.length) result.migration_noops = m.noops;
+      log(`  ✓ ${m.applied} migrations applied`);
+    } catch (err) {
+      result.migrations = err.applied || 0;
+      const where = result.backup ? ` Backup: ${result.backup}.` : "";
+      return failUpgrade(kind, `${err.message}. Aborted: services were NOT restarted; the database may be partially migrated.${where}`, result);
+    }
+  }
+
+  step("restart", "Recreating web + loginserver");
+  const restart = composeResult("up -d --no-deps --force-recreate web loginserver");
+  log(`  compose output: ${(restart.output || "").slice(0, 300)}`);
+  if (recreateFailed(restart)) {
+    return failUpgrade(kind, `Restart failed: ${(restart.output || "").slice(0, 200)}. POST /rollback restores the previous images.`, result);
+  }
+  log("  ✓ Services recreated");
+
+  step("health_check", "Health check");
+  const healthy = await postRestartHealthCheck();
+  if (backup) pruneOldBackups();
+  log("  ℹ upgrade-agent is not self-updated; it is updated by scripts/deploy.sh");
+  finishWithHealth(kind, healthy, result);
+}
+
+function startPipeline(res, opts) {
   if (!acquireUpgradeLock()) {
     jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
     return;
   }
-
-  upgradeState = { running: true, step: "pull", error: "", result: null };
+  upgradeState = { running: true, step: "starting", error: "", result: null };
   jsonResponse(res, 202, { ok: true, started: true });
-
   setImmediate(async () => {
     try {
-      const WEB_IMAGE = "ghcr.io/straps-eq/eqemu-web:latest";
-      const AGENT_IMAGE = "ghcr.io/straps-eq/eqemu-upgrade-agent:latest";
-
-      // Step 1: Pull images
-      upgradeState.step = "pull";
-      log("Force pull: Pulling latest images...");
-      if (useCompose) {
-        const pullResult = runResult(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" pull web 2>&1`);
-        if (!pullResult.ok) {
-          log(`  ✗ Compose pull failed: ${pullResult.output.slice(0, 200)}`);
-          upgradeState = { running: false, step: "failed", error: `Pull failed: ${pullResult.output.slice(0, 200)}`, result: null };
-          releaseUpgradeLock();
-          return;
-        }
-        log(`  compose pull output: ${(pullResult.output || "").slice(0, 200)}`);
-      } else {
-        try {
-          execSync(`docker pull ${WEB_IMAGE}`, { encoding: "utf8", timeout: 120000 });
-        } catch (pullErr) {
-          const msg = (pullErr.stderr || pullErr.message || "").trim();
-          log(`  ✗ Web image pull failed: ${msg.slice(0, 300)}`);
-          upgradeState = { running: false, step: "failed", error: `Pull failed: ${msg.slice(0, 200)}`, result: null };
-          releaseUpgradeLock();
-          return;
-        }
-      }
-      log("  ✓ Web image pulled");
-
-      // Step 2: Pull loginserver image too
-      const LS_IMAGE = "ghcr.io/straps-eq/eqemu-loginserver:latest";
-      try {
-        if (!useCompose) {
-          execSync(`docker pull ${LS_IMAGE}`, { encoding: "utf8", timeout: 120000 });
-        }
-        log("  ✓ Loginserver image pulled");
-      } catch (e) { log(`  ⚠ Loginserver pull skipped: ${e.message}`); }
-
-      // Step 3: Restart web + loginserver
-      upgradeState.step = "restart";
-      log("Force pull: Restarting web + loginserver...");
-      const out = compose("up -d --no-deps --force-recreate web loginserver");
-      log(`  compose up output: ${(out || "").slice(0, 200)}`);
-      if (out && out.includes("Error")) {
-        upgradeState = { running: false, step: "failed", error: `Restart failed: ${out.slice(0, 200)}`, result: null };
-        releaseUpgradeLock();
-        return;
-      }
-      // Post-restart health verification
-      upgradeState.step = "health_check";
-      const fpHealthy = await postRestartHealthCheck();
-      if (!fpHealthy) {
-        logEvent("error", "agent", "system", "Force pull completed but web health check failed");
-      } else {
-        logEvent("info", "agent", "system", `Force pull & restart completed (${useCompose ? "compose" : "direct"} mode)`);
-      }
-
-      upgradeState = { running: false, step: "done", error: "", result: { mode: useCompose ? "compose" : "direct", healthy: fpHealthy } };
-      releaseUpgradeLock();
-      persistUpgradeState();
-
-      // Self-update agent (fire and forget — this kills us, restart policy brings back new version)
-      try {
-        if (!useCompose) {
-          execSync(`docker pull ${AGENT_IMAGE}`, { encoding: "utf8", timeout: 120000 });
-        }
-        log("  ✓ Agent image pulled, self-updating...");
-        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
-      } catch (e) { log(`  ⚠ Agent self-update skipped: ${e.message}`); }
+      await runUpgradePipeline(opts);
     } catch (err) {
-      log(`Force pull restart failed: ${err.message}`);
-      upgradeState = { running: false, step: "failed", error: err.message, result: null };
-      releaseUpgradeLock();
+      failUpgrade(opts.kind, err.message);
     }
   });
 }
 
+// ── Force Pull & Restart ──
+// Lightweight upgrade: keep :previous, pull images, recreate web + loginserver.
+// No backup/migrations. ?mode=compose uses `compose pull` instead of `docker pull`.
+function doForcePullRestart(res, mode) {
+  const useCompose = mode === "compose";
+  log(`POST /force_pull_restart (${useCompose ? "compose" : "direct"} mode)`);
+  startPipeline(res, { kind: "Force pull & restart", backup: false, migrate: false, useCompose });
+}
+
+// Full upgrade. This used to also overwrite the host docker-compose.yml and
+// nginx config from files baked into the agent image; it no longer does.
+// Configuration comes from the git tag via scripts/deploy.sh.
 function doUpgrade(res) {
-  if (!acquireUpgradeLock()) {
-    jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
-    return;
-  }
-
-  // Respond immediately — upgrade runs in background
-  upgradeState = { running: true, step: "starting", error: "", result: null };
-  jsonResponse(res, 202, { ok: true, started: true });
-
-  // Run the actual upgrade asynchronously
-  setImmediate(async () => {
-    try {
-      log("POST /upgrade — starting full upgrade");
-
-      // Step 1: Backup
-      upgradeState.step = "backup";
-      log("Step 1/6: Backing up database");
-      try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
-      const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
-      const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
-      let backupSize;
-      try {
-        backupSize = mysqlDump(backupFile);
-      } catch (err) {
-        try { fs.unlinkSync(backupFile); } catch {}
-        upgradeState = { running: false, step: "failed", error: "backup failed: " + err.message, result: null };
-        releaseUpgradeLock();
-        return;
-      }
-      log(`  ✓ Backup saved (${backupSize} bytes)`);
-
-      // Step 2: Pull new images (direct docker pull to avoid compose pull issues)
-      upgradeState.step = "pull";
-      log("Step 2/6: Pulling new images");
-      const images = [
-        "ghcr.io/straps-eq/eqemu-web:latest",
-        "ghcr.io/straps-eq/eqemu-loginserver:latest",
-        "ghcr.io/straps-eq/eqemu-upgrade-agent:latest",
-      ];
-      for (const img of images) {
-        try {
-          execSync(`docker pull ${img}`, { encoding: "utf8", timeout: 120000 });
-          log(`  ✓ Pulled ${img}`);
-        } catch (pullErr) {
-          const pullMsg = (pullErr.stderr || pullErr.message || "").trim();
-          log(`  ✗ Pull failed for ${img}: ${pullMsg.slice(0, 200)}`);
-          upgradeState = { running: false, step: "failed", error: `Image pull failed: ${img}: ${pullMsg.slice(0, 200)}`, result: null };
-          releaseUpgradeLock();
-          return;
-        }
-      }
-      log("  ✓ All images pulled");
-
-      // Step 3: Sync config files from new upgrade-agent image
-      // ─────────────────────────────────────────────────────────────────
-      // This step updates infrastructure configs that ship with each release.
-      // It does NOT touch: .env, login.json, game server data, or player data.
-      //
-      // Files OVERWRITTEN (backup saved as .bak):
-      //   - docker-compose.yml  — adds new volume mounts, env vars, build args
-      //                           (all site-specific values come from your .env)
-      //   - nginx/conf.d/default.conf — rendered from template using your DOMAIN
-      //                                  (adds new location blocks, rate limits, etc.)
-      //
-      // Files NEVER touched:
-      //   - .env                — your credentials, domain, API keys
-      //   - loginserver/login.json — your loginserver config
-      //   - mariadb/data/*      — your database
-      //   - uploads/*           — your uploaded banners
-      // ─────────────────────────────────────────────────────────────────
-      upgradeState.step = "config_sync";
-      log("Step 3/6: Syncing config files");
-      try {
-        const agentImg = "ghcr.io/straps-eq/eqemu-upgrade-agent:latest";
-        const tmpCfg = run(`docker create ${agentImg} 2>/dev/null`).trim();
-        if (isContainerId(tmpCfg)) {
-          // Sync docker-compose.yml (backup existing first)
-          try { fs.copyFileSync(`${COMPOSE_DIR}/docker-compose.yml`, `${COMPOSE_DIR}/docker-compose.yml.bak`); } catch {}
-          run(`docker cp ${tmpCfg}:/config/docker-compose.yml ${COMPOSE_DIR}/docker-compose.yml 2>/dev/null`);
-          log("  ✓ docker-compose.yml updated (old saved as docker-compose.yml.bak)");
-          // Sync nginx template — render with DOMAIN from .env
-          const domain = run(`grep "^DOMAIN=" ${COMPOSE_DIR}/.env | cut -d= -f2`).trim().replace(/^["']|["']$/g, "");
-          if (domain) {
-            run(`docker cp ${tmpCfg}:/config/nginx-default.conf.template /tmp/nginx.template 2>/dev/null`);
-            try {
-              const tmpl = fs.readFileSync("/tmp/nginx.template", "utf8");
-              const rendered = tmpl.replace(/__DOMAIN__/g, domain);
-              const nginxDir = path.join(COMPOSE_DIR, "nginx", "conf.d");
-              fs.mkdirSync(nginxDir, { recursive: true });
-              try { fs.copyFileSync(path.join(nginxDir, "default.conf"), path.join(nginxDir, "default.conf.bak")); } catch {}
-              fs.writeFileSync(path.join(nginxDir, "default.conf"), rendered);
-              log(`  ✓ nginx config updated for ${domain} (old saved as default.conf.bak)`);
-            } catch (e) { log(`  ⚠ nginx template render failed: ${e.message}`); }
-          }
-          run(`docker rm ${tmpCfg} 2>/dev/null`);
-        }
-      } catch (e) { log(`  ⚠ Config sync skipped: ${e.message}`); }
-
-      // Step 4: Run migrations from new image
-      upgradeState.step = "migrate";
-      log("Step 4/6: Running migrations");
-      let migCount = 0;
-      try {
-        const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
-        if (isContainerId(tempContainer)) {
-          try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
-          run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
-          run(`docker rm ${tempContainer} 2>/dev/null`);
-        }
-        ensureMigrationTable();
-        const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
-        for (const fname of files) {
-          if (isMigrationApplied(fname)) { log(`  ⊘ ${fname} (already applied)`); continue; }
-          const migResult = mysqlExec(path.join(MIGRATIONS_DIR, fname));
-          if (!migResult.ok) {
-            log(`  ✗ ${fname}: ${migResult.output.slice(0, 200)}`);
-          } else {
-            recordMigration(fname);
-            migCount++;
-          }
-        }
-      } catch (e) { log(`  ⚠ Migration step failed: ${e.message}`); }
-      log(`  ✓ ${migCount} migrations applied`);
-
-      // Step 5: Restart services with new images
-      upgradeState.step = "restart";
-      log("Step 5/6: Restarting services");
-      const restartOut = compose("up -d --no-deps --force-recreate web loginserver");
-      if (restartOut && restartOut.includes("Error")) {
-        upgradeState = { running: false, step: "failed", error: `Restart failed: ${restartOut.slice(0, 200)}`, result: null };
-        releaseUpgradeLock();
-        return;
-      }
-      log("  ✓ Services restarted");
-
-      // Step 6: Post-restart health verification
-      upgradeState.step = "health_check";
-      log("Step 6/6: Health check");
-      const upgHealthy = await postRestartHealthCheck();
-      if (!upgHealthy) {
-        logEvent("error", "agent", "system", "Upgrade completed but web health check failed");
-      } else {
-        logEvent("info", "agent", "system", "Full upgrade completed successfully");
-      }
-
-      pruneOldBackups();
-
-      log("Upgrade complete");
-      upgradeState = { running: false, step: "done", error: "", result: { backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount, healthy: upgHealthy } };
-      releaseUpgradeLock();
-      persistUpgradeState();
-    } catch (err) {
-      log(`Upgrade failed: ${err.message}`);
-      upgradeState = { running: false, step: "failed", error: err.message, result: null };
-      releaseUpgradeLock();
-    }
-  });
+  log("POST /upgrade — full upgrade (backup, pull, migrate, restart)");
+  log("  ℹ Config files (docker-compose.yml, nginx) are not synced by the agent; use scripts/deploy.sh <version>");
+  startPipeline(res, { kind: "Upgrade", backup: true, migrate: true });
 }
 
 function getUpgradeStatus(res) {
   jsonResponse(res, 200, upgradeState);
 }
 
-// Image-only upgrade: pull + migrate + restart web — NO config sync.
-// Safe for peer nodes with custom docker-compose.yml and .env files.
+// Image-only upgrade: backup + pull + migrate + restart web/loginserver.
 function doImageUpgrade(res) {
+  log("POST /image_upgrade — image-only upgrade");
+  startPipeline(res, { kind: "Image upgrade", backup: true, migrate: true });
+}
+
+// ── Rollback ──
+// Re-point web + loginserver to <repo>:previous and recreate them. For a tag
+// reference (e.g. :latest or :v1.6.2) the compose reference is re-tagged to the
+// :previous image, so compose (and the health monitor's recreates) keep using
+// it. A digest reference cannot be re-pointed; roll that back with deploy.sh.
+// The database is NOT rolled back; the pre-upgrade backup is in backups/.
+function doRollback(res) {
+  log("POST /rollback");
   if (!acquireUpgradeLock()) {
     jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
     return;
   }
+  const plan = [];
+  try {
+    const images = resolveServiceImages(UPGRADE_SERVICES);
+    for (const svc of UPGRADE_SERVICES) {
+      const { repo, tag, digest } = parseImageRef(images[svc]);
+      if (digest) throw new Error(`${svc} is pinned by digest (${images[svc]}); roll back with scripts/deploy.sh <previous version>`);
+      const prev = `${repo}:previous`;
+      const r = spawnSync("docker", ["image", "inspect", "--format", "{{.Id}}", prev], { encoding: "utf8", timeout: 10000 });
+      if (r.error || r.status !== 0) throw new Error(`No ${prev} image on this host — nothing to roll back to`);
+      plan.push({ svc, prev, target: `${repo}:${tag}`, prevId: (r.stdout || "").trim() });
+    }
+  } catch (err) {
+    releaseUpgradeLock();
+    log(`  ✗ Rollback refused: ${err.message}`);
+    jsonResponse(res, 409, { error: err.message });
+    return;
+  }
 
-  upgradeState = { running: true, step: "starting", error: "", result: null };
-  jsonResponse(res, 202, { ok: true, started: true });
+  upgradeState = { running: true, step: "rollback", error: "", result: null };
+  jsonResponse(res, 202, { ok: true, started: true, plan: plan.map(p => ({ service: p.svc, target: p.target, from: p.prev })) });
 
   setImmediate(async () => {
     try {
-      log("POST /image_upgrade — image-only upgrade (no config sync)");
-
-      // Step 1: Backup
-      upgradeState.step = "backup";
-      log("Step 1/4: Backing up database");
-      try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
-      const stamp = new Date().toISOString().replace(/[T:]/g, "-").slice(0, 19);
-      const backupFile = path.join(BACKUP_DIR, `pre-upgrade-${stamp}.sql`);
-      let backupSize;
-      try {
-        backupSize = mysqlDump(backupFile);
-      } catch (err) {
-        try { fs.unlinkSync(backupFile); } catch {}
-        upgradeState = { running: false, step: "failed", error: "backup failed: " + err.message, result: null };
-        releaseUpgradeLock();
-        return;
+      log(`Rollback: ${plan.map(p => `${p.svc} ${p.target} -> ${p.prev} (${p.prevId.slice(7, 19)})`).join(", ")}`);
+      for (const p of plan) {
+        log(`  $ docker tag ${p.prev} ${p.target}`);
+        const r = spawnSync("docker", ["tag", p.prev, p.target], { encoding: "utf8", timeout: 30000 });
+        if (r.error || r.status !== 0) {
+          return failUpgrade("Rollback", `docker tag ${p.prev} ${p.target} failed: ${(r.stderr || "").trim().slice(0, 200)}`);
+        }
+        log(`  ✓ ${p.target} now points at ${p.prev}`);
       }
-      log(`  ✓ Backup saved (${backupSize} bytes)`);
-
-      // Step 2: Pull web image (always pull :latest, re-tag if compose uses a pinned version)
-      upgradeState.step = "pull";
-      log("Step 2/4: Pulling web image");
-      const latestImage = "ghcr.io/straps-eq/eqemu-web:latest";
-      try {
-        execSync(`docker pull ${latestImage}`, { encoding: "utf8", timeout: 120000 });
-      } catch (pullErr) {
-        const pullMsg = (pullErr.stderr || pullErr.message || "").trim();
-        log(`  ✗ Image pull failed: ${pullMsg.slice(0, 300)}`);
-        upgradeState = { running: false, step: "failed", error: `Image pull failed (is the GHCR package public?): ${pullMsg.slice(0, 200)}`, result: null };
-        releaseUpgradeLock();
-        return;
-      }
-      // Detect what image tag the compose file uses for 'web'
-      try {
-        const composeImage = run(`docker compose config --format json 2>/dev/null | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');const c=JSON.parse(d);const w=c.services&&c.services.web;if(w&&w.image)console.log(w.image);"`).trim();
-        if (composeImage && composeImage !== latestImage) {
-          run(`docker tag ${latestImage} ${composeImage}`);
-          log(`  ✓ Re-tagged ${latestImage} -> ${composeImage}`);
-        }
-      } catch (e) { log(`  ⚠ Could not detect compose image tag: ${e.message}`); }
-      log("  ✓ Web image pulled");
-
-      // Also pull loginserver image
-      const lsImage = "ghcr.io/straps-eq/eqemu-loginserver:latest";
-      try {
-        execSync(`docker pull ${lsImage}`, { encoding: "utf8", timeout: 120000 });
-        log("  ✓ Loginserver image pulled");
-      } catch (e) { log(`  ⚠ Loginserver pull skipped: ${e.message.slice(0, 200)}`); }
-
-      // Step 3: Run migrations
-      upgradeState.step = "migrate";
-      log("Step 3/4: Running migrations");
-      let migCount = 0;
-      try {
-        const tempContainer = run("docker create ghcr.io/straps-eq/eqemu-web:latest 2>/dev/null").trim();
-        if (isContainerId(tempContainer)) {
-          try { fs.mkdirSync(MIGRATIONS_DIR, { recursive: true }); } catch {}
-          run(`docker cp ${tempContainer}:/app/migrations/. ${MIGRATIONS_DIR}/ 2>/dev/null`);
-          run(`docker rm ${tempContainer} 2>/dev/null`);
-        }
-        ensureMigrationTable();
-        const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith(".sql")).sort();
-        for (const fname of files) {
-          if (isMigrationApplied(fname)) { log(`  ⊘ ${fname} (already applied)`); continue; }
-          const migResult = mysqlExec(path.join(MIGRATIONS_DIR, fname));
-          if (!migResult.ok) {
-            log(`  ✗ ${fname}: ${migResult.output.slice(0, 200)}`);
-          } else {
-            recordMigration(fname);
-            migCount++;
-          }
-        }
-      } catch (e) { log(`  ⚠ Migration step failed: ${e.message}`); }
-      log(`  ✓ ${migCount} migrations applied`);
-
-      // Step 4: Restart web + loginserver (preserves their docker-compose, env, other services)
       upgradeState.step = "restart";
-      log("Step 4/4: Restarting web + loginserver");
-      const restartOut = compose("up -d --no-deps --force-recreate web loginserver");
-      log(`  compose output: ${(restartOut || "").slice(0, 300)}`);
-      if (restartOut && restartOut.includes("Error")) {
-        upgradeState = { running: false, step: "failed", error: `Web restart failed: ${restartOut.slice(0, 200)}`, result: null };
-        releaseUpgradeLock();
-        return;
+      log("Rollback: recreating web + loginserver");
+      const restart = composeResult("up -d --no-deps --force-recreate web loginserver");
+      log(`  compose output: ${(restart.output || "").slice(0, 300)}`);
+      if (recreateFailed(restart)) {
+        return failUpgrade("Rollback", `Restart failed: ${(restart.output || "").slice(0, 200)}`);
       }
-      // Post-restart health verification
       upgradeState.step = "health_check";
-      const imgHealthy = await postRestartHealthCheck();
-      if (!imgHealthy) {
-        logEvent("error", "agent", "system", "Image upgrade completed but web health check failed");
-      } else {
-        logEvent("info", "agent", "system", "Image-only upgrade completed successfully");
-      }
-
-      pruneOldBackups();
-
-      log("Image-only upgrade complete");
-      upgradeState = { running: false, step: "done", error: "", result: { backup: `pre-upgrade-${stamp}.sql`, backup_size: backupSize, migrations: migCount, healthy: imgHealthy } };
-      releaseUpgradeLock();
-      persistUpgradeState();
-
-      // Self-update: pull new agent image and recreate (restart: always brings it back)
-      try {
-        run("docker pull ghcr.io/straps-eq/eqemu-upgrade-agent:latest 2>&1");
-        log("  ✓ Upgrade-agent image pulled, self-updating...");
-        // This will kill us, but restart policy brings back the new version
-        exec(`docker compose -p "${PROJECT_NAME}" --project-directory "${HOST_DIR}" -f "${COMPOSE_FILE}" --env-file "${COMPOSE_DIR}/.env" up -d --no-deps --force-recreate upgrade-agent 2>&1`, (err) => { if (err) log(`  ⚠ Agent self-update exec error: ${err.message}`); });
-      } catch (e) { log(`  ⚠ Agent self-update skipped: ${e.message}`); }
+      log("Rollback: health check");
+      const healthy = await postRestartHealthCheck();
+      log("  ℹ The database was not rolled back; restore a backups/pre-upgrade-*.sql dump manually if a migration must be undone");
+      finishWithHealth("Rollback", healthy, { rollback: true, images: Object.fromEntries(plan.map(p => [p.svc, p.target])) });
     } catch (err) {
-      log(`Image upgrade failed: ${err.message}`);
-      upgradeState = { running: false, step: "failed", error: err.message, result: null };
-      releaseUpgradeLock();
+      failUpgrade("Rollback", err.message);
     }
   });
 }
+
 
 // ── Event Ring Buffer ──
 // In-memory buffer of structured events for the /logs endpoint.
@@ -793,7 +887,19 @@ function restartNginxIfExists() {
   return false;
 }
 
-// Full post-restart sequence: wait for web, restart nginx, verify
+function waitForContainerRunning(container, timeoutMs) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    function check() {
+      const status = inspectContainer(container, "{{.State.Status}}");
+      if (status === "running" || Date.now() - start >= timeoutMs) return resolve(status);
+      setTimeout(check, 2000);
+    }
+    check();
+  });
+}
+
+// Full post-restart sequence: wait for web + loginserver, restart nginx, verify
 async function postRestartHealthCheck() {
   log("  ↻ Ensuring network connectivity...");
   ensureNetworkConnectivity();
@@ -811,6 +917,13 @@ async function postRestartHealthCheck() {
   } else {
     log("  ⚠ No nginx container found");
   }
+  // The loginserver has no HTTP endpoint; require the container to be running.
+  const lsStatus = await waitForContainerRunning("eqemu-loginserver", 15000);
+  if (lsStatus !== "running") {
+    logEvent("error", "agent", "health", `Loginserver is ${lsStatus || "missing"} after restart`);
+    return false;
+  }
+  log("  ✓ Loginserver running");
   logEvent("info", "agent", "health", `Post-restart health check passed (${result.waitedMs}ms)`);
   return true;
 }
@@ -1259,6 +1372,7 @@ const server = http.createServer((req, res) => {
   if (method === "POST" && url === "/migrate") return doMigrate(res);
   if (method === "POST" && url === "/upgrade") return doUpgrade(res);
   if (method === "POST" && url === "/image_upgrade") return doImageUpgrade(res);
+  if (method === "POST" && url === "/rollback") return doRollback(res);
   if (method === "POST" && url.startsWith("/force_pull_restart")) {
     const mode = url.includes("mode=compose") ? "compose" : "direct";
     return doForcePullRestart(res, mode);
