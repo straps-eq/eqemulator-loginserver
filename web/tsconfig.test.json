@@ -13,6 +13,7 @@
   "files": [
     "src/lib/client-probe/__tests__/protocol.test.ts",
     "src/lib/client-probe/__tests__/session.test.ts",
-    "src/lib/federation/__tests__/sync-hash.test.ts"
+    "src/lib/federation/__tests__/sync-hash.test.ts",
+    "src/lib/__tests__/server-filters.test.ts"
   ]
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
-import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as ServerIcon, ShieldCheck, User, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Compass, Download, FileText, Play, Server as ServerIcon, ShieldCheck, Sparkles, User, Users } from "lucide-react";
 import { LiveStats } from "./live-stats";
 import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
@@ -65,8 +65,23 @@ export default async function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d1226]/80 via-[#0d1226]/35 to-transparent" aria-hidden="true" />
         <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#1a2140] via-[#1a2140]/70 to-transparent" aria-hidden="true" />
 
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 pt-36 sm:pt-44 pb-10">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 pt-28 sm:pt-36 pb-10">
           <div className="max-w-2xl [text-shadow:0_2px_16px_rgba(10,14,35,0.65)]">
+            {/* Announcement: ToB client support, linking to the filtered directory */}
+            <Link
+              href="/servers?client=tob"
+              className="group mb-7 inline-flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl sm:rounded-full border border-[#e3c27a]/60 bg-[#0d1226]/45 backdrop-blur py-1.5 pl-1.5 pr-4 text-sm text-parchment-50 shadow-[0_6px_24px_rgba(242,207,134,0.18)] [text-shadow:none] hover:border-[#f4d590] hover:bg-[#0d1226]/60 transition-all duration-300"
+            >
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-b from-[#f4d590] to-[#d4a650] px-2.5 py-1 text-[10px] font-bold tracking-[0.2em] uppercase text-[#1b2350]">
+                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                New
+              </span>
+              <span>The Outer Brood (ToB) client support is here.</span>
+              <span className="inline-flex items-center gap-1.5 text-[#e3c27a] group-hover:text-[#f4d590]">
+                Find servers that support it
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </Link>
             <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-parchment-200/90 mb-5">
               Explore <span className="mx-2 text-frost-300">&middot;</span> Connect <span className="mx-2 text-frost-300">&middot;</span> Play
             </p>
