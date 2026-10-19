@@ -306,6 +306,101 @@ Change sync settings from the master (propagates to all peers on next sync):
 
 ---
 
+## Part 5 — Versions, Status and Updates (1.7.0+)
+
+From 1.7.0 the master no longer drives upgrades on peers. Each node updates
+itself (see the updater / `deploy.sh` docs); the master only **publishes a
+desired version** and **shows what every node reports**.
+
+### What a node reports
+
+Every sync cycle (60 s, first run ~15 s after start) a node sends its peers a
+signed `POST /api/federation/heartbeat` with:
+
+```json
+{ "software_version": "1.7.0", "federation_protocol": 2, "updater_status": { ... } }
+```
+
+- `software_version` comes from the `APP_VERSION` build arg (the release tag),
+  falling back to `web/package.json`.
+- `updater_status` is the host updater's `/host-state/updater-status.json`
+  (mounted read-only into the web container; `null` if absent). Unknown keys
+  are dropped. Override the path with `UPDATER_STATUS_PATH`.
+- Peers on 1.5.x/1.6.x still get the legacy `GET` heartbeat.
+
+The receiver stores it in `federation_nodes` (`software_version`,
+`updater_status`, `federation_protocol`, `last_status_at`; migration
+`012_federation_node_status.sql`). Each node also keeps its own `is_self` row
+current. **Admin → System → Federation Nodes** shows the table, including a
+"behind desired" badge.
+
+### Desired versions
+
+| Key (`federation_config`) | Where | Meaning |
+|---|---|---|
+| `desired_version_stable`, `desired_version_canary` | master | Published to every node in the heartbeat response. Set in Admin → System (admin only, audit logged). |
+| `desired_version_stable`, `desired_version_canary` | peer | Optional local override; empty = follow the master. |
+| `master_desired_version_stable`, `master_desired_version_canary`, `master_desired_updated_at` | peer | Last values received from the master. |
+| `update_check_requested_at` | peer | Set when the master sends "Notify to check". |
+
+The host updater reads the effective values from inside the Docker network:
+
+```bash
+docker compose exec web wget -qO- http://localhost:3000/api/updater/desired
+# {"desired_version_stable":"1.7.0","desired_version_canary":null,"source":"master",
+#  "updated_at":"2026-10-19T12:00:00.000Z","check_requested_at":null}
+```
+
+Requests that come through nginx (they carry `X-Real-IP`) get a 404. The
+desired version is advisory: the node's own updater policy decides whether and
+when to apply it.
+
+### "Notify to check"
+
+The per-node action in the dashboard sends a signed `notify_check`. The peer
+only records `update_check_requested_at` and an audit entry. It executes
+nothing. Peers older than 1.7.0 answer 404; their operators must update by hand.
+
+### Legacy remote commands (opt-in)
+
+`remote_upgrade`, `remote_upgrade_status`, `remote_restart` and
+`force_pull_restart` still exist for peers on 1.5.x/1.6.x, behind the
+dashboard's **Legacy** disclosure. A 1.7.0+ node refuses them with
+`403 remote commands disabled on this node` unless its operator opts in on
+that node:
+
+```sql
+INSERT INTO federation_config (config_key, config_value, version, updated_at)
+VALUES ('allow_remote_commands', '"true"', 1, NOW())
+ON DUPLICATE KEY UPDATE config_value = '"true"', version = version + 1, updated_at = NOW();
+```
+
+Node-local keys (`allow_remote_commands`, the desired/master-desired keys,
+`update_check_requested_at`) are never exported to peers, so a master cannot
+switch them on. Every remote command is audit logged on both sides
+(`remote_command_sent` on the master, `remote_command_received` with
+`accepted: true|false` on the peer).
+
+### Recipient-bound signatures
+
+A 1.7.0+ node signs requests to peers that report 1.7.0+ with the recipient's
+public key appended to the signed message, and sends it in
+`X-Federation-Recipient`. A verifier rejects a request whose recipient is not
+itself. Requests without the header are accepted only from peers whose
+recorded version is below 1.7.0 or unknown (a warning is logged). If a node
+recorded as 1.7.0+ sends a legacy heartbeat, it is treated as a rollback and
+its recorded version is cleared. Nonces are claimed atomically (`SET NX EX`).
+
+### Sync hashing
+
+`sync_data` receivers hash only identity/credential columns (not
+`last_login_date`, `updated_at`, `last_ip_address`) and keep the last-applied
+hash per peer in Redis, so an idle federation reports 0 changes and a restart
+no longer re-applies every row. Login timestamps are refreshed every 10
+minutes without being counted as changes.
+
+---
+
 ## Synced Tables
 
 By default, the following tables are synced across all nodes:
