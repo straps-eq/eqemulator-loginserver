@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { APP_VERSION } from "@/lib/version";
+import { APP_VERSION, FEDERATION_PROTOCOL } from "@/lib/version";
 
 type RouteContext = { params: Promise<{ action: string }> };
 
 // ── Heartbeat ──
+// GET: legacy (<= 1.6.x) heartbeat, no body.
+// POST (1.7.0+): signed body {software_version, federation_protocol, updater_status}
+// which is stored on the sender's federation_nodes row. Both return the same
+// response; 1.7.0+ responses add this node's own status and, from the master,
+// the desired versions per channel.
 async function handleHeartbeat(req: NextRequest) {
   const { getSelfNode, getAllConfig } = await import("@/lib/federation/node");
   const { getLatestSeq } = await import("@/lib/federation/changelog");
@@ -15,12 +20,34 @@ async function handleHeartbeat(req: NextRequest) {
     return NextResponse.json({ error: "Federation not initialized" }, { status: 503 });
   }
 
+  const isPost = req.method === "POST";
+  const bodyText = isPost ? await req.text() : "";
+  if (isPost && bodyText.length > 32 * 1024) {
+    return NextResponse.json({ error: "Body too large" }, { status: 413 });
+  }
+
   // If request has auth headers, verify them and return full details
   const pubkey = req.headers.get("x-federation-publickey");
+  if (isPost && !pubkey) {
+    return NextResponse.json({ error: "Missing federation auth headers" }, { status: 401 });
+  }
   if (pubkey) {
-    const auth = await authenticateFederationRequest(req, "");
+    const auth = await authenticateFederationRequest(req, bodyText);
     if (!auth.node) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const status = await import("@/lib/federation/status");
+    if (isPost) {
+      try {
+        const report = JSON.parse(bodyText || "{}");
+        await status.storeNodeStatus(auth.node.id, report);
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        }
+        console.error(`[federation] storing heartbeat status from ${auth.node.name} failed:`, err);
+      }
     }
 
     const latestSeq = await getLatestSeq();
@@ -37,6 +64,17 @@ async function handleHeartbeat(req: NextRequest) {
       node_tier: p.nodeTier || "mesh",
     }));
 
+    // Only the master publishes desired versions; a peer's local override stays local.
+    let desired: Record<string, unknown> = {};
+    if (self.isMaster) {
+      const own = await status.getOwnDesiredVersions();
+      desired = {
+        desired_version_stable: own.stable,
+        desired_version_canary: own.canary,
+        desired_updated_at: own.updatedAt ? own.updatedAt.toISOString() : null,
+      };
+    }
+
     return NextResponse.json({
       node_id: self.id,
       name: self.name,
@@ -45,6 +83,9 @@ async function handleHeartbeat(req: NextRequest) {
       latest_seq: latestSeq,
       latest_config_version: maxConfigVersion,
       software_version: APP_VERSION,
+      federation_protocol: FEDERATION_PROTOCOL,
+      updater_status: await status.readUpdaterStatus(),
+      ...desired,
       timestamp: Date.now(),
       active_peers: peerList,
     });
@@ -905,6 +946,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   const { action } = await ctx.params;
   try {
     switch (action) {
+      case "heartbeat":
+        return await handleHeartbeat(req);
       case "changes":
         return await handleChangesPost(req);
       case "register":

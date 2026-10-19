@@ -29,9 +29,10 @@ export async function register() {
     const SYNC_INTERVAL_MS = 60_000; // 60 seconds
     let syncRunning = false;
 
-    // Delay first sync to let the app fully start
+    // Delay first sync to let the app fully start, then run one immediately
+    // (it also refreshes this node's own version/status row) and every 60s.
     setTimeout(() => {
-      setInterval(async () => {
+      const tick = async () => {
         if (syncRunning || !syncSecret) return;
         syncRunning = true;
         try {
@@ -50,7 +51,9 @@ export async function register() {
         } finally {
           syncRunning = false;
         }
-      }, SYNC_INTERVAL_MS);
+      };
+      void tick();
+      setInterval(tick, SYNC_INTERVAL_MS);
 
       console.log("[federation] auto-sync started (60s interval)");
     }, 15_000); // Wait 15s for app startup
