@@ -13,7 +13,8 @@ import {
   serverProfiles,
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { federationGet } from "./client";
+import { federationGet, federationPost, RECIPIENT_BINDING_MIN_VERSION } from "./client";
+import { compareVersions } from "@/lib/version";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
 import { computeStableHash, computeVolatileHash } from "./sync-hash";
@@ -91,6 +92,11 @@ interface HeartbeatResponse {
   latest_seq: number;
   latest_config_version: number;
   software_version?: string;
+  federation_protocol?: number;
+  updater_status?: unknown;
+  desired_version_stable?: string | null;
+  desired_version_canary?: string | null;
+  desired_updated_at?: string | null;
   timestamp: number;
   active_peers?: Array<{ public_key: string; name: string; endpoint_url: string; node_tier: string }>;
 }
@@ -185,6 +191,14 @@ export async function runSyncCycle(): Promise<{
   let changesApplied = 0;
   const errors: string[] = [];
 
+  // Keep our own federation_nodes row (is_self = 1) current: version + updater status.
+  const status = await import("./status");
+  try {
+    await status.updateSelfStatus();
+  } catch (err) {
+    errors.push(`self status update failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   // Reclaim servers that reconnected to the local loginserver BEFORE syncing.
   // This MUST run before applyFullDataSync so that locally-connected servers
   // have federation_source_node_id = NULL and won't be pruned by the sync.
@@ -233,23 +247,55 @@ export async function runSyncCycle(): Promise<{
       // Skip pulling from mesh-tier peers — they are read-only consumers
       if (peer.nodeTier === "mesh") continue;
 
-      // Heartbeat first
-      const hb = await federationGet<HeartbeatResponse>(
-        peer.endpointUrl,
-        "/api/federation/heartbeat",
-        peer.tlsCertHash
-      );
+      // Heartbeat first. Peers known to run >= 1.7.0 get a signed POST that
+      // carries our status; older peers get the legacy GET.
+      const peerIsCurrent = compareVersions(peer.softwareVersion, RECIPIENT_BINDING_MIN_VERSION) >= 0;
+      const recipient = { recipientPublicKey: peer.publicKey, recipientVersion: peer.softwareVersion };
+      let hb = peerIsCurrent
+        ? await federationPost<HeartbeatResponse>(
+            peer.endpointUrl, "/api/federation/heartbeat", await status.buildLocalStatus(), peer.tlsCertHash, recipient)
+        : await federationGet<HeartbeatResponse>(
+            peer.endpointUrl, "/api/federation/heartbeat", peer.tlsCertHash, recipient);
+      let sentStatus = peerIsCurrent && hb.ok;
+      if (peerIsCurrent && !hb.ok && (hb.status === 404 || hb.status === 405)) {
+        // Peer rolled back (no POST heartbeat / no bound signatures): legacy GET, unbound.
+        hb = await federationGet<HeartbeatResponse>(
+          peer.endpointUrl, "/api/federation/heartbeat", peer.tlsCertHash,
+          { recipientPublicKey: peer.publicKey, recipientVersion: null });
+      }
 
       if (!hb.ok || !hb.data) {
         errors.push(`${peer.name}: heartbeat failed — ${hb.error}`);
         continue;
       }
 
-      // Update heartbeat timestamp and peer's reported software version
-      const { updatePeerHeartbeat, updatePeerVersion } = await import("./node");
+      // Update heartbeat timestamp and peer's reported status
+      const { updatePeerHeartbeat } = await import("./node");
       await updatePeerHeartbeat(peer.id);
-      if (hb.data.software_version) {
-        await updatePeerVersion(peer.id, hb.data.software_version);
+      await status.storeNodeStatus(peer.id, {
+        software_version: hb.data.software_version,
+        federation_protocol: hb.data.federation_protocol,
+        updater_status: hb.data.updater_status,
+      });
+
+      // First contact after the peer upgraded to >= 1.7.0: send our status now
+      // instead of waiting a cycle (also teaches it our version, so it starts
+      // binding signatures to us).
+      if (!sentStatus && compareVersions(hb.data.software_version, RECIPIENT_BINDING_MIN_VERSION) >= 0) {
+        const r = await federationPost(
+          peer.endpointUrl, "/api/federation/heartbeat", await status.buildLocalStatus(), peer.tlsCertHash,
+          { recipientPublicKey: peer.publicKey, recipientVersion: hb.data.software_version });
+        sentStatus = r.ok;
+      }
+
+      // Desired versions published by the master (advisory; our updater decides)
+      if (peer.isMaster && "desired_version_stable" in hb.data) {
+        try {
+          await status.storeMasterDesired(
+            peer.id, hb.data.desired_version_stable, hb.data.desired_version_canary, hb.data.desired_updated_at);
+        } catch (err) {
+          errors.push(`storing master desired versions failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       // Reconcile peer list: if this peer (typically master) provides an active_peers list,
