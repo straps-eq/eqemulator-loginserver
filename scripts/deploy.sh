@@ -28,6 +28,8 @@
 #                          auto=, window= and max_jump= from updater.conf
 #   --now                  with --auto: ignore the maintenance window
 #   --allow-downgrade      allow a target below the running/highest version
+#   --test-rollback        install, then fail the health gates on purpose to
+#                          exercise the automatic rollback (manual runs only)
 #   --dry-run              do every check (signatures, policy, pre-flight,
 #                          staged compose config) and print the plan; changes
 #                          no tracked file, container, image, database or state
@@ -67,7 +69,7 @@ readonly PIN_BEGIN="# >>> eqemu-updater pins (managed by scripts/deploy.sh from 
 readonly PIN_END="# <<< eqemu-updater pins <<<"
 readonly PIN_KEYS=(EQEMU_VERSION EQEMU_SCHEMA_VERSION WEB_IMAGE LOGINSERVER_IMAGE UPGRADE_AGENT_IMAGE)
 # Never written by the tracked-file swap (operator data, secrets, local state).
-readonly PROTECTED_RE='^(\.env($|\.backup|\.local|\.production)|versions\.env|updater\.conf|loginserver/login\.json$|uploads/|mariadb/data/|backups/|state/|certbot/|logs/|nginx/conf\.d/default\.conf$|docker-compose\.override\.ya?ml$|\.git/|\.deploy-stage/)'
+readonly PROTECTED_RE='^(\.env($|\.backup|\.local|\.production)|versions\.env($|\.previous)|updater\.conf|loginserver/login\.json$|uploads/|mariadb/data/|backups/|state/|certbot/|logs/|nginx/conf\.d/default\.conf$|docker-compose\.override\.ya?ml$|\.git/|\.deploy-stage/)'
 
 # Helper images, pinned by digest, pulled anonymously.
 COSIGN_IMAGE="${COSIGN_IMAGE:-gcr.io/projectsigstore/cosign:v2.4.1@sha256:b03690aa52bfe94054187142fba24dc54137650682810633901767d8a3e15b31}"
@@ -93,7 +95,7 @@ E_OK=0; E_FAIL=1; E_USAGE=2; E_LOCKED=3; E_VERIFY=4; E_POLICY=5; E_PREFLIGHT=6
 E_ROLLED_BACK=7; E_NEEDS_OPERATOR=8
 
 # ── Run state ──
-MODE=""; REQ_VERSION=""; OPT_NOW=0; OPT_DOWNGRADE=0; DRY_RUN=0; SKIP_PRECHECK=0
+MODE=""; REQ_VERSION=""; OPT_NOW=0; OPT_DOWNGRADE=0; DRY_RUN=0; SKIP_PRECHECK=0; OPT_TEST_ROLLBACK=0
 TMP=""; STAGE=""; SNAP=""
 FINALIZED=0; CHANGED=0; ROLLING_BACK=0
 CONFIG_SWAPPED=0; NGINX_CHANGED=0; RESTARTED=0
@@ -626,6 +628,12 @@ run_gates() { # SOAK_SECONDS EXPECTED_SCHEMA -> 0 ok; HEALTH_ERR on failure
   until loginserver_health; do ((SECONDS < end)) || return 1; sleep 5; done
   log "gate: heartbeat log line"
   heartbeat_check || return 1
+  # --test-rollback: fail here, after the new version is up, to exercise the
+  # automatic rollback. Never applies to the rollback's own gates.
+  if [ "$OPT_TEST_ROLLBACK" = 1 ] && [ "$ROLLING_BACK" = 0 ]; then
+    HEALTH_ERR="forced gate failure (--test-rollback)"
+    return 1
+  fi
   local rw rl
   rw="$(restart_count eqemu-web)"; rl="$(restart_count eqemu-loginserver)"
   log "gate: soak ${soak}s"
@@ -755,6 +763,11 @@ stage_release() {
     git -C "$EQEMU_DIR" diff --no-renames --name-only --diff-filter=D "$PREV_COMMIT" "$TAG_COMMIT" \
       | grep -Ev "$PROTECTED_RE" >"$STAGE/delete.list" || true
   fi
+  # Tracked placeholders inside operator-owned paths (e.g. state/.gitkeep) are
+  # created when missing, so the checkout stays clean, but never overwritten.
+  git -C "$EQEMU_DIR" ls-tree -r --name-only "$TAG_COMMIT" | grep -E "$PROTECTED_RE"     | grep -Ev '^(\.env|loginserver/login\.json$|nginx/conf\.d/default\.conf$|\.git/)'     | while IFS= read -r f; do
+        [ -e "$EQEMU_DIR/$f" ] || [ -L "$EQEMU_DIR/$f" ] || echo "$f"
+      done >>"$STAGE/target.list" || true
   : >"$STAGE/changed.list"
   while IFS= read -r f; do
     if [ ! -e "$EQEMU_DIR/$f" ] && [ ! -L "$EQEMU_DIR/$f" ]; then echo "$f" >>"$STAGE/changed.list"
@@ -1178,6 +1191,7 @@ main() {
       --rollback) MODE=rollback ;;
       --now) OPT_NOW=1 ;;
       --allow-downgrade) OPT_DOWNGRADE=1 ;;
+      --test-rollback) OPT_TEST_ROLLBACK=1 ;;
       --dry-run) DRY_RUN=1 ;;
       --skip-health-precheck) SKIP_PRECHECK=1 ;;
       -h|--help) usage ;;
@@ -1190,6 +1204,7 @@ main() {
   if [ "$MODE" = manual ]; then is_semver "$REQ_VERSION" || { echo "version must be X.Y.Z" >&2; exit "$E_USAGE"; }; fi
   if [ "$MODE" != manual ] && [ -n "$REQ_VERSION" ]; then usage; fi
   if [ "$MODE" = auto ] && [ "$SKIP_PRECHECK" = 1 ]; then echo "--skip-health-precheck is for manual runs" >&2; exit "$E_USAGE"; fi
+  if [ "$MODE" != manual ] && [ "$OPT_TEST_ROLLBACK" = 1 ]; then echo "--test-rollback is for manual runs" >&2; exit "$E_USAGE"; fi
   if [ "$(id -u)" = 0 ]; then echo "run deploy.sh as the operator user (docker group), not root" >&2; exit "$E_USAGE"; fi
 
   preflight_tools

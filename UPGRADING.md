@@ -6,7 +6,7 @@ releases whose manifest and images are signed by this repository's release
 workflow, takes a database dump first, and rolls back on its own if the node
 is not healthy afterwards.
 
-- **Manual:** `scripts/deploy.sh 1.7.0` whenever you choose.
+- **Manual:** `scripts/deploy.sh 1.7.2` whenever you choose.
 - **Automatic (opt-in):** a cron entry runs `scripts/deploy.sh --auto` every
   15 minutes. It installs new stable releases only if you set `auto=true`,
   only inside your maintenance window, and never across a major version.
@@ -34,7 +34,7 @@ $EDITOR updater.conf          # channel=stable, auto=false, window, max_jump
 mkdir -p state
 
 # 4. Check everything without changing anything.
-scripts/deploy.sh 1.7.0 --dry-run
+scripts/deploy.sh 1.7.2 --dry-run
 
 # 5. Timer (user crontab; add --systemd for a systemd --user timer instead).
 scripts/deploy/install-timer.sh
@@ -63,8 +63,8 @@ upgrade by hand. Set `auto=true` to let it install within the window.
 
 ```bash
 cd /opt/eqemu
-scripts/deploy.sh 1.7.0 --dry-run   # prints the plan, changes nothing
-scripts/deploy.sh 1.7.0
+scripts/deploy.sh 1.7.2 --dry-run   # prints the plan, changes nothing
+scripts/deploy.sh 1.7.2
 ```
 
 What it does, in order (stops at the first problem):
@@ -123,6 +123,9 @@ re-checks config, migrations and images and changes nothing if all match.
 - **Undo the last upgrade:** `scripts/deploy.sh --rollback` (add `--dry-run`
   to see what it would restore). Works for the first managed upgrade too,
   using the `:previous` images.
+- **Test the automatic rollback:** `scripts/deploy.sh <version> --test-rollback`
+  installs the release, then fails the health gates on purpose, so you can watch
+  the automatic rollback put the previous version back. Manual runs only.
 - **Go to an older signed release:** `scripts/deploy.sh 1.7.0 --allow-downgrade`.
   The timer will not move you back up to the version you left until a newer
   release appears or you upgrade by hand.
@@ -216,7 +219,21 @@ managed upgrade (`needs_operator`) so that you are watching.
 cd /opt/eqemu
 
 # 0. Healthy now? deploy.sh will not upgrade a sick node.
-scripts/validate.sh
+scripts/validate.sh </dev/null
+
+#    If the web app logs "Access denied for user 'eqemu_web'", .env and the
+#    database disagree on passwords (usually .env was regenerated, e.g. by
+#    setup.sh --reset, and the containers were later recreated). Check the data
+#    is there, then set both application users to the passwords in the current .env:
+set -a; . ./.env; set +a
+docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" eqemu-mariadb   mariadb -uroot -N -e "SELECT COUNT(*) FROM eqemu_login.login_accounts"
+#    (root also denied? the matching passwords are in .env.backup.<timestamp>.
+#     A count near zero means the data was re-initialised: stop and restore.)
+docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" eqemu-mariadb mariadb -uroot -e "
+  ALTER USER 'eqemu_web'@'%' IDENTIFIED BY '$DB_WEB_PASSWORD';
+  ALTER USER 'eqemu_ls'@'%'  IDENTIFIED BY '$DB_PASSWORD';
+  FLUSH PRIVILEGES;"
+docker restart eqemu-web eqemu-loginserver
 
 # 1. The old agent ran as root and may have left root-owned files in the
 #    checkout. List them (data dirs excluded) and give them back to yourself:
@@ -230,13 +247,13 @@ docker logout ghcr.io
 
 # 3. Get the new scripts from the release tag (the rest of the checkout is
 #    updated by deploy.sh itself).
-git fetch https://github.com/straps-eq/eqemulator-loginserver.git "refs/tags/v1.7.0:refs/tags/v1.7.0"
-git checkout v1.7.0 -- scripts/deploy.sh scripts/deploy/
+git fetch https://github.com/straps-eq/eqemulator-loginserver.git "refs/tags/v1.7.2:refs/tags/v1.7.2"
+git checkout v1.7.2 -- scripts/deploy.sh scripts/deploy/
 
 # 4. Policy, dry run, upgrade.
 cp scripts/deploy/updater.conf.example updater.conf && chmod 600 updater.conf
-scripts/deploy.sh 1.7.0 --dry-run
-scripts/deploy.sh 1.7.0
+scripts/deploy.sh 1.7.2 --dry-run
+scripts/deploy.sh 1.7.2
 
 # 5. Timer.
 scripts/deploy/install-timer.sh
