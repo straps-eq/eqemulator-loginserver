@@ -57,7 +57,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
         />
       </head>
-      <body className="min-h-screen bg-obsidian-950 text-parchment-300 antialiased font-body relative">
+      <body className="min-h-screen bg-[#1a2140] text-parchment-300 antialiased font-body relative">
         <div className="relative z-10">
           {children}
         </div>

@@ -102,7 +102,7 @@ export function ServersDashboard() {
       )}
 
       {/* Population threshold config */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/60 p-5">
+      <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 p-5">
         <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-4">
           Auto-Tier Population Thresholds
         </h3>
@@ -115,7 +115,7 @@ export function ServersDashboard() {
               type="number"
               value={config.tier_high_min_players}
               onChange={(e) => setConfig({ ...config, tier_high_min_players: e.target.value })}
-              className="w-full rounded border border-frost-400/10 bg-[#2a2118] px-3 py-2 text-sm text-parchment-200 focus:border-frost-400/30 focus:outline-none"
+              className="w-full rounded border border-frost-400/10 bg-[#202842] px-3 py-2 text-sm text-parchment-200 focus:border-frost-400/30 focus:outline-none"
             />
           </div>
           <div>
@@ -126,7 +126,7 @@ export function ServersDashboard() {
               type="number"
               value={config.tier_medium_min_players}
               onChange={(e) => setConfig({ ...config, tier_medium_min_players: e.target.value })}
-              className="w-full rounded border border-frost-400/10 bg-[#2a2118] px-3 py-2 text-sm text-parchment-200 focus:border-frost-400/30 focus:outline-none"
+              className="w-full rounded border border-frost-400/10 bg-[#202842] px-3 py-2 text-sm text-parchment-200 focus:border-frost-400/30 focus:outline-none"
             />
           </div>
         </div>
@@ -144,7 +144,7 @@ export function ServersDashboard() {
       </div>
 
       {/* Server tier list */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/60 overflow-hidden">
+      <div className="rounded-lg border border-frost-400/8 bg-[#202842]/60 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-frost-400/8">
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
             Server Population ({sorted.length})
@@ -155,7 +155,7 @@ export function ServersDashboard() {
         </div>
 
         {/* Header */}
-        <div className="grid grid-cols-[1fr_140px_80px_90px_140px] gap-x-3 px-4 py-2 border-b border-frost-400/6 bg-[#241c14]/60">
+        <div className="grid grid-cols-[1fr_140px_80px_90px_140px] gap-x-3 px-4 py-2 border-b border-frost-400/6 bg-[#1b2238]/60">
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display">Server</span>
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display">Node</span>
           <span className="text-[10px] text-parchment-700 uppercase tracking-wider font-display text-right">Players</span>
@@ -209,7 +209,7 @@ export function ServersDashboard() {
                       value={currentOverride}
                       onChange={(e) => saveTierOverride(dbId, e.target.value)}
                       disabled={saving}
-                      className="w-full rounded border border-frost-400/10 bg-[#2a2118] px-2 py-1 text-xs text-parchment-300 focus:border-frost-400/30 focus:outline-none"
+                      className="w-full rounded border border-frost-400/10 bg-[#202842] px-2 py-1 text-xs text-parchment-300 focus:border-frost-400/30 focus:outline-none"
                     >
                       <option value="">Auto</option>
                       <option value="high">High</option>

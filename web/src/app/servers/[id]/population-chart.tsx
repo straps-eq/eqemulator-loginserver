@@ -165,7 +165,7 @@ export function PopulationChart({ serverId, shortName }: { serverId: number; sho
 
   return (
     <div className={`relative overflow-hidden rounded-lg border border-frost-400/10 transition-all duration-700 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1c1610] via-[#241c14] to-[#080d14]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#151b2e] via-[#1b2238] to-[#080d14]" />
       <div className="absolute top-0 left-0 w-16 h-px bg-gradient-to-r from-frost-400/20 to-transparent" />
       <div className="absolute top-0 left-0 h-16 w-px bg-gradient-to-b from-frost-400/20 to-transparent" />
       <div className="absolute bottom-0 right-0 w-16 h-px bg-gradient-to-l from-frost-400/20 to-transparent" />

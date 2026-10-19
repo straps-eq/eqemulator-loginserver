@@ -15,8 +15,8 @@
 }
 
 body {
-  color: #e6d9c0;
-  background: #1c1610;
+  color: #e8e4da;
+  background: #1a2140;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
@@ -27,9 +27,9 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: url('/bg-norrath.png') center center / cover no-repeat;
-  opacity: 0.16;
-  filter: sepia(0.6) saturate(0.8);
+  background: radial-gradient(ellipse at 50% 0%, rgba(120, 110, 200, 0.18), transparent 60%),
+    radial-gradient(ellipse at 100% 100%, rgba(80, 160, 150, 0.10), transparent 55%);
+  opacity: 1;
 }
 
 * {
@@ -65,19 +65,19 @@ a {
   transform: translate(-50%, -50%);
   color: rgba(227, 194, 122, 0.4);
   font-size: 10px;
-  background: #241c14;
+  background: #1b2238;
   padding: 0 12px;
 }
 
 /* Tech panel surface */
 .surface-panel {
-  background: linear-gradient(135deg, rgba(36, 28, 20, 0.92) 0%, rgba(42, 33, 24, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(27, 34, 56, 0.92) 0%, rgba(32, 40, 66, 0.95) 100%);
   border: 1px solid rgba(212, 166, 80, 0.07);
 }
 
 /* Elevated tech surface */
 .surface-elevated {
-  background: linear-gradient(180deg, rgba(51, 41, 32, 0.9) 0%, rgba(46, 36, 27, 0.95) 100%);
+  background: linear-gradient(180deg, rgba(36, 44, 72, 0.9) 0%, rgba(34, 42, 68, 0.95) 100%);
   border: 1px solid rgba(212, 166, 80, 0.08);
 }
 
@@ -112,7 +112,7 @@ a {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #1c1610;
+  background: #151b2e;
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(227, 194, 122, 0.15);

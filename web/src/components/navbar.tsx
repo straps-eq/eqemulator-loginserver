@@ -21,7 +21,7 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
   ];
 
   return (
-    <nav className="border-b border-frost-400/6 bg-[#1c1610]/85 backdrop-blur-xl sticky top-0 z-50">
+    <nav className="border-b border-frost-400/6 bg-[#151b2e]/85 backdrop-blur-xl sticky top-0 z-50">
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-frost-400/15 to-transparent" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
@@ -93,7 +93,7 @@ export function Navbar({ accountName, isAdmin }: { accountName?: string; isAdmin
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-frost-400/6 bg-[#1c1610]/95 backdrop-blur-xl">
+        <div className="md:hidden border-t border-frost-400/6 bg-[#151b2e]/95 backdrop-blur-xl">
           <div className="px-4 py-3 space-y-1">
             {navLinks.map(({ href, label }) => (
               <Link

@@ -40,7 +40,7 @@ export default async function AccountPage() {
                   Platform Account
                 </h2>
               </div>
-              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 sm:p-6">
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 sm:p-6">
                 <div className="flex items-center justify-between">
                   <dl className="grid grid-cols-[auto_1fr] gap-x-8 gap-y-2">
                     <dt className="text-xs font-display text-parchment-500 uppercase tracking-wider">Username</dt>
@@ -61,7 +61,7 @@ export default async function AccountPage() {
                   Connected Accounts
                 </h2>
               </div>
-              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 sm:p-6">
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 sm:p-6">
                 <ConnectedProviders />
               </div>
             </section>
@@ -74,7 +74,7 @@ export default async function AccountPage() {
                   Login Server Accounts
                 </h2>
               </div>
-              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 sm:p-6">
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 sm:p-6">
                 <LoginServerAccounts />
               </div>
             </section>
@@ -87,7 +87,7 @@ export default async function AccountPage() {
                   World Server Accounts
                 </h2>
               </div>
-              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 sm:p-6">
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 sm:p-6">
                 <WorldServerAccounts />
               </div>
             </section>
@@ -100,10 +100,10 @@ export default async function AccountPage() {
                   EQ Client Setup
                 </h2>
               </div>
-              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 sm:p-6">
+              <div className="rounded-lg border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 sm:p-6">
                 <p className="text-parchment-400 text-sm mb-4">
                   To connect to servers through this login server, update your{" "}
-                  <code className="text-frost-400 bg-[#241c14] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> file:
+                  <code className="text-frost-400 bg-[#1b2238] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> file:
                 </p>
                 <CodeBlock code={`[LoginServer]
 Host=login.eqemulator.dev:5999`} label="eqhost.txt for RoF2/SoD+" />

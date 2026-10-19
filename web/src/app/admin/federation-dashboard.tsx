@@ -157,7 +157,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
         </div>
 
         {/* Instructions */}
-        <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-5 space-y-3 max-w-2xl">
+        <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-5 space-y-3 max-w-2xl">
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">How Federation Works</h3>
           <div className="space-y-2 text-xs text-parchment-500 leading-relaxed">
             <p>
@@ -191,7 +191,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${
                 initMode === "master"
                   ? "bg-frost-400/20 border border-frost-400/30 text-frost-300"
-                  : "bg-[#2a2118]/30 border border-frost-400/8 text-parchment-600 hover:text-parchment-400"
+                  : "bg-[#202842]/30 border border-frost-400/8 text-parchment-600 hover:text-parchment-400"
               }`}
             >
               New Federation (Master)
@@ -202,7 +202,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
             className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${
               initMode === "join"
                 ? "bg-frost-400/20 border border-frost-400/30 text-frost-300"
-                : "bg-[#2a2118]/30 border border-frost-400/8 text-parchment-600 hover:text-parchment-400"
+                : "bg-[#202842]/30 border border-frost-400/8 text-parchment-600 hover:text-parchment-400"
             }`}
           >
             Join Existing Federation
@@ -210,7 +210,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
         </div>
 
         {initMode === "master" ? (
-          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-6 space-y-4 max-w-lg">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-6 space-y-4 max-w-lg">
             <div>
               <label className="block text-[10px] font-display uppercase tracking-wider text-parchment-600 mb-1">
                 Node Name
@@ -220,7 +220,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 value={initForm.name}
                 onChange={(e) => setInitForm({ ...initForm, name: e.target.value })}
                 placeholder="e.g. EQEmulator Primary"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <div>
@@ -234,7 +234,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                   setInitForm({ ...initForm, endpoint_url: e.target.value })
                 }
                 placeholder="e.g. https://eqemulator.dev"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <button
@@ -261,7 +261,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
             </button>
           </div>
         ) : (
-          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-6 space-y-4 max-w-lg">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-6 space-y-4 max-w-lg">
             <p className="text-xs text-parchment-600">
               Get a bootstrap token from the master node&apos;s admin panel, then fill in the details below.
             </p>
@@ -274,7 +274,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 value={joinForm.name}
                 onChange={(e) => setJoinForm({ ...joinForm, name: e.target.value })}
                 placeholder="e.g. EQEmulator EU"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <div>
@@ -286,7 +286,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 value={joinForm.endpoint_url}
                 onChange={(e) => setJoinForm({ ...joinForm, endpoint_url: e.target.value })}
                 placeholder="e.g. https://eu.eqemulator.dev"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <div>
@@ -298,7 +298,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 value={joinForm.master_url}
                 onChange={(e) => setJoinForm({ ...joinForm, master_url: e.target.value })}
                 placeholder="e.g. https://eqemulator.dev"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <div>
@@ -310,7 +310,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                 value={joinForm.bootstrap_token}
                 onChange={(e) => setJoinForm({ ...joinForm, bootstrap_token: e.target.value })}
                 placeholder="Paste token from master admin"
-                className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-2 text-sm font-mono text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-2 text-sm font-mono text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
               />
             </div>
             <button
@@ -367,7 +367,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
           <button
             onClick={() => doAction({ action: "sync" })}
             disabled={actionLoading === "sync"}
-            className="flex items-center gap-1.5 rounded border border-frost-400/10 bg-[#2a2118]/60 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded border border-frost-400/10 bg-[#202842]/60 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
           >
             {actionLoading === "sync" ? (
               <RefreshCw className="h-3 w-3 animate-spin" />
@@ -381,7 +381,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               setLoading(true);
               fetchData();
             }}
-            className="rounded border border-frost-400/10 bg-[#2a2118]/60 p-1.5 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+            className="rounded border border-frost-400/10 bg-[#202842]/60 p-1.5 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
@@ -436,7 +436,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
 
       {/* Self Node */}
       {selfNode && (
-        <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-4">
+        <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Globe className="h-4 w-4 text-frost-400/60" />
             <span className="text-[10px] font-display uppercase tracking-wider text-parchment-600">
@@ -519,7 +519,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                     setPeerForm({ ...peerForm, name: e.target.value })
                   }
                   placeholder="e.g. US-West Node"
-                  className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-1.5 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                  className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-1.5 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
                 />
               </div>
               <div>
@@ -533,7 +533,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
                     setPeerForm({ ...peerForm, endpoint_url: e.target.value })
                   }
                   placeholder="e.g. https://us-west.eqemulator.dev"
-                  className="w-full rounded border border-frost-400/10 bg-[#1c1610]/60 px-3 py-1.5 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+                  className="w-full rounded border border-frost-400/10 bg-[#151b2e]/60 px-3 py-1.5 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
                 />
               </div>
             </div>
@@ -578,7 +578,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               Copy this token and paste it into the new node&apos;s &quot;Join Federation&quot; form. It will not be shown again.
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-[#1c1610] border border-frost-400/10 px-3 py-2 text-sm font-mono text-frost-300 break-all select-all">
+              <code className="flex-1 rounded bg-[#151b2e] border border-frost-400/10 px-3 py-2 text-sm font-mono text-frost-300 break-all select-all">
                 {pendingBootstrapToken.token}
               </code>
               <button
@@ -597,7 +597,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
 
         {/* Peer list */}
         {peerNodes.length === 0 ? (
-          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-6 text-center text-sm text-parchment-600">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-6 text-center text-sm text-parchment-600">
             No peer nodes yet. Add one to start federation.
           </div>
         ) : (
@@ -627,7 +627,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               Federation Config
             </span>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 overflow-hidden">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 overflow-hidden">
             {data.config.map((c) => (
               <div
                 key={c.key}
@@ -657,7 +657,7 @@ export function FederationDashboard({ adminRole }: { adminRole: "admin" | "moder
               Recent Activity
             </span>
           </div>
-          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 overflow-hidden">
+          <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 overflow-hidden">
             {data.recentAudit.map((a) => (
               <div
                 key={a.id}
@@ -698,7 +698,7 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-4">
+    <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-4">
       <div className="flex items-center gap-2 text-parchment-600 mb-2">
         {icon}
         <span className="text-[10px] font-display uppercase tracking-wider">
@@ -745,7 +745,7 @@ function PeerCard({
       : peer.status;
 
   return (
-    <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-4">
+    <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div

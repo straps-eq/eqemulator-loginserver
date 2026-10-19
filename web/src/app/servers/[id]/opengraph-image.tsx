@@ -40,7 +40,7 @@ export default async function ServerOpenGraphImage({ params }: { params: Promise
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 72,
-          background: "linear-gradient(160deg, #1c1610 0%, #2e241b 55%, #0b1a26 100%)",
+          background: "linear-gradient(160deg, #151b2e 0%, #222a44 55%, #0b1a26 100%)",
           color: "#f3efe5",
           fontFamily: "Georgia, serif",
         }}

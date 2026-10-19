@@ -181,7 +181,7 @@ function AccountCard({
   const configPassword = acct.password || "YOUR_PASSWORD";
 
   return (
-    <div className="rounded border border-frost-400/8 bg-[#2a2118]/60">
+    <div className="rounded border border-frost-400/8 bg-[#202842]/60">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -202,7 +202,7 @@ function AccountCard({
       {expanded && (
         <div className="px-4 pb-4 space-y-4">
           {/* Credentials */}
-          <div className="bg-[#2a2118] rounded p-3 space-y-2">
+          <div className="bg-[#202842] rounded p-3 space-y-2">
             <span className="text-[10px] font-display uppercase tracking-wider text-parchment-500">Credentials</span>
             <div className="flex items-center justify-between">
               <div>
@@ -279,7 +279,7 @@ function AccountCard({
             </button>
             {showConfig && (
               <div className="mt-2 relative">
-                <pre className="bg-[#2a2118] border border-frost-400/6 rounded p-3 text-xs text-parchment-300 overflow-x-auto font-mono">
+                <pre className="bg-[#202842] border border-frost-400/6 rounded p-3 text-xs text-parchment-300 overflow-x-auto font-mono">
 {`"loginserver2": {
   "host": "worldserver.eqemulator.dev",
   "port": "5998",
@@ -302,7 +302,7 @@ function AccountCard({
             <div className="space-y-1.5">
               <span className="text-[10px] font-display uppercase tracking-wider text-parchment-500">Connected Servers</span>
               {acct.servers.map((srv) => (
-                <div key={srv.id} className="flex items-center justify-between bg-[#2a2118] rounded px-3 py-2">
+                <div key={srv.id} className="flex items-center justify-between bg-[#202842] rounded px-3 py-2">
                   <div>
                     <p className="text-sm text-parchment-200">{srv.longName}</p>
                     <p className="text-[10px] text-parchment-600">{srv.shortName} &middot; {srv.lastIpAddress || "unknown"}</p>
@@ -324,8 +324,8 @@ function AccountCard({
                 <div className="relative rounded overflow-hidden border border-frost-400/10">
                   <img src={bannerUrl} alt="Server banner" className="w-full h-32 object-cover" />
                   <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                    <span className="text-[9px] text-parchment-500 bg-[#2a2118]/70 rounded px-1.5 py-0.5">1200 &times; 400</span>
-                    <label className="flex items-center gap-1.5 text-[10px] text-parchment-300 bg-[#2a2118]/80 border border-frost-400/10 rounded px-2 py-1 cursor-pointer hover:bg-[#2a2118] transition-colors">
+                    <span className="text-[9px] text-parchment-500 bg-[#202842]/70 rounded px-1.5 py-0.5">1200 &times; 400</span>
+                    <label className="flex items-center gap-1.5 text-[10px] text-parchment-300 bg-[#202842]/80 border border-frost-400/10 rounded px-2 py-1 cursor-pointer hover:bg-[#202842] transition-colors">
                       <ImagePlus className="h-3 w-3" />
                       Replace
                       <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleBannerUpload} className="hidden" />
@@ -333,7 +333,7 @@ function AccountCard({
                   </div>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center h-28 rounded border border-dashed border-frost-400/15 bg-[#2a2118]/40 cursor-pointer hover:border-frost-400/30 transition-colors">
+                <label className="flex flex-col items-center justify-center h-28 rounded border border-dashed border-frost-400/15 bg-[#202842]/40 cursor-pointer hover:border-frost-400/30 transition-colors">
                   <ImagePlus className="h-5 w-5 text-parchment-600 mb-1" />
                   <span className="text-[10px] text-parchment-600">Click to upload banner image</span>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleBannerUpload} className="hidden" />
@@ -368,7 +368,7 @@ function AccountCard({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe your server — rules, features, community..."
                 rows={5}
-                className="w-full rounded border border-frost-400/10 bg-[#332920]/80 px-3 py-2 text-xs text-parchment-200 placeholder-obsidian-500 focus:border-frost-400/30 focus:outline-none focus:ring-1 focus:ring-frost-400/15 transition-all duration-200 resize-y"
+                className="w-full rounded border border-frost-400/10 bg-[#242c48]/80 px-3 py-2 text-xs text-parchment-200 placeholder-obsidian-500 focus:border-frost-400/30 focus:outline-none focus:ring-1 focus:ring-frost-400/15 transition-all duration-200 resize-y"
               />
               <p className="text-[10px] text-parchment-700 mt-1">Basic HTML is allowed: <code className="text-parchment-600">&lt;b&gt;</code> <code className="text-parchment-600">&lt;i&gt;</code> <code className="text-parchment-600">&lt;a&gt;</code> <code className="text-parchment-600">&lt;br&gt;</code> <code className="text-parchment-600">&lt;ul&gt;</code> <code className="text-parchment-600">&lt;li&gt;</code> <code className="text-parchment-600">&lt;p&gt;</code></p>
             </div>
@@ -484,7 +484,7 @@ export function WorldServerAccounts() {
 
       {/* Create form */}
       {showCreate && (
-        <div className="rounded border border-frost-400/10 bg-[#2a2118]/80 p-4 space-y-4">
+        <div className="rounded border border-frost-400/10 bg-[#202842]/80 p-4 space-y-4">
           <h3 className="text-xs font-display font-semibold text-parchment-300 uppercase tracking-wider">
             New World Server Account
           </h3>

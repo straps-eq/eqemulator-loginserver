@@ -13,7 +13,7 @@ const tierOrder = ["high", "medium", "low"] as const;
 const tierMeta: Record<string, { label: string; accent: string; headerBg: string; headerBorder: string }> = {
   high:   { label: "High Population",   accent: "text-forest-400",     headerBg: "bg-forest-400/[0.04]", headerBorder: "border-forest-400/10" },
   medium: { label: "Medium Population", accent: "text-amber-400/80",   headerBg: "bg-amber-400/[0.03]",  headerBorder: "border-amber-400/8" },
-  low:    { label: "Low Population",    accent: "text-parchment-500",  headerBg: "bg-[#241c14]/60",      headerBorder: "border-frost-400/6" },
+  low:    { label: "Low Population",    accent: "text-parchment-500",  headerBg: "bg-[#1b2238]/60",      headerBorder: "border-frost-400/6" },
 };
 
 export function ServerList({ initial }: { initial: ServerData[] }) {
@@ -56,7 +56,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
       </div>
 
       {servers.length === 0 ? (
-        <div className="rounded-lg border border-frost-400/10 bg-[#2a2118]/80 p-14 text-center">
+        <div className="rounded-lg border border-frost-400/10 bg-[#202842]/80 p-14 text-center">
           <WifiOff className="h-10 w-10 text-parchment-700 mx-auto mb-4" />
           <h3 className="font-display text-lg font-semibold text-parchment-300 mb-2">No Worlds Online</h3>
           <p className="text-parchment-500 text-sm">
@@ -70,7 +70,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
             const tierPlayers = tierServers.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
 
             return (
-              <div key={tier} className="rounded-lg border border-frost-400/10 bg-[#2a2118]/60 overflow-hidden">
+              <div key={tier} className="rounded-lg border border-frost-400/10 bg-[#202842]/60 overflow-hidden">
                 {/* Tier section header */}
                 <div className={`flex items-center justify-between px-4 py-2.5 border-b ${meta.headerBorder} ${meta.headerBg}`}>
                   <div className="flex items-center gap-2.5">
@@ -87,7 +87,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                 </div>
 
                 {/* Column header */}
-                <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-2 border-b border-frost-400/5 bg-[#241c14]/40">
+                <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-2 border-b border-frost-400/5 bg-[#1b2238]/40">
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display">Server</span>
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display text-right">Players</span>
                   <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display text-center hidden sm:block">Status</span>

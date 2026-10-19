@@ -141,7 +141,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
       mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
     } ${isOnline ? "border-frost-400/15" : isLocked ? "border-amber-400/15" : "border-obsidian-600/50"}`}>
       {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#241c14] via-[#111825] to-[#2e241b]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#1b2238] via-[#111825] to-[#222a44]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(212,166,80,0.06)_0%,_transparent_50%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(129,140,248,0.04)_0%,_transparent_50%)]" />
 
@@ -211,7 +211,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
         {/* Stats grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {/* Online Players — glowing hero box */}
-          <div className={`relative rounded-lg border border-frost-400/20 bg-[#171209]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "200ms", boxShadow: "0 0 20px rgba(212,166,80,0.08), inset 0 0 20px rgba(212,166,80,0.04)" }}>
+          <div className={`relative rounded-lg border border-frost-400/20 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "200ms", boxShadow: "0 0 20px rgba(212,166,80,0.08), inset 0 0 20px rgba(212,166,80,0.04)" }}>
             <Users className="h-5 w-5 text-frost-400/50 mb-3" />
             <span className="font-display text-3xl sm:text-4xl font-bold text-frost-300" style={{ textShadow: "0 0 20px rgba(212,166,80,0.3)" }}>
               <AnimatedNumber value={players} />
@@ -220,7 +220,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
           </div>
 
           {/* Uptime */}
-          <div className={`relative rounded-lg border border-frost-400/10 bg-[#171209]/90 p-5 sm:p-6 flex flex-col items-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "350ms" }}>
+          <div className={`relative rounded-lg border border-frost-400/10 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "350ms" }}>
             <div className="relative mb-2">
               <UptimeRing percent={uptime ?? (isOnline ? 100 : 0)} />
               <div className="absolute inset-0 flex items-center justify-center">
@@ -233,7 +233,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
           </div>
 
           {/* Avg Players */}
-          <div className={`relative rounded-lg border border-frost-400/10 bg-[#171209]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "500ms" }}>
+          <div className={`relative rounded-lg border border-frost-400/10 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "500ms" }}>
             <Users className="h-5 w-5 text-arcane-400/40 mb-3" />
             <span className="font-display text-2xl sm:text-3xl font-bold text-parchment-100">
               {avgPlayers !== null ? <AnimatedNumber value={avgPlayers} /> : "—"}
@@ -242,7 +242,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
           </div>
 
           {/* Peak Players */}
-          <div className={`relative rounded-lg border border-frost-400/10 bg-[#171209]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "650ms" }}>
+          <div className={`relative rounded-lg border border-frost-400/10 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "650ms" }}>
             <Activity className="h-5 w-5 text-frost-400/40 mb-3" />
             <span className="font-display text-2xl sm:text-3xl font-bold text-parchment-100">
               {peakPlayers !== null ? <AnimatedNumber value={peakPlayers} /> : "—"}

@@ -31,12 +31,12 @@ export async function sendVerificationEmail(
       to: email,
       subject: "Verify your EQEmulator account",
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; color: #d4cfc6; background: #2a2118;">
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; color: #d4cfc6; background: #202842;">
           <h1 style="font-size: 20px; color: #f3efe5; margin-bottom: 8px;">Welcome to EQEmulator</h1>
           <p style="color: #9ca3af; font-size: 14px; margin-bottom: 24px;">
             Click the button below to verify your email address and activate your account.
           </p>
-          <a href="${verifyUrl}" style="display: inline-block; background: #d4a650; color: #1c1610; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+          <a href="${verifyUrl}" style="display: inline-block; background: #d4a650; color: #151b2e; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
             Verify Email
           </a>
           <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">
@@ -80,7 +80,7 @@ export async function sendMfaCode(
       to: email,
       subject: "EQEmulator Login Verification Code",
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; color: #d4cfc6; background: #2a2118;">
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; color: #d4cfc6; background: #202842;">
           <h1 style="font-size: 20px; color: #f3efe5; margin-bottom: 8px;">Login Verification</h1>
           <p style="color: #9ca3af; font-size: 14px; margin-bottom: 24px;">
             Enter the following code to complete your login. This code expires in 5 minutes.
