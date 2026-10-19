@@ -7,7 +7,8 @@
  * and size of the first app packet (EQStreamIdentifier, signature =
  * OP_SendLoginInfo + sizeof(LoginInfo_Struct)), so these must be exact.
  *
- * LoginInfo_Struct is 488 bytes for every client:
+ * LoginInfo_Struct is 464 bytes for every client (the struct comments say
+ * 488, but the fields add up to 464 and world checks sizeof exactly):
  *   0   char  login_info[64]   "<loginserver account id>\0<session key>\0"
  *   64  uint8 unknown064[124]  (CustomFilesKey payload on modified clients)
  *   188 uint8 zoning           0 = coming from the login server
@@ -44,7 +45,7 @@ export interface ClientDef {
   opcodes: ClientOpcodes;
 }
 
-export const LOGIN_INFO_SIZE = 488;
+export const LOGIN_INFO_SIZE = 464;
 
 export const CLIENTS: ClientDef[] = [
   {
