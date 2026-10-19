@@ -4,9 +4,16 @@
  */
 import { NextRequest } from "next/server";
 import { verifySignature } from "./crypto";
-import { getNodeByPublicKey, updatePeerHeartbeat, auditLog } from "./node";
+import { getNodeByPublicKey, getSelfNode, updatePeerHeartbeat, auditLog } from "./node";
 import { rateLimit } from "@/lib/rate-limit";
-import { cacheExists, cacheSet } from "@/lib/redis";
+import { cacheSetNX } from "@/lib/redis";
+import { compareVersions } from "@/lib/version";
+
+/** Peers reporting this version or later must send recipient-bound signatures. */
+const RECIPIENT_BINDING_MIN_VERSION = "1.7.0";
+/** Throttle the "unbound signature" warning to once per node per interval. */
+const UNBOUND_WARN_INTERVAL_MS = 15 * 60 * 1000;
+const unboundWarnedAt = new Map<number, number>();
 
 const MAX_TIMESTAMP_DRIFT_MS = 5 * 60 * 1000; // 5 minutes
 const NONCE_TTL_SECONDS = 360; // 6 minutes — slightly longer than drift window
@@ -19,6 +26,9 @@ export interface AuthenticatedNode {
   isApproved: number;
   status: string;
   nodeTier: string;
+  softwareVersion: string | null;
+  /** True if the request carried a valid recipient-bound signature. */
+  recipientBound: boolean;
 }
 
 /**
@@ -68,24 +78,54 @@ export async function authenticateFederationRequest(
     return { node: null, error: "Rate limited", status: 429 };
   }
 
-  // Replay protection: reject if this exact signature was already used (Redis-backed)
-  const nonceKey = `nonce:${signature}`;
-  if (await cacheExists(nonceKey)) {
-    await auditLog(node.id, "replay_detected", { timestamp });
-    return { node: null, error: "Replay detected", status: 401 };
-  }
-
-  // Verify signature
+  // Recipient binding (security M1). A bound request names the recipient's
+  // public key in X-Federation-Recipient and in the signed message; it must be us.
   const url = new URL(req.url);
   const path = url.pathname + url.search;
   const method = req.method;
+  const recipient = req.headers.get("x-federation-recipient")?.trim().toLowerCase() || null;
+  let legacyDowngrade = false;
+  if (recipient) {
+    const self = await getSelfNode();
+    if (!self || recipient !== self.publicKey.toLowerCase()) {
+      await auditLog(node.id, "recipient_mismatch", { method, path, timestamp });
+      return { node: null, error: "Request was signed for a different recipient", status: 401 };
+    }
+  } else {
+    // Transition: unbound signatures are accepted only from peers that report
+    // a version older than 1.7.0 (or have not reported one yet).
+    if (node.softwareVersion && compareVersions(node.softwareVersion, RECIPIENT_BINDING_MIN_VERSION) >= 0) {
+      // A node that rolled back below 1.7.0 can only reach us with a legacy
+      // GET heartbeat, which carries no version. Answer that one read-only
+      // request, but never lower the recorded version on an unbound request:
+      // unbound heartbeats can be replayed from another peer within the nonce
+      // window, and clearing the version would switch binding off for this
+      // node. An operator resets it from the admin dashboard instead.
+      if (method === "GET" && url.pathname === "/api/federation/heartbeat") {
+        legacyDowngrade = true;
+      } else {
+        await auditLog(node.id, "unbound_signature_rejected", { method, path, softwareVersion: node.softwareVersion });
+        return { node: null, error: "Recipient-bound signature required", status: 401 };
+      }
+    }
+    const last = unboundWarnedAt.get(node.id) || 0;
+    if (Date.now() - last > UNBOUND_WARN_INTERVAL_MS) {
+      unboundWarnedAt.set(node.id, Date.now());
+      console.warn(
+        `[federation] accepting unbound (legacy) signature from "${node.name}" (id ${node.id}, version ${node.softwareVersion || "unknown"}) — upgrade it to >= ${RECIPIENT_BINDING_MIN_VERSION}`
+      );
+    }
+  }
+
+  // Verify signature
   const valid = await verifySignature(
     publicKeyHex,
     signature,
     timestamp,
     method,
     path,
-    body
+    body,
+    recipient
   );
 
   if (!valid) {
@@ -97,8 +137,24 @@ export async function authenticateFederationRequest(
     return { node: null, error: "Invalid signature", status: 401 };
   }
 
-  // Cache signature to prevent replay within the window (Redis-backed)
-  await cacheSet(nonceKey, "1", NONCE_TTL_SECONDS);
+  // Replay protection: atomically claim this signature (SET NX EX). If it was
+  // already claimed, this is a replay (also closes the exists-then-set race).
+  const nonceKey = `nonce:${signature}`;
+  if (!(await cacheSetNX(nonceKey, "1", NONCE_TTL_SECONDS))) {
+    await auditLog(node.id, "replay_detected", { timestamp });
+    return { node: null, error: "Replay detected", status: 401 };
+  }
+
+  if (legacyDowngrade) {
+    const last = unboundWarnedAt.get(-node.id) || 0;
+    if (Date.now() - last > UNBOUND_WARN_INTERVAL_MS) {
+      unboundWarnedAt.set(-node.id, Date.now());
+      await auditLog(node.id, "unbound_heartbeat_from_bound_node", { recordedVersion: node.softwareVersion });
+      console.warn(
+        `[federation] "${node.name}" (id ${node.id}) sent a legacy heartbeat but is recorded as ${node.softwareVersion}; if it was rolled back, reset its recorded version from the admin dashboard`
+      );
+    }
+  }
 
   // Update heartbeat
   await updatePeerHeartbeat(node.id);
@@ -112,6 +168,8 @@ export async function authenticateFederationRequest(
       isApproved: node.isApproved,
       status: node.status,
       nodeTier: node.nodeTier,
+      softwareVersion: node.softwareVersion ?? null,
+      recipientBound: !!recipient,
     },
     error: null,
     status: 200,

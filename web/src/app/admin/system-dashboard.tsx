@@ -15,7 +15,9 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  RotateCcw,
 } from "lucide-react";
+import { FederationNodesPanel, type FederationOverview } from "./federation-nodes-panel";
 
 interface ServiceInfo {
   status: string;
@@ -45,6 +47,7 @@ interface SystemData {
   statusPagePublic: boolean;
   isMaster: boolean;
   peerNodes: PeerNode[];
+  federation: FederationOverview | null;
 }
 
 export function SystemDashboard() {
@@ -55,8 +58,6 @@ export function SystemDashboard() {
   const [showNotes, setShowNotes] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string | null>(null);
   const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false);
-  const [remoteUpgradeNodeId, setRemoteUpgradeNodeId] = useState<number | null>(null);
-  const [remoteUpgradeProgress, setRemoteUpgradeProgress] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -82,6 +83,8 @@ export function SystemDashboard() {
     restart: "Restarting services...",
     health_check: "Verifying health...",
     nginx: "Restarting nginx...",
+    tag_previous: "Tagging current images as :previous...",
+    rollback: "Rolling back to previous images...",
     done: "Upgrade complete!",
     failed: "Upgrade failed",
   };
@@ -148,14 +151,21 @@ export function SystemDashboard() {
     setActionLoading(action);
     setActionResult(null);
 
-    if (action === "upgrade") {
-      setUpgradeProgress("Starting upgrade...");
+    if (action === "upgrade" || action === "rollback") {
+      setUpgradeProgress(action === "rollback" ? "Starting rollback..." : "Starting upgrade...");
       try {
-        await fetch("/api/admin/system", {
+        const r = await fetch("/api/admin/system", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "upgrade" }),
+          body: JSON.stringify({ action }),
         });
+        if (action === "rollback" && r.status !== 202 && !r.ok) {
+          const err = await r.json().catch(() => ({}));
+          setUpgradeProgress(null);
+          setActionLoading(null);
+          setActionResult({ text: `Rollback refused: ${err.error || `HTTP ${r.status}`}`, type: "error" });
+          return;
+        }
       } catch {
         // Expected — web may restart before response arrives
       }
@@ -174,6 +184,11 @@ export function SystemDashboard() {
 
       if (result.error) {
         setActionResult({ text: result.error, type: "error" });
+      } else if (action === "migrate" && result.ok === false) {
+        setActionResult({
+          text: `Migrations failed: ${(result.errors || []).join("; ") || "unknown error"} (${result.applied || 0} applied before the failure)`,
+          type: "error",
+        });
       } else {
         let msg = "Done";
         if (action === "backup" && result.file) msg = `Backup saved: ${result.file} (${Math.round((result.size || 0) / 1024)}KB)`;
@@ -495,208 +510,29 @@ export function SystemDashboard() {
               <RefreshCw className="h-3 w-3" />
               Force Pull &amp; Restart
             </button>
+            <button
+              onClick={() => {
+                if (!confirm("Roll back web + loginserver to the :previous images?\n\nThe database is NOT rolled back. Refused if no :previous image exists or compose pins a digest.")) return;
+                doAction("rollback");
+              }}
+              disabled={!!actionLoading}
+              className="flex items-center gap-1.5 rounded border border-red-400/15 px-3 py-1.5 text-xs text-red-400/80 hover:text-red-300 hover:border-red-400/30 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Roll Back
+            </button>
           </div>
         </div>
       )}
 
       {/* Federation Nodes */}
-      {data.peerNodes && data.peerNodes.length > 0 && (
-        <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
-          <div className="px-5 py-3 border-b border-frost-400/8">
-            <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
-              Federation Nodes
-            </h3>
-          </div>
-          <div className="divide-y divide-frost-400/5">
-            {data.peerNodes.map((node) => {
-              const isOutdated = data.isMaster && node.softwareVersion && data.currentVersion && node.softwareVersion !== data.currentVersion;
-              const isUpgrading = remoteUpgradeNodeId === node.id;
-              return (
-                <div key={node.id} className="flex items-center justify-between px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <Globe className="h-4 w-4 text-parchment-600" />
-                    <div>
-                      <span className="text-sm text-parchment-300">{node.name}</span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-parchment-700 font-mono">{node.endpointUrl}</span>
-                        {node.softwareVersion && (
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isOutdated ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
-                            v{node.softwareVersion}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`h-2 w-2 rounded-full ${node.status === 'active' ? 'bg-emerald-400' : 'bg-parchment-600'}`} />
-                      <span className={`text-xs capitalize ${node.status === 'active' ? 'text-emerald-400' : 'text-parchment-600'}`}>
-                        {node.status}
-                      </span>
-                    </div>
-                    {isUpgrading ? (
-                      <div className="flex items-center gap-1.5 text-xs text-frost-300">
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                        <span>{remoteUpgradeProgress || 'Upgrading...'}</span>
-                      </div>
-                    ) : (
-                      <>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Restart loginserver on ${node.name}?\n\nThis will restart the loginserver container, dropping all connected world servers temporarily.`)) return;
-                          setActionResult(null);
-                          try {
-                            const r = await fetch('/api/admin/system', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remote_restart', node_id: node.id, service: 'loginserver' }),
-                            });
-                            const s = await r.json();
-                            if (r.ok) {
-                              setActionResult({ text: `${node.name} loginserver restarted`, type: 'success' });
-                            } else {
-                              setActionResult({ text: `${node.name}: ${s.error || 'restart failed'}`, type: 'error' });
-                            }
-                          } catch {
-                            setActionResult({ text: `Failed to reach ${node.name}`, type: 'error' });
-                          }
-                        }}
-                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
-                        className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={`Restart loginserver on ${node.name}`}
-                      >
-                        <Power className="h-3 w-3" />
-                        Restart LS
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Force pull & restart on ${node.name}?\n\nThis bypasses compose cache: direct docker pull, stops old container, starts new one.\nNo backup or migrations. Fast and reliable.`)) return;
-                          setRemoteUpgradeNodeId(node.id);
-                          setRemoteUpgradeProgress('Force pulling...');
-                          setActionResult(null);
-                          try {
-                            await fetch('/api/admin/system', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remote_force_pull_restart', node_id: node.id, mode: 'direct' }),
-                            });
-                          } catch {}
-                          let retries = 0;
-                          const poll = setInterval(async () => {
-                            retries++;
-                            try {
-                              const r = await fetch('/api/admin/system', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'remote_upgrade_status', node_id: node.id }),
-                              });
-                              const s = await r.json();
-                              if (s.step === 'done' && !s.running) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name} force pull & restart complete!`, type: 'success' });
-                                fetchData();
-                              } else if (s.step === 'failed' && !s.running) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name} force pull failed: ${s.error || 'unknown'}`, type: 'error' });
-                              } else if (s.running) {
-                                setRemoteUpgradeProgress(stepLabels[s.step] || s.step);
-                              } else if (s.error) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name}: ${s.error}`, type: 'error' });
-                              }
-                            } catch {
-                              if (retries > 60) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `Lost connection to ${node.name}`, type: 'error' });
-                              }
-                            }
-                          }, 3000);
-                          pollRefs.current.push(poll);
-                        }}
-                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
-                        className="flex items-center gap-1.5 rounded border border-amber-400/15 px-2.5 py-1.5 text-xs text-amber-400/80 hover:text-amber-300 hover:border-amber-400/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={`Force pull & restart on ${node.name} (bypasses compose cache)`}
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Force Pull
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Trigger image upgrade on ${node.name}?\n\nThis will: backup DB, pull web image, run migrations, restart web.\nIt will NOT touch their docker-compose.yml or .env.`)) return;
-                          setRemoteUpgradeNodeId(node.id);
-                          setRemoteUpgradeProgress('Starting...');
-                          setActionResult(null);
-                          try {
-                            await fetch('/api/admin/system', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remote_upgrade', node_id: node.id }),
-                            });
-                          } catch {}
-                          // Poll status
-                          let retries = 0;
-                          const poll = setInterval(async () => {
-                            retries++;
-                            try {
-                              const r = await fetch('/api/admin/system', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'remote_upgrade_status', node_id: node.id }),
-                              });
-                              const s = await r.json();
-                              if (s.step === 'done' && !s.running) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name} upgraded successfully!`, type: 'success' });
-                                fetchData();
-                              } else if (s.step === 'failed' && !s.running) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name} upgrade failed: ${s.error || 'unknown'}`, type: 'error' });
-                              } else if (s.running) {
-                                setRemoteUpgradeProgress(stepLabels[s.step] || s.step);
-                              } else if (s.error) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `${node.name}: ${s.error}`, type: 'error' });
-                              }
-                            } catch {
-                              if (retries > 60) {
-                                clearInterval(poll);
-                                setRemoteUpgradeNodeId(null);
-                                setRemoteUpgradeProgress(null);
-                                setActionResult({ text: `Lost connection to ${node.name}`, type: 'error' });
-                              }
-                            }
-                          }, 3000);
-                          pollRefs.current.push(poll);
-                        }}
-                        disabled={!!actionLoading || !!remoteUpgradeNodeId}
-                        className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={`Upgrade ${node.name} (image only)`}
-                      >
-                        <Download className="h-3 w-3" />
-                        Upgrade
-                      </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {data.federation && data.federation.nodes.length > 0 && (
+        <FederationNodesPanel
+          federation={data.federation}
+          busy={!!actionLoading}
+          notify={setActionResult}
+          refresh={fetchData}
+        />
       )}
 
       {/* Settings */}

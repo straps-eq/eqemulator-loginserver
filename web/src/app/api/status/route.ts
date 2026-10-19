@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import http from "http";
 import os from "os";
 import { readFileSync, statfsSync } from "fs";
+import { APP_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -253,6 +254,7 @@ export async function GET() {
       connectedWorlds,
       totalPlayers,
     },
+    version: APP_VERSION,
     checkedAt: new Date().toISOString(),
   };
 

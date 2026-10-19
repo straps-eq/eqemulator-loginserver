@@ -5,6 +5,7 @@ import { Compass, Shield, Activity, Settings } from "lucide-react";
 import { LiveStats } from "./live-stats";
 import { StatusIndicator } from "./status-indicator";
 import { serializeJsonLd } from "@/lib/json-ld";
+import { APP_VERSION } from "@/lib/version";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -203,6 +204,8 @@ export default async function HomePage() {
               <p className="text-parchment-700 text-[10px]">
                 Not affiliated with Daybreak Game Company
               </p>
+              <span className="text-frost-400/10">|</span>
+              <span className="font-mono text-parchment-700 text-[10px]">v{APP_VERSION}</span>
             </div>
             <div className="flex items-center gap-4">
               {[

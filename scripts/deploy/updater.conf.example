@@ -1,0 +1,54 @@
+# ──────────────────────────────────────────────
+# EQEmulator.dev — node self-updater policy
+#
+# Copy to /opt/eqemu/updater.conf (next to .env) and adjust:
+#   cp scripts/deploy/updater.conf.example updater.conf && chmod 600 updater.conf
+#
+# Read by scripts/deploy.sh. Plain KEY=VALUE lines; the file is parsed, never
+# executed. This file is the operator's: neither the federation master nor a
+# release can change it.
+# ──────────────────────────────────────────────
+
+# Release channel to follow. Only "stable" is published today.
+channel=stable
+
+# auto=true lets the timer (deploy.sh --auto) install new releases inside the
+# window below. auto=false (default): the timer only checks and reports the
+# pending version in state/updater-status.json; you upgrade by hand with
+# scripts/deploy.sh <version>.
+auto=false
+
+# Maintenance window for automatic upgrades, in UTC. "HH:MM-HH:MM", optionally
+# prefixed by days: "Tue,Thu 03:00-05:00". May cross midnight ("23:00-01:00").
+# Manual runs (deploy.sh <version>) and --now ignore the window.
+window=03:00-05:00
+
+# Largest automatic jump: patch (1.7.0 -> 1.7.x), minor (1.7 -> 1.x, same
+# major) or major (anything). Manual runs only warn.
+max_jump=minor
+
+# Never follow a desired version published by the federation master (it can
+# only ever be <= the signed latest stable anyway). Default: follow it.
+#follow_master=true
+
+# Optional Discord webhook for upgrade results (keep this file chmod 600).
+#discord_webhook=https://discord.com/api/webhooks/...
+
+# Where pre-upgrade database dumps go (must be writable by this user).
+#backup_dir=/home/straps/eqemu-backups/pre-upgrade
+# Pre-upgrade dumps to keep.
+#keep_backups=5
+
+# Compose file(s) this node runs, colon separated, relative to /opt/eqemu.
+# Default: docker compose's own discovery (docker-compose.yml plus
+# docker-compose.override.yml if present). Set this if you started the stack
+# with -f docker-compose.release.yml.
+#compose_file=docker-compose.release.yml
+
+# Health gates after a restart.
+#soak_seconds=120
+# Experimental: also send an EQ OP_SessionRequest to 127.0.0.1:5999 and
+# require an OP_SessionResponse.
+#udp_probe=false
+# Extended regex that must appear in the web log after the restart.
+#heartbeat_pattern=\[startup\] ✓|\[federation\] auto-sync started

@@ -26,21 +26,40 @@ export async function generateKeyPair(): Promise<KeyPair> {
 }
 
 /**
+ * Build the signed message.
+ * Legacy (<= 1.6.x): `${timestamp}\n${method}\n${path}\n${bodyHash}`
+ * Recipient-bound (1.7.0+, security M1): legacy + `\n${recipientPublicKey}`,
+ * sent together with the `X-Federation-Recipient` header, so a request signed
+ * for one node cannot be replayed against another.
+ */
+function buildMessage(
+  timestamp: string,
+  method: string,
+  path: string,
+  body: string,
+  recipient?: string | null
+): string {
+  const bodyHash = sodium.to_hex(
+    sodium.crypto_generichash(32, sodium.from_string(body || ""), null)
+  );
+  const base = `${timestamp}\n${method}\n${path}\n${bodyHash}`;
+  return recipient ? `${base}\n${recipient.toLowerCase()}` : base;
+}
+
+/**
  * Sign a federation request. Returns a hex-encoded signature.
- * Message format: `${timestamp}\n${method}\n${path}\n${bodyHash}`
+ * Pass `recipient` (the recipient's public key, hex) to bind the signature to it.
  */
 export async function signRequest(
   privateKeyHex: string,
   timestamp: string,
   method: string,
   path: string,
-  body: string
+  body: string,
+  recipient?: string | null
 ): Promise<string> {
   await ensureReady();
-  const bodyHash = sodium.to_hex(
-    sodium.crypto_generichash(32, sodium.from_string(body || ""), null)
-  );
-  const message = `${timestamp}\n${method}\n${path}\n${bodyHash}`;
+  const message = buildMessage(timestamp, method, path, body, recipient);
   const privateKey = sodium.from_hex(privateKeyHex);
   const signature = sodium.crypto_sign_detached(
     sodium.from_string(message),
@@ -59,14 +78,12 @@ export async function verifySignature(
   timestamp: string,
   method: string,
   path: string,
-  body: string
+  body: string,
+  recipient?: string | null
 ): Promise<boolean> {
   await ensureReady();
   try {
-    const bodyHash = sodium.to_hex(
-      sodium.crypto_generichash(32, sodium.from_string(body || ""), null)
-    );
-    const message = `${timestamp}\n${method}\n${path}\n${bodyHash}`;
+    const message = buildMessage(timestamp, method, path, body, recipient);
     const publicKey = sodium.from_hex(publicKeyHex);
     const signature = sodium.from_hex(signatureHex);
     return sodium.crypto_sign_verify_detached(
