@@ -96,9 +96,11 @@ export async function authenticateFederationRequest(
     // a version older than 1.7.0 (or have not reported one yet).
     if (node.softwareVersion && compareVersions(node.softwareVersion, RECIPIENT_BINDING_MIN_VERSION) >= 0) {
       // A node that rolled back below 1.7.0 can only reach us with a legacy
-      // GET heartbeat, which carries no version. Accept that one request type
-      // (read-only) and forget the recorded version so the transition rule
-      // applies again; everything else is refused.
+      // GET heartbeat, which carries no version. Answer that one read-only
+      // request, but never lower the recorded version on an unbound request:
+      // unbound heartbeats can be replayed from another peer within the nonce
+      // window, and clearing the version would switch binding off for this
+      // node. An operator resets it from the admin dashboard instead.
       if (method === "GET" && url.pathname === "/api/federation/heartbeat") {
         legacyDowngrade = true;
       } else {
@@ -144,11 +146,14 @@ export async function authenticateFederationRequest(
   }
 
   if (legacyDowngrade) {
-    const { pool } = await import("@/lib/db");
-    await pool.execute(`UPDATE federation_nodes SET software_version = NULL WHERE id = ?`, [node.id]);
-    await auditLog(node.id, "unbound_signature_downgrade", { previousVersion: node.softwareVersion });
-    console.warn(`[federation] "${node.name}" (id ${node.id}) sent a legacy signature but had reported ${node.softwareVersion}; assuming a rollback`);
-    node.softwareVersion = null;
+    const last = unboundWarnedAt.get(-node.id) || 0;
+    if (Date.now() - last > UNBOUND_WARN_INTERVAL_MS) {
+      unboundWarnedAt.set(-node.id, Date.now());
+      await auditLog(node.id, "unbound_heartbeat_from_bound_node", { recordedVersion: node.softwareVersion });
+      console.warn(
+        `[federation] "${node.name}" (id ${node.id}) sent a legacy heartbeat but is recorded as ${node.softwareVersion}; if it was rolled back, reset its recorded version from the admin dashboard`
+      );
+    }
   }
 
   // Update heartbeat

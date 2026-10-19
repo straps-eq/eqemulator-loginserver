@@ -684,6 +684,8 @@ type GateResult =
   | { ok: true; node: { id: number; name: string; recipientBound: boolean } }
   | { ok: false; response: NextResponse };
 
+const READ_ONLY_REMOTE_COMMANDS = new Set(["remote_upgrade_status"]);
+
 async function gateRemoteCommand(req: NextRequest, command: string, bodyText: string): Promise<GateResult> {
   const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const { auditLog, remoteCommandsAllowed } = await import("@/lib/federation/node");
@@ -713,7 +715,11 @@ async function gateRemoteCommand(req: NextRequest, command: string, bodyText: st
     console.warn(`[federation] refused ${command} from ${auth.node.name}: remote commands disabled on this node`);
     return { ok: false, response: NextResponse.json({ error: "remote commands disabled on this node" }, { status: 403 }) };
   }
-  await auditLog(auth.node.id, "remote_command_received", { ...base, accepted: true });
+  // The dashboard polls remote_upgrade_status every few seconds during an
+  // upgrade; it is read-only, so only refusals are written to the audit log.
+  if (!READ_ONLY_REMOTE_COMMANDS.has(command)) {
+    await auditLog(auth.node.id, "remote_command_received", { ...base, accepted: true });
+  }
   return { ok: true, node: auth.node };
 }
 

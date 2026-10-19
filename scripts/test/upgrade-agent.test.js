@@ -219,13 +219,15 @@ async function test(name, fn) {
     assert(!fs.existsSync(path.join(composeDir, "nginx")));
   });
 
-  await test("digest-pinned compose is pulled by digest", async () => {
+  await test("digest-pinned compose is left to deploy.sh (409, nothing pulled or tagged)", async () => {
     reset({ composeImages: { web: "ghcr.io/straps-eq/eqemu-web@sha256:" + "a".repeat(64), loginserver: "ghcr.io/straps-eq/eqemu-loginserver:v1.6.2", "upgrade-agent": "ghcr.io/straps-eq/eqemu-upgrade-agent:v1.6.2" } });
-    await request("POST", "/force_pull_restart?mode=direct");
-    const st = await waitDone();
-    assert.strictEqual(st.step, "done", st.error);
-    assert.deepStrictEqual(S.pulls, ["ghcr.io/straps-eq/eqemu-web@sha256:" + "a".repeat(64), "ghcr.io/straps-eq/eqemu-loginserver:v1.6.2"]);
-    assert(S.tags[0].endsWith("eqemu-web:previous"));
+    for (const p of ["/force_pull_restart?mode=direct", "/image_upgrade", "/upgrade"]) {
+      const r = await request("POST", p);
+      assert.strictEqual(r.status, 409, `${p} should be refused`);
+      assert(/deploy\.sh/.test(r.body.error), r.body.error);
+    }
+    assert.deepStrictEqual(S.pulls, []);
+    assert.deepStrictEqual(S.tags, []);
   });
 
   await test("force_pull_restart compose mode uses compose pull", async () => {

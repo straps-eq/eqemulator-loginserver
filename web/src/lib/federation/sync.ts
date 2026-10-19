@@ -161,6 +161,11 @@ export async function clearSyncDataHash(sourceNodeId?: number): Promise<void> {
   await cacheDel(...keys);
 }
 
+/** The hashes live in the persistent Redis volume, so after a database restore
+ *  they could make this node skip re-applying peer data it no longer has. The
+ *  first sync cycle of each process clears them and does a full re-apply. */
+let syncHashesClearedAtStartup = false;
+
 /** Track our own local server list hash to detect when new servers join. */
 let lastLocalServerHash: string | null = null;
 
@@ -186,6 +191,10 @@ export async function runSyncCycle(): Promise<{
 }> {
   const self = await getSelfNode();
   if (!self) return { peersChecked: 0, changesApplied: 0, errors: ["Not initialized"] };
+  if (!syncHashesClearedAtStartup) {
+    syncHashesClearedAtStartup = true;
+    try { await clearSyncDataHash(); } catch (err) { console.error("[sync] clearing cached sync hashes failed:", err); }
+  }
 
   const peers = await getActivePeers();
   let changesApplied = 0;
@@ -549,6 +558,7 @@ function toMySQLDatetime(val: unknown): string {
 /** Apply full loginserver data from a peer — upsert accounts, servers, admins. */
 async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): Promise<number> {
   knownHashPeers.add(sourceNodeId);
+  let rowErrors = 0;
   const collections = {
     accounts: data.accounts, servers: data.servers, admins: data.admins, profiles: data.profiles,
     platform_accounts: data.platform_accounts, oauth_links: data.oauth_links, login_links: data.login_links,
@@ -572,6 +582,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
         await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] volatile refresh from node ${sourceNodeId} failed:`, err);
       }
     }
@@ -722,6 +733,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [acctResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (acctResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] account upsert error for ${acct.account_name}:`, err);
       }
     }
@@ -787,6 +799,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [srvResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (srvResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] server upsert error for ${srv.short_name}:`, err);
       }
     }
@@ -845,6 +858,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         const [admResult] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
         if (admResult[0].c > 0) applied++;
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] admin upsert error for ${adm.account_name}:`, err);
       }
     }
@@ -909,6 +923,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
             if (profResult[0].c > 0) applied++;
           }
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] profile upsert error for ${prof.short_name}:`, err);
         }
       }
@@ -970,6 +985,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] platform_accounts upsert error for id ${pa.id}:`, err);
         }
       }
@@ -991,6 +1007,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           }
         }
       } catch (err) {
+        rowErrors++;
         console.error(`[sync_data] AUTO_INCREMENT bump error:`, err);
       }
     }
@@ -1014,6 +1031,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] oauth_links upsert error for id ${ol.id}:`, err);
         }
       }
@@ -1037,6 +1055,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] login_links upsert error for id ${ll.id}:`, err);
         }
       }
@@ -1073,6 +1092,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] platform_admins upsert error for id ${pa.id}:`, err);
         }
       }
@@ -1096,6 +1116,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
           const [r] = await conn.execute(`SELECT ROW_COUNT() as c`) as unknown as [Array<{ c: number }>];
           if (r[0].c > 0) applied++;
         } catch (err) {
+          rowErrors++;
           console.error(`[sync_data] ws_admin_links upsert error for id ${wl.id}:`, err);
         }
       }
@@ -1109,6 +1130,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
          WHERE lws.id IS NULL`
       );
     } catch (err) {
+      rowErrors++;
       console.error(`[sync_data] orphan profile cleanup error:`, err);
     }
 
@@ -1182,7 +1204,13 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
     await conn.commit();
 
     // Cache the hashes for future skip detection (after commit, so a rolled-back
-    // apply is retried next cycle)
+    // apply is retried next cycle). Row errors are swallowed above so one bad
+    // row cannot block the rest; if any happened, do not cache, so the whole
+    // set is re-applied next cycle instead of being skipped for days.
+    if (rowErrors > 0) {
+      console.warn(`[sync_data] ${rowErrors} row error(s) applying data from node ${sourceNodeId}; will re-apply next cycle`);
+      return applied;
+    }
     await cacheSet(stableKey(sourceNodeId), stableHash, SYNC_HASH_TTL_SECONDS);
     await cacheSet(volatileKey(sourceNodeId), volatileHash, SYNC_HASH_TTL_SECONDS);
     await cacheSet(volatileAtKey(sourceNodeId), String(Date.now()), SYNC_HASH_TTL_SECONDS);

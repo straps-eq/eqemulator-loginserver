@@ -390,6 +390,27 @@ export async function POST(request: NextRequest) {
         : peerError || result.error || "Failed to reach peer node";
       return NextResponse.json({ error: msg }, { status: result.status || 502 });
     }
+    case "reset_node_version": {
+      // Operator action after a peer was rolled back below 1.7.0: an unbound
+      // request never lowers the recorded version (it could be a replay), so
+      // clearing it is done here, audit logged.
+      const nodeId = parseInt(String(body.node_id), 10);
+      if (!nodeId || isNaN(nodeId)) {
+        return NextResponse.json({ error: "node_id required (number)" }, { status: 400 });
+      }
+      const { auditLog, getSelfNode } = await import("@/lib/federation/node");
+      const self = await getSelfNode();
+      const [node] = await db.select().from(federationNodes).where(eq(federationNodes.id, nodeId));
+      if (!self || !node || node.isSelf) {
+        return NextResponse.json({ error: "Node not found" }, { status: 404 });
+      }
+      const { pool } = await import("@/lib/db");
+      await pool.execute(`UPDATE federation_nodes SET software_version = NULL WHERE id = ?`, [node.id]);
+      await auditLog(self.id, "node_version_reset", {
+        targetNodeId: node.id, targetName: node.name, previousVersion: node.softwareVersion, admin: session.accountName || null,
+      });
+      return NextResponse.json({ success: true });
+    }
     case "toggle_status_page": {
       const { enabled } = body;
       if (typeof enabled !== "boolean") {

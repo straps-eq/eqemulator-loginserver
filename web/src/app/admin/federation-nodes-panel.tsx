@@ -421,6 +421,25 @@ export function FederationNodesPanel({
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          {node.softwareVersion && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Reset the recorded version (${node.softwareVersion}) of ${node.name}?
+
+Only do this if its operator rolled it back below 1.7.0. Until it reports a version again, its unbound (legacy) signatures are accepted.`)) return;
+                                const r = await post({ action: "reset_node_version", node_id: node.id });
+                                notify(r.ok
+                                  ? { text: `Recorded version of ${node.name} cleared`, type: "success" }
+                                  : { text: r.data.error || `Failed to reset ${node.name}`, type: "error" });
+                              }}
+                              disabled={busy || !!remoteNodeId}
+                              className="flex items-center gap-1.5 rounded border border-frost-400/10 px-2.5 py-1.5 text-xs text-parchment-500 hover:text-amber-400 hover:border-amber-400/25 transition-colors disabled:opacity-50"
+                              title="Clear the version recorded for this node, after its operator rolled it back below 1.7.0"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Reset recorded version
+                            </button>
+                          )}
                           <button
                             onClick={() => legacyCommand(node, "restart")}
                             disabled={busy || !!remoteNodeId}

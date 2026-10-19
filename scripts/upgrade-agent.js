@@ -685,7 +685,26 @@ async function runUpgradePipeline({ kind, backup, migrate, useCompose = false })
   finishWithHealth(kind, healthy, result);
 }
 
+// A node whose compose pins images by digest is managed by scripts/deploy.sh.
+// Upgrading it here would re-tag :previous and overwrite deploy.sh's rollback
+// target, so refuse with a pointer instead (same rule as /rollback).
+function digestPinnedServices() {
+  try {
+    const images = resolveServiceImages(UPGRADE_SERVICES);
+    return UPGRADE_SERVICES.filter((svc) => parseImageRef(images[svc]).digest);
+  } catch {
+    return [];
+  }
+}
+
 function startPipeline(res, opts) {
+  const pinned = digestPinnedServices();
+  if (pinned.length > 0) {
+    const msg = `${pinned.join(", ")} pinned by digest; this node is managed by scripts/deploy.sh — run "scripts/deploy.sh <version>" on the host instead`;
+    log(`  ✗ ${opts.kind} refused: ${msg}`);
+    jsonResponse(res, 409, { error: msg });
+    return;
+  }
   if (!acquireUpgradeLock()) {
     jsonResponse(res, 409, { error: "Upgrade already in progress", step: upgradeState.step });
     return;

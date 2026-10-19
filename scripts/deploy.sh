@@ -74,7 +74,10 @@ COSIGN_IMAGE="${COSIGN_IMAGE:-gcr.io/projectsigstore/cosign:v2.4.1@sha256:b03690
 JQ_IMAGE="${JQ_IMAGE:-ghcr.io/jqlang/jq:1.7.1@sha256:096b83865ad59b5b02841f103f83f45c51318394331bf1995e187ea3be937432}"
 BUSYBOX_IMAGE="${BUSYBOX_IMAGE:-busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662}"
 
-EQEMU_DIR="${EQEMU_DIR:-/opt/eqemu}"
+# Default to the checkout this script lives in, so running another clone's
+# deploy.sh can never act on /opt/eqemu by accident. Preflight also checks that
+# the running stack was started from this directory.
+EQEMU_DIR="${EQEMU_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 UPDATER_CONF="${UPDATER_CONF:-$EQEMU_DIR/updater.conf}"
 STATE_DIR="${STATE_DIR:-$EQEMU_DIR/state}"
 UPDATER_HOME="${UPDATER_HOME:-$HOME/eqemu-updater}"
@@ -373,7 +376,10 @@ setup_docker_env() {
 # ══════════════════════════════════════════════
 detect_current() {
   local v=""
-  if [ -f "$VERSIONS_FILE" ]; then
+  if [ -n "${EQEMU_CURRENT_VERSION:-}" ]; then
+    v="${EQEMU_CURRENT_VERSION#v}"; CUR_SOURCE="EQEMU_CURRENT_VERSION"
+    [ -f "$VERSIONS_FILE" ] || FIRST_RUN=1
+  elif [ -f "$VERSIONS_FILE" ]; then
     v="$(kv_get "$VERSIONS_FILE" EQEMU_VERSION)"; CUR_SOURCE="versions.env"
   else
     FIRST_RUN=1
@@ -381,6 +387,10 @@ detect_current() {
   if ! is_semver "$v"; then
     v="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' eqemu-web 2>/dev/null || true)"
     v="${v#v}"; CUR_SOURCE="eqemu-web image label"
+  fi
+  if ! is_semver "$v"; then
+    v="$(db_query "SELECT software_version FROM federation_nodes WHERE is_self=1 LIMIT 1" 2>/dev/null || true)"
+    v="${v#v}"; CUR_SOURCE="federation_nodes self row"
   fi
   if ! is_semver "$v"; then
     v="$(git -C "$EQEMU_DIR" describe --tags --exact-match HEAD 2>/dev/null || true)"
@@ -652,6 +662,13 @@ preflight() { # needs manifest loaded
   [ -w "$BACKUP_DIR" ] || errs+=("backup dir $BACKUP_DIR not writable")
   if mkdir -p "$SNAP_ROOT" 2>/dev/null; then chmod 700 "$UPDATER_HOME" 2>/dev/null || true; fi
   [ -w "$SNAP_ROOT" ] || errs+=("$SNAP_ROOT not writable")
+  # The running stack must belong to this checkout, or a deploy from another
+  # clone would migrate the live database and then collide on container names.
+  local wd
+  wd="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' eqemu-web 2>/dev/null || true)"
+  if [ -n "$wd" ] && [ "$(cd "$wd" 2>/dev/null && pwd -P)" != "$(cd "$EQEMU_DIR" && pwd -P)" ]; then
+    errs+=("the running stack was started from $wd, not $EQEMU_DIR (run that checkout's scripts/deploy.sh, or set EQEMU_DIR)")
+  fi
   if [ "${#errs[@]}" -gt 0 ]; then
     local e; for e in "${errs[@]}"; do log "pre-flight: $e"; done
     finish needs_operator "$E_PREFLIGHT" "pre-flight: ${errs[0]}"
@@ -937,46 +954,98 @@ bootstrap_sql() {
     printf "INSERT INTO schema_migrations (filename, checksum) VALUES (\047%s\047, \047%s\047) ON DUPLICATE KEY UPDATE checksum = COALESCE(checksum, VALUES(checksum));\n", $2, $1 }'
 }
 
-migrate() { # applies M_MIGRATIONS from the staged tag; returns non-zero on the first error
-  local has_table has_sum boot=0
-  has_table="$(db_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE table_schema=DATABASE() AND table_name='schema_migrations'")"
-  has_sum="$(db_query "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema=DATABASE() AND table_name='schema_migrations' AND column_name='checksum'")"
-  if [ "$has_table" = 0 ] || [ "$has_sum" = 0 ]; then boot=1; fi
+migration_verify_queries() { # FILE (in the staged tag) -> its "-- verify: <SQL>" lines
+  local p="$STAGE/tree/web/migrations/$1"
+  [ -f "$p" ] || return 0
+  sed -n 's/^--[[:space:]]*verify:[[:space:]]*//p' "$p"
+}
 
-  if [ "$boot" = 1 ]; then
-    # Existing node without (complete) tracking: everything the running version
-    # shipped was applied by setup.sh / the old agent / the README loop, so mark
-    # it as applied instead of replaying it.
-    log "migrations: bootstrapping schema_migrations (marking the migrations of $CUR_VERSION as applied)"
-    local cur_list=""
-    cur_list="$(docker exec eqemu-web sh -c 'cd /app/migrations 2>/dev/null && sha256sum -- *.sql' 2>/dev/null || true)"
-    if [ -z "$cur_list" ] && [ -n "$PREV_COMMIT" ]; then
-      local f
-      while IFS= read -r f; do
-        cur_list+="$(git -C "$EQEMU_DIR" show "$PREV_COMMIT:web/migrations/$f" | sha256sum | cut -d' ' -f1)  $f"$'\n'
-      done < <(git -C "$EQEMU_DIR" ls-tree --name-only "$PREV_COMMIT" web/migrations/ 2>/dev/null | sed 's|^web/migrations/||' | grep '\.sql$')
+# Nodes from before 1.7 have no reliable record of which migrations ran: the old
+# agent applied them and ignored errors. A migration of the running version is
+# only marked applied if every "-- verify:" query in it returns a non-zero value.
+# Files without a verify line are trusted and logged. Anything left unproven is
+# applied by the normal loop, which stops on the first error. Rows that already
+# exist in schema_migrations are kept as they are.
+bootstrap_migrations() { # HAS_TABLE HAS_SUM; sets BOOT_APPLIED for --dry-run
+  local has_table="$1" has_sum="$2" cur_list="" existing="" f sum q v ok rows="" marked=0 trusted=0
+  local left=()
+  cur_list="$(docker exec eqemu-web sh -c 'cd /app/migrations 2>/dev/null && sha256sum -- *.sql' 2>/dev/null || true)"
+  if [ -z "$cur_list" ] && [ -n "$PREV_COMMIT" ]; then
+    while IFS= read -r f; do
+      cur_list+="$(git -C "$EQEMU_DIR" show "$PREV_COMMIT:web/migrations/$f" | sha256sum | cut -d' ' -f1)  $f"$'\n'
+    done < <(git -C "$EQEMU_DIR" ls-tree --name-only "$PREV_COMMIT" web/migrations/ 2>/dev/null | sed 's|^web/migrations/||' | grep '\.sql$')
+  fi
+  [ -n "$cur_list" ] || { MIG_ERR="cannot list the migrations of the running version to bootstrap schema_migrations"; return 1; }
+
+  if [ "$has_table" = 1 ]; then
+    existing="$(db_query "SELECT filename FROM schema_migrations")" \
+      || { MIG_ERR="cannot read existing schema_migrations rows"; return 1; }
+  fi
+
+  while read -r sum f; do
+    [[ "$f" =~ ^[A-Za-z0-9._-]+\.sql$ && "$sum" =~ ^[0-9a-f]{64}$ ]] || continue
+    if [ -n "$existing" ] && printf '%s\n' "$existing" | grep -qxF -- "$f"; then continue; fi
+    ok=1 q=""
+    while IFS= read -r q; do
+      [ -n "$q" ] || continue
+      v="$(db_query "$q")" || { MIG_ERR="verify query for $f failed"; return 1; }
+      case "$v" in '' | 0 | NULL) ok=0 ;; esac
+    done < <(migration_verify_queries "$f")
+    if [ "$ok" = 0 ]; then left+=("$f"); continue; fi
+    # Record the checksum of the release's copy when it has one, so a file that
+    # only gained a verify line is not reported as edited.
+    [ -f "$STAGE/tree/web/migrations/$f" ] && sum="$(sha256sum "$STAGE/tree/web/migrations/$f" | cut -d' ' -f1)"
+    rows+="$sum  $f"$'\n'
+    marked=$((marked + 1))
+    [ -n "$(migration_verify_queries "$f")" ] || trusted=$((trusted + 1))
+  done <<<"$cur_list"
+
+  log "migrations: bootstrapping schema_migrations from $CUR_VERSION: $marked marked applied ($trusted without a verify check), ${#left[@]} left to apply${left[*]:+: ${left[*]}}"
+  if [ "$DRY_RUN" = 1 ]; then
+    plan "create/extend schema_migrations and mark $marked migration(s) of $CUR_VERSION as applied"
+    BOOT_APPLIED="$(printf '%s\n' "$existing" | awk 'NF {print $1"\t"}')"$'\n'"$(printf '%s' "$rows" | awk 'NF {print $2"\t"$1}')"
+    return 0
+  fi
+  {
+    echo "CREATE TABLE IF NOT EXISTS schema_migrations (filename VARCHAR(255) PRIMARY KEY, checksum CHAR(64) NULL, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
+    if [ "$has_table" = 1 ] && [ "$has_sum" = 0 ]; then
+      echo "ALTER TABLE schema_migrations ADD COLUMN checksum CHAR(64) NULL AFTER filename;"
     fi
-    [ -n "$cur_list" ] || { MIG_ERR="cannot list the migrations of the running version to bootstrap schema_migrations"; return 1; }
-    if [ "$DRY_RUN" = 1 ]; then
-      plan "create/extend schema_migrations and mark $(printf '%s\n' "$cur_list" | grep -c '\.sql$') migration(s) of $CUR_VERSION as applied"
-    else
-      {
-        echo "CREATE TABLE IF NOT EXISTS schema_migrations (filename VARCHAR(255) PRIMARY KEY, checksum CHAR(64) NULL, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
-        [ "$has_table" = 1 ] && [ "$has_sum" = 0 ] && echo "ALTER TABLE schema_migrations ADD COLUMN checksum CHAR(64) NULL AFTER filename;"
-        printf '%s\n' "$cur_list" | bootstrap_sql
-      } | db_exec || { MIG_ERR="bootstrapping schema_migrations failed"; return 1; }
-    fi
+    printf '%s' "$rows" | bootstrap_sql
+  } | db_exec || { MIG_ERR="bootstrapping schema_migrations failed"; return 1; }
+}
+
+migrate() { # applies M_MIGRATIONS from the staged tag; returns non-zero on the first error
+  # Runs inside `if !`, where set -e is off: every database read is checked so a
+  # failed probe can never be mistaken for "nothing applied yet".
+  local has_table has_sum
+  BOOT_APPLIED=""
+  has_table="$(db_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" \
+    || { MIG_ERR="cannot query information_schema for schema_migrations"; return 1; }
+  has_sum="$(db_query "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema=DATABASE() AND table_name='schema_migrations' AND column_name='checksum'")" \
+    || { MIG_ERR="cannot query information_schema for schema_migrations.checksum"; return 1; }
+  case "$has_table:$has_sum" in
+    0:0 | 1:0 | 1:1) ;;
+    *) MIG_ERR="unexpected schema_migrations probe result [$has_table/$has_sum]"; return 1 ;;
+  esac
+  if [ "$has_table" = 0 ] || [ "$has_sum" = 0 ]; then
+    bootstrap_migrations "$has_table" "$has_sum" || return 1
   fi
 
   local applied f sum rec n=0
-  applied="$(db_query "SELECT filename, IFNULL(checksum,'') FROM schema_migrations" 2>/dev/null || true)"
-  if [ "$DRY_RUN" = 1 ] && [ "$boot" = 1 ]; then applied="$(printf '%s\n' "$cur_list" | awk '{print $2"\t"$1}')"; fi
+  if [ "$DRY_RUN" = 1 ] && [ "$has_sum" = 0 ]; then
+    applied="$BOOT_APPLIED"
+  else
+    applied="$(db_query "SELECT filename, IFNULL(checksum,'') FROM schema_migrations")" \
+      || { MIG_ERR="cannot read schema_migrations"; return 1; }
+  fi
   for f in "${M_MIGRATIONS[@]}"; do
     sum="$(sha256sum "$STAGE/tree/web/migrations/$f" | cut -d' ' -f1)"
     rec="$(printf '%s\n' "$applied" | awk -F'\t' -v f="$f" '$1 == f {print ($2 == "" ? "-" : $2); exit}')"
     if [ -n "$rec" ]; then
       if [ "$rec" = "-" ]; then
-        [ "$DRY_RUN" = 1 ] || db_query "UPDATE schema_migrations SET checksum='$sum' WHERE filename='$f' AND checksum IS NULL" || true
+        [ "$DRY_RUN" = 1 ] || db_query "UPDATE schema_migrations SET checksum='$sum' WHERE filename='$f' AND checksum IS NULL" \
+          || { MIG_ERR="cannot record checksum for $f"; return 1; }
       elif [ "$rec" != "$sum" ]; then
         warn "migration $f was applied with checksum ${rec:0:12}, release has ${sum:0:12} (edited after release?) — not re-applied"
       fi
@@ -1059,6 +1128,14 @@ rollback_changes() { # REASON -> 0 if the node is back and healthy
     install_file "$SNAP/nginx-default.conf" "$EQEMU_DIR/nginx/conf.d/default.conf"
   fi
   ST_VERSION="$(kv_get "$SNAP/meta" CUR_VERSION)"
+  # A restored pre-1.7 compose file hardcodes :latest and ignores the pins, so
+  # point :latest at the :previous images as well. Pinned compose files are
+  # unaffected by this.
+  for s in "${SERVICES[@]}"; do
+    if docker image inspect "${IMAGE_PREFIX}$s:previous" >/dev/null 2>&1; then
+      docker tag "${IMAGE_PREFIX}$s:previous" "${IMAGE_PREFIX}$s:latest" || warn "rollback: could not tag $s:previous as :latest"
+    fi
+  done
   if [ "$RESTARTED" = 1 ] || [ "$MODE" = rollback ]; then
     RESTART_SINCE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     compose_up_ordered || { log "rollback: compose up failed"; return 1; }
