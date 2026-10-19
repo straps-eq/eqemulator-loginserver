@@ -54,14 +54,14 @@ export default async function HomePage() {
       <section className="relative overflow-hidden">
         <div className="relative mx-auto max-w-4xl px-4 py-12 sm:py-16 sm:px-6 lg:px-8 text-center">
           <p className="font-display text-xs tracking-[0.3em] uppercase text-frost-300/70 mb-4">
-            Welcome to EQ Emulator
+            Community-run EQ worlds
           </p>
           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-parchment-100 mb-4">
-            Play EQ again. <span className="text-gold-gradient">Free, and run by players.</span>
+            Welcome to <span className="text-gold-gradient">EQ Emulator</span>
           </h1>
           <p className="mx-auto max-w-xl text-base text-parchment-300 mb-7 leading-relaxed">
-            Pick a world, point your game at it, and you&apos;re in.
-            Already have an EQEmu login? It works here.
+            Your home for connecting to EQ Emulator worlds. Find a server, get set up, and start playing.
+            New to emulators? We&apos;ll walk you through it, step by step.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -74,7 +74,7 @@ export default async function HomePage() {
               href="/getting-started"
               className="rounded border border-parchment-600/15 px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-parchment-300 hover:border-parchment-500/25 hover:text-parchment-100 transition-all duration-300"
             >
-              How to play
+              I&apos;m new, show me how
             </Link>
           </div>
           <LiveStats />
@@ -154,11 +154,11 @@ export default async function HomePage() {
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <span className="font-display text-xs tracking-[0.35em] uppercase text-frost-400/50 block mb-3">
-              New here?
+              New to emulators?
             </span>
-            <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Playing takes three steps</h2>
+            <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Here&apos;s how it works</h2>
             <p className="text-parchment-300 text-sm max-w-xl mx-auto">
-              No subscription and no launcher. You need your own copy of the game, a one-line edit, and a login.
+              EQ Emulator worlds are run by the community and use your own copy of EverQuest. Getting in takes three steps, and our guide walks you through each one.
             </p>
           </div>
           <ol className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -166,26 +166,26 @@ export default async function HomePage() {
               {
                 n: "1",
                 icon: Download,
-                title: "Get the game",
-                desc: "Most worlds use the Rain of Fear 2 client. Titanium, The Outer Brood and the live client are supported too. Each world's page says which one it wants.",
+                title: "Have the game installed",
+                desc: "You play with your own copy of EverQuest. Most worlds use the Rain of Fear 2 version; some use Titanium, The Outer Brood or the current client. Each world's page says which, and the guide helps you check what you have.",
               },
               {
                 n: "2",
                 icon: FileText,
-                title: "Point it at us",
+                title: "Tell the game where to connect",
                 desc: (
                   <>
                     Edit <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
                     game folder to <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
-                    The guide picks the right port for your client.
+                    It&apos;s one line, and the guide shows exactly where it goes.
                   </>
                 ),
               },
               {
                 n: "3",
                 icon: Play,
-                title: "Log in and play",
-                desc: "Create a login here, or use the one you already have from the EQEmulator forums. Choose a world from the list in the game and go.",
+                title: "Make a login and pick a world",
+                desc: "Create a login here in a minute, or use the one you already have from the EQEmulator forums. Start the game, choose a world from the list, and you're in.",
               },
             ].map(({ n, icon: Icon, title, desc }) => (
               <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-6">
@@ -205,7 +205,7 @@ export default async function HomePage() {
               href="/getting-started"
               className="rounded border border-frost-400/25 bg-frost-400/5 px-8 py-3 text-xs font-display font-medium tracking-wider uppercase text-frost-300 hover:bg-frost-400/10 hover:border-frost-400/40 transition-all duration-300"
             >
-              Full setup guide
+              Step-by-step guide
             </Link>
           </div>
         </div>
@@ -217,8 +217,8 @@ export default async function HomePage() {
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
             {[
-              { title: "Live, not a list", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
-              { title: "Every client welcome", desc: "Titanium, RoF2, The Outer Brood and the current live client all log in here. One login works on every world in the directory." },
+              { title: "See who's playing", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
+              { title: "One login, every world", desc: "Titanium, RoF2, The Outer Brood and the current client all log in here, and one login works on every world in the directory." },
               { title: "Built by the community", desc: "Open source, run by players, and compatible with the EQEmulator forum logins people have used for twenty years." },
             ].map(({ title, desc }) => (
               <div key={title}>
