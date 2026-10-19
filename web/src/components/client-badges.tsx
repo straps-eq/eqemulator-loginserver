@@ -24,7 +24,12 @@ export function ClientSupportInline({ summary }: { summary?: ClientSupportView |
   if (supported.length === 0) return null;
   return (
     <span className="text-[10px] text-parchment-600 truncate block" title={checkedTitle(summary)}>
-      {supported.map((c) => CLIENT_LABELS[c]).join(" · ")}
+      {supported.map((c, i) => (
+        <span key={c}>
+          {i > 0 && " · "}
+          <span className={c === "tob" ? "text-frost-300" : undefined}>{CLIENT_LABELS[c]}</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -45,15 +50,29 @@ export function ClientSupportBadges({ summary }: { summary?: ClientSupportView |
   }
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5" title={checkedTitle(summary)}>
-      {supported.map((c) => (
-        <span
-          key={c}
-          title={CLIENT_TITLES[c]}
-          className="text-[9px] font-display uppercase tracking-wider text-frost-300 bg-frost-400/10 border border-frost-400/20 px-1.5 py-0.5 rounded"
-        >
-          {CLIENT_LABELS[c]}
-        </span>
-      ))}
+      {supported.map((c) =>
+        c === "tob" ? (
+          // ToB support is new: give it a little more shine than the rest
+          <span
+            key={c}
+            title={CLIENT_TITLES[c]}
+            className="inline-flex items-center gap-1 text-[9px] font-display uppercase tracking-wider text-frost-100 bg-frost-300/15 border border-frost-300/50 px-1.5 py-0.5 rounded shadow-glow-gold"
+          >
+            {CLIENT_LABELS[c]}
+            <span className="rounded-sm bg-gradient-to-b from-[#f4d590] to-[#d4a650] px-1 text-[8px] font-bold leading-[1.4] text-[#1b2350]">
+              New
+            </span>
+          </span>
+        ) : (
+          <span
+            key={c}
+            title={CLIENT_TITLES[c]}
+            className="text-[9px] font-display uppercase tracking-wider text-frost-300 bg-frost-400/10 border border-frost-400/20 px-1.5 py-0.5 rounded"
+          >
+            {CLIENT_LABELS[c]}
+          </span>
+        )
+      )}
       {blocked.map((c) => (
         <span
           key={c}

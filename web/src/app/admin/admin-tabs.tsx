@@ -38,7 +38,7 @@ export function AdminTabs({ adminRole }: { adminRole: "admin" | "moderator" }) {
               className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-display uppercase tracking-wider border-b-2 transition-colors ${
                 isActive
                   ? "border-frost-400 text-frost-300"
-                  : "border-transparent text-parchment-600 hover:text-parchment-400"
+                  : "border-transparent text-parchment-400 hover:text-parchment-400"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />

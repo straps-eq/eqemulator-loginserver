@@ -17,7 +17,7 @@ export default async function AdminPage() {
         <h1 className="font-display text-2xl font-semibold tracking-wide text-parchment-200">
           Admin Panel
         </h1>
-        <p className="mt-1 mb-6 text-sm text-parchment-600">
+        <p className="mt-1 mb-6 text-sm text-parchment-400">
           Manage platform accounts, roles, server registrations, and federation
         </p>
         <AdminTabs adminRole={session.adminRole || "moderator"} />

@@ -30,7 +30,7 @@ interface ProbeStatusData {
 const statusStyle: Record<string, string> = {
   supported: "text-forest-400",
   blocked: "text-amber-400",
-  unsupported: "text-parchment-600",
+  unsupported: "text-parchment-400",
   error: "text-red-400/80",
   unreachable: "text-red-400/60",
 };
@@ -107,27 +107,27 @@ export function ClientProbePanel() {
         <button
           onClick={() => probeNow()}
           disabled={data.running}
-          className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${data.running ? "animate-spin" : ""}`} />
           {data.running ? "Probing..." : "Probe now"}
         </button>
       </div>
-      <p className="text-xs text-parchment-600 mb-3">
+      <p className="text-xs text-parchment-400 mb-3">
         {data.enabled ? "Scheduled" : "Not scheduled"} ({data.reason}) · every {data.intervalHours}h · account{" "}
-        <code className="text-parchment-500">{data.account}</code>
+        <code className="text-parchment-400">{data.account}</code>
         {data.lastResultAt && <> · last result {new Date(data.lastResultAt).toLocaleString()}</>}
         {data.lastRun?.error && <span className="text-red-400/80"> · last run failed: {data.lastRun.error}</span>}
       </p>
-      {message && <p className="text-xs text-frost-400/80 mb-3">{message}</p>}
+      {message && <p className="text-xs text-frost-400 mb-3">{message}</p>}
 
       {worldIds.length === 0 ? (
-        <p className="text-xs text-parchment-600">No results yet.</p>
+        <p className="text-xs text-parchment-400">No results yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-parchment-600 text-left">
+              <tr className="text-parchment-400 text-left">
                 <th className="py-1 pr-3 font-normal">World</th>
                 {CLIENT_ORDER.map((c) => (
                   <th key={c} className="py-1 px-2 font-normal text-center">{CLIENT_LABELS[c]}</th>
@@ -147,7 +147,7 @@ export function ClientProbePanel() {
                       return (
                         <td
                           key={c}
-                          className={`py-1.5 px-2 text-center ${r ? statusStyle[r.status] || "" : "text-parchment-700"}`}
+                          className={`py-1.5 px-2 text-center ${r ? statusStyle[r.status] || "" : "text-parchment-500"}`}
                           title={r ? `${r.status}: ${r.detail} (${new Date(r.last_checked).toLocaleString()})` : "not checked"}
                         >
                           {r ? statusMark[r.status] || r.status : "-"}
@@ -155,10 +155,10 @@ export function ClientProbePanel() {
                       );
                     })}
                     <td className="py-1.5 pl-2 text-right whitespace-nowrap">
-                      <button onClick={() => probeNow(id)} disabled={data.running} className="text-frost-400/70 hover:text-frost-300 disabled:opacity-50 mr-3">
+                      <button onClick={() => probeNow(id)} disabled={data.running} className="text-frost-300 hover:text-frost-300 disabled:opacity-50 mr-3">
                         probe
                       </button>
-                      <button onClick={() => toggleOptOut(id, !optedOut)} className="text-parchment-600 hover:text-parchment-300">
+                      <button onClick={() => toggleOptOut(id, !optedOut)} className="text-parchment-400 hover:text-parchment-300">
                         {optedOut ? "opted out (undo)" : "opt out"}
                       </button>
                     </td>
