@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description:
     "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing with live player counts, server profiles, and operator tools.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "List Your EverQuest Server — Operator Guide",
     description: "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing.",
   },

@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description:
     "Real-time health and uptime monitoring for EQEmulator.dev login infrastructure. Service status, system metrics, and performance telemetry.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "EQEmulator.dev System Status",
     description: "Real-time health and uptime monitoring for EQEmulator.dev login infrastructure.",
   },

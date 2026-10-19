@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   description:
     "How EQEmulator.dev protects your EverQuest account and data. Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "Security — How EQEmulator.dev Protects Your Account",
     description: "Scrypt password hashing, encrypted sessions, rate limiting, and federated security model.",
   },

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   description:
     "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "How to Play EverQuest on Private Servers",
     description: "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev.",
   },

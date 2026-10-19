@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description:
     "What EQEmulator.dev is, how the federated login mesh works, and why it matters for the EverQuest private server community.",
   openGraph: {
+    images: ["/opengraph-image"],
     title: "About EQEmulator.dev — EverQuest Emulator Community Infrastructure",
     description: "What EQEmulator.dev is, how the federated login mesh works, and why it matters for the EQ community.",
   },

@@ -3,24 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { serverPath } from "@/lib/slug";
+import type { PublicServer } from "@/lib/public-servers";
 import { WifiOff, ShieldCheck } from "lucide-react";
 
-interface ServerData {
-  server_long_name: string;
-  server_short_name: string;
-  server_list_type_id: number;
-  server_status: number;
-  zones_booted: number;
-  players_online: number;
-  world_id: number;
-  db_id?: number | null;
-  is_trusted?: boolean;
-  is_claimed?: boolean;
-  tag_description?: string | null;
-  display_tier?: string;
-  tier_override?: boolean;
-  show_player_count?: boolean;
-}
+type ServerData = PublicServer;
 
 const tierOrder = ["high", "medium", "low"] as const;
 
@@ -32,7 +18,7 @@ const tierMeta: Record<string, { label: string; accent: string; headerBg: string
 
 export function ServerList({ initial }: { initial: ServerData[] }) {
   const [servers, setServers] = useState<ServerData[]>(initial);
-  const totalPlayers = servers.reduce((sum, s) => sum + s.players_online, 0);
+  const totalPlayers = servers.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
 
   useEffect(() => {
     const poll = async () => {
@@ -54,7 +40,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
     tier,
     servers: servers
       .filter((s) => (s.display_tier || "low") === tier)
-      .sort((a, b) => b.players_online - a.players_online),
+      .sort((a, b) => (b.players_online ?? 0) - (a.players_online ?? 0)),
   })).filter((g) => g.servers.length > 0);
 
   return (
@@ -81,7 +67,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <div className="space-y-4">
           {grouped.map(({ tier, servers: tierServers }) => {
             const meta = tierMeta[tier] || tierMeta.standard;
-            const tierPlayers = tierServers.reduce((sum, s) => sum + s.players_online, 0);
+            const tierPlayers = tierServers.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
 
             return (
               <div key={tier} className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/60 overflow-hidden">
@@ -142,7 +128,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                         {hideCount ? (
                           <span className="text-xs text-parchment-700 font-display">—</span>
                         ) : (
-                          <span className={`font-display text-sm font-bold ${server.players_online > 0 ? "text-frost-300" : "text-parchment-700"}`}>
+                          <span className={`font-display text-sm font-bold ${(server.players_online ?? 0) > 0 ? "text-frost-300" : "text-parchment-700"}`}>
                             {server.players_online}
                           </span>
                         )}
