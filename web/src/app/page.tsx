@@ -227,15 +227,65 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
-          <p className="text-center text-parchment-500 text-sm mt-12">
-            Run a world of your own?{" "}
-            <Link href="/server-operators" className="text-frost-400 hover:text-frost-300">
-              List it here with one line of config
-            </Link>
-            .
-          </p>
         </div>
         <div className="mx-auto max-w-3xl h-px bg-gradient-to-r from-transparent via-frost-400/8 to-transparent" />
+      </section>
+
+      {/* For server operators */}
+      <section className="relative">
+        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="rounded-lg border border-arcane-400/20 bg-[#121a2a]/85 p-6 sm:p-10">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
+              <div>
+                <span className="font-display text-xs tracking-[0.35em] uppercase text-arcane-400/70 block mb-3">
+                  For server operators
+                </span>
+                <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">
+                  Running a world? Plug into the next generation of EQ login.
+                </h2>
+                <p className="text-parchment-300 text-sm leading-relaxed mb-5">
+                  A federated login mesh instead of one box that everyone depends on. Every client
+                  from Titanium to The Outer Brood and the current live client, live player counts
+                  your players can see, and a profile you control. It runs alongside your existing
+                  login server, so there is nothing to migrate.
+                </p>
+                <ul className="space-y-2 text-sm text-parchment-300 mb-6">
+                  {[
+                    "One config line to list your world; it appears here within a minute.",
+                    "No single point of failure: official nodes sync accounts and listings in real time.",
+                    "Your players keep their existing logins. Nothing changes on their side.",
+                    "Claim your listing: description, links, banner, client support and population history.",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-2.5">
+                      <ShieldCheck className="h-4 w-4 mt-0.5 text-arcane-400/80 flex-shrink-0" aria-hidden="true" />
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/server-operators"
+                  className="inline-block rounded border border-arcane-400/30 bg-arcane-400/5 px-8 py-3 text-xs font-display font-medium tracking-wider uppercase text-arcane-400 hover:bg-arcane-400/10 hover:border-arcane-400/50 transition-all duration-300"
+                >
+                  Server operator guide
+                </Link>
+              </div>
+              <div>
+                <p className="font-display text-[10px] tracking-[0.25em] uppercase text-parchment-500 mb-2">
+                  Add to your world&apos;s config
+                </p>
+                <pre className="bg-[#080b12] border border-frost-400/15 rounded-lg p-5 text-sm text-parchment-200 overflow-x-auto font-mono">
+{`"loginserver2": {
+  "host": "worldserver.eqemulator.dev",
+  "port": "5998"
+}`}
+                </pre>
+                <p className="text-parchment-500 text-xs mt-3">
+                  Keep your current login server as loginserver1. Both work at the same time.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Footer */}
