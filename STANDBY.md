@@ -6,7 +6,7 @@ taking logins if the master (or the master's hosting account) goes away.
 World servers list it as `loginserver2`, so players on those worlds can log in
 through either node.
 
-Example values below: hostname `login2.eqemulator.dev`, operator user
+Example values below: hostname `login-node2.eqemulator.dev`, operator user
 `straps`, checkout in `/opt/eqemu`.
 
 ---
@@ -58,14 +58,14 @@ Log in again as `straps` for the rest.
 cd /opt/eqemu
 git clone https://github.com/straps-eq/eqemulator-loginserver.git .
 docker logout ghcr.io            # images are public; never log in on a node
-scripts/setup.sh login2.eqemulator.dev you@example.com
+scripts/setup.sh login-node2.eqemulator.dev you@example.com
 ```
 
 `setup.sh` generates `.env` and `login.json`, gets the certificate, pulls the
 images, starts everything and runs the migrations. For email, reuse the
 master's Resend key and `noreply@eqemulator.dev`, or skip it.
 
-Create the admin account: register on `https://login2.eqemulator.dev`, then
+Create the admin account: register on `https://login-node2.eqemulator.dev`, then
 
 ```bash
 set -a; . ./.env; set +a
@@ -94,7 +94,7 @@ Use the current release instead of 1.7.2 if a newer one exists. Leave
 ## 5. Join the federation
 
 1. On the master (`https://eqemulator.dev`): **Admin → Federation → Add Peer**,
-   name `EQEmulator Login2`, endpoint `https://login2.eqemulator.dev`. Copy
+   name `EQEmulator Login2`, endpoint `https://login-node2.eqemulator.dev`. Copy
    the bootstrap token (valid for 1 hour).
 2. On the standby: **Admin → Federation → Join Existing Federation**, same
    name and endpoint, master URL `https://eqemulator.dev`, paste the token.
@@ -125,9 +125,9 @@ the standby next to the master in their `eqemu_config.json`:
 
 ```json
 "loginserver1": { "host": "eqemulator.dev", "port": "5998", "account": "", "password": "", "legacy": "0" },
-"loginserver2": { "host": "login2.eqemulator.dev", "port": "5998", "account": "", "password": "", "legacy": "0" }
+"loginserver2": { "host": "login-node2.eqemulator.dev", "port": "5998", "account": "", "password": "", "legacy": "0" }
 ```
 
 Players keep `eqemulator.dev` in `eqhost.txt`. If the master is down, they
-switch the host line to `login2.eqemulator.dev` (port 5998, 5999, 15900 or
+switch the host line to `login-node2.eqemulator.dev` (port 5998, 5999, 15900 or
 15901 as usual) and log in with the same account.
