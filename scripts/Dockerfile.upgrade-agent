@@ -2,8 +2,7 @@ FROM node:20-alpine
 RUN apk add --no-cache docker-cli docker-cli-compose
 COPY scripts/upgrade-agent.js /agent/upgrade-agent.js
 
-# Include config files so the agent can sync them to the host during upgrades
-COPY docker-compose.yml /config/docker-compose.yml
-COPY nginx/default.conf.template /config/nginx-default.conf.template
+# No config files are baked in: docker-compose.yml and nginx config come from
+# the git tag via scripts/deploy.sh, never from this image.
 
 ENTRYPOINT ["node", "/agent/upgrade-agent.js"]
