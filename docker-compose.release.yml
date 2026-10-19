@@ -1,5 +1,10 @@
 # Pre-built image compose file — no local compilation needed.
 # Run: docker compose -f docker-compose.release.yml up -d
+#
+# Images come from WEB_IMAGE / LOGINSERVER_IMAGE / UPGRADE_AGENT_IMAGE in .env
+# (pinned by digest by scripts/deploy.sh, see UPGRADING.md) and fall back to
+# the legacy :latest tags when those keys are absent. Keep this file in step
+# with docker-compose.yml.
 
 services:
   mariadb:
@@ -25,7 +30,7 @@ services:
       retries: 5
 
   loginserver:
-    image: ghcr.io/straps-eq/eqemu-loginserver:latest
+    image: ${LOGINSERVER_IMAGE:-ghcr.io/straps-eq/eqemu-loginserver:latest}
     container_name: eqemu-loginserver
     restart: always
     depends_on:
@@ -50,7 +55,7 @@ services:
       - internal
 
   web:
-    image: ghcr.io/straps-eq/eqemu-web:latest
+    image: ${WEB_IMAGE:-ghcr.io/straps-eq/eqemu-web:latest}
     container_name: eqemu-web
     restart: always
     depends_on:
@@ -81,6 +86,9 @@ services:
       - EXTERNAL_AUTH_API_KEY=${EXTERNAL_AUTH_API_KEY:-}
       - REDIS_URL=redis://redis:6379
       - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
+    volumes:
+      # Read-only view of the host updater state (updater-status.json).
+      - ./state:/host-state:ro
     networks:
       - internal
 
@@ -118,7 +126,7 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   upgrade-agent:
-    image: ghcr.io/straps-eq/eqemu-upgrade-agent:latest
+    image: ${UPGRADE_AGENT_IMAGE:-ghcr.io/straps-eq/eqemu-upgrade-agent:latest}
     container_name: eqemu-upgrade-agent
     restart: always
     volumes:

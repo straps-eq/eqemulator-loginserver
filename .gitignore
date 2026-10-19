@@ -39,3 +39,13 @@ web/public/uploads/
 uploads/
 docker-compose.yml.bak
 nginx/conf.d/default.conf.bak
+
+# Self-updater (scripts/deploy.sh) — node-local state, never committed
+versions.env
+versions.env.previous
+updater.conf
+.upgrade.lock
+.deploy-stage/
+state/*
+!state/.gitkeep
+nginx/conf.d/default.conf.bak*
