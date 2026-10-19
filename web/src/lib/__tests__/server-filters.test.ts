@@ -10,6 +10,7 @@ import {
   directoryHref,
   byName,
   byPlayers,
+  isTestServer,
   type FilterableServer,
 } from "../server-filters";
 
@@ -46,14 +47,12 @@ test("isUnchecked covers no result and unreachable-with-nothing", () => {
   assert.deepEqual(servers.filter(isUnchecked).map((s) => s.server_long_name), ["Cazic", "Druzzil"]);
 });
 
-test("clientChips shows the primary clients plus others that some world supports", () => {
+test("clientChips shows only Titanium, RoF2 and ToB", () => {
   assert.deepEqual(clientChips(servers, null), [
     { id: "titanium", count: 1 },
-    { id: "uf", count: 1 },
     { id: "rof2", count: 2 },
     { id: "tob", count: 1 },
   ]);
-  assert.ok(clientChips(servers, "sof").some((c) => c.id === "sof"));
 });
 
 test("directoryHref leaves defaults out", () => {
@@ -66,4 +65,14 @@ test("directoryHref leaves defaults out", () => {
 test("sorts", () => {
   assert.deepEqual([...servers].sort(byName).map((s) => s.server_long_name), ["akanon", "Bristlebane", "Cazic", "Druzzil", "Erollisi"]);
   assert.equal([...servers].sort(byPlayers)[0].server_long_name, "akanon");
+});
+
+test("name sort puts test and dev worlds last", () => {
+  const named = ["|T| Ascendant Test", "Zebra", "Clumsy's World [Test]", "Alpha", "Just dev things", "Devious Realm"]
+    .map((server_long_name) => ({ server_long_name, client_support: null }));
+  assert.deepEqual(named.sort(byName).map((s) => s.server_long_name), [
+    "Alpha", "Devious Realm", "Zebra", "|T| Ascendant Test", "Clumsy's World [Test]", "Just dev things",
+  ]);
+  assert.ok(isTestServer("[Dev] Somewhere"));
+  assert.ok(!isTestServer("Project Lazarus"));
 });

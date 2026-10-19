@@ -4,8 +4,10 @@
  */
 export type ClientId = "titanium" | "sof" | "sod" | "uf" | "rof" | "rof2" | "tob";
 
-/** Release order, used for badge order. */
-export const CLIENT_ORDER: ClientId[] = ["titanium", "sof", "sod", "uf", "rof", "rof2", "tob"];
+/** Clients shown on the site and probed by default, in release order. SoF, SoD,
+ *  UF and RoF are still known to the probe (CLIENT_PROBE_CLIENTS) but not shown:
+ *  almost every world runs Titanium, RoF2 or ToB. */
+export const CLIENT_ORDER: ClientId[] = ["titanium", "rof2", "tob"];
 
 export const CLIENT_LABELS: Record<ClientId, string> = {
   titanium: "Titanium",
