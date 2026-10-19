@@ -70,9 +70,9 @@ export default async function HomePage() {
               Explore <span className="mx-2 text-frost-300">&middot;</span> Connect <span className="mx-2 text-frost-300">&middot;</span> Play
             </p>
             <h1 className="font-hero text-5xl sm:text-6xl lg:text-7xl font-semibold leading-[1.02] text-parchment-50 mb-6">
-              Your adventure
+              Welcome to
               <br />
-              begins in <span className="text-gold-gradient">Norrath</span>
+              <span className="text-gold-gradient">EQ Emulator</span>
             </h1>
             <p className="font-hero text-xl sm:text-2xl leading-snug text-parchment-100/95 mb-9 max-w-xl">
               Find an EQ Emulator server, learn how to play, and join a welcoming community.
