@@ -17,8 +17,10 @@ import { federationGet, federationPost, RECIPIENT_BINDING_MIN_VERSION } from "./
 import { compareVersions } from "@/lib/version";
 import { getSelfNode, getActivePeers, updatePeerSyncSeq, auditLog } from "./node";
 import { getLatestSeq, pruneChangelog, pruneAuditLog } from "./changelog";
-import { computeStableHash, computeVolatileHash } from "./sync-hash";
+import { computeStableHash, computeVolatileHash, unchangedSignatureMessage, type SyncCondition } from "./sync-hash";
+import { verifyMessage } from "./crypto";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
+import { randomBytes } from "crypto";
 
 // Changelog-based sync is DISABLED for loginserver tables.
 // The full data sync (applyFullDataSync) handles all loginserver tables with
@@ -109,6 +111,11 @@ interface ChangesResponse {
 interface SyncDataResponse {
   node_id: number;
   data_hash?: string;
+  /** Set on a conditional pull's signed "unchanged" answer, which carries no rows. */
+  unchanged?: boolean;
+  stable_hash?: string;
+  volatile_hash?: string;
+  signature?: string;
   accounts: Array<Record<string, unknown>>;
   servers: Array<Record<string, unknown>>;
   admins: Array<Record<string, unknown>>;
@@ -159,6 +166,54 @@ export async function clearSyncDataHash(sourceNodeId?: number): Promise<void> {
   const keys: string[] = [];
   for (const id of Array.from(new Set(ids))) keys.push(stableKey(id), volatileKey(id), volatileAtKey(id));
   await cacheDel(...keys);
+}
+
+/**
+ * Condition for a conditional sync_data pull, or null for a plain full pull.
+ * Mirrors the skip logic in applyFullDataSync: the volatile hash is only sent
+ * when a volatile refresh is due, so a login-only change still arrives in full
+ * every VOLATILE_REFRESH_MS. With no cached hash we always pull everything.
+ */
+async function buildSyncCondition(peerId: number): Promise<SyncCondition | null> {
+  const [prevStable, prevVolatile, prevVolatileAt] = await Promise.all([
+    cacheGet(stableKey(peerId)),
+    cacheGet(volatileKey(peerId)),
+    cacheGet(volatileAtKey(peerId)),
+  ]);
+  if (!prevStable || !/^[0-9a-f]{32}$/.test(prevStable)) return null;
+  let volatile: string | null = null;
+  if (Date.now() - Number(prevVolatileAt || 0) >= VOLATILE_REFRESH_MS) {
+    if (!prevVolatile || !/^[0-9a-f]{32}$/.test(prevVolatile)) return null;
+    volatile = prevVolatile;
+  }
+  return { stable: prevStable, volatile, nonce: randomBytes(16).toString("hex") };
+}
+
+function conditionQuery(cond: SyncCondition): Record<string, string> {
+  const q: Record<string, string> = { if_stable: cond.stable, nonce: cond.nonce };
+  if (cond.volatile) q.if_volatile = cond.volatile;
+  return q;
+}
+
+/**
+ * Accept an "unchanged" answer only if it echoes our hashes, is signed by the
+ * peer's node key over our nonce and public key, and we still hold the same
+ * stable hash (an admin edit may have cleared it mid-request to force a re-apply).
+ */
+async function verifyUnchanged(
+  data: SyncDataResponse,
+  cond: SyncCondition,
+  peerId: number,
+  peerPublicKey: string,
+  selfPublicKey: string
+): Promise<boolean> {
+  const { signature, ...rest } = data;
+  if (typeof signature !== "string" || !Array.isArray(data.live_servers)) return false;
+  if (data.stable_hash !== cond.stable) return false;
+  if (cond.volatile !== null && data.volatile_hash !== cond.volatile) return false;
+  const message = unchangedSignatureMessage(cond.nonce, selfPublicKey, JSON.stringify(rest));
+  if (!(await verifyMessage(peerPublicKey, signature, message))) return false;
+  return (await cacheGet(stableKey(peerId))) === cond.stable;
 }
 
 /** The hashes live in the persistent Redis volume, so after a database restore
@@ -451,13 +506,32 @@ export async function runSyncCycle(): Promise<{
 
       // Full loginserver data sync — pull all accounts, servers, admins from this peer
       try {
-        const syncData = await federationGet<SyncDataResponse>(
+        // Ask for an "unchanged" answer when we hold this peer's last applied
+        // hash. Anything other than a verified "unchanged" (old peer, rejected
+        // query, bad signature) falls back to the plain full pull.
+        const cond = await buildSyncCondition(peer.id);
+        let syncData = await federationGet<SyncDataResponse>(
           peer.endpointUrl,
-          "/api/federation/sync_data",
+          cond ? `/api/federation/sync_data?${new URLSearchParams(conditionQuery(cond))}` : "/api/federation/sync_data",
           peer.tlsCertHash
         );
+        let unchanged = false;
+        if (cond && syncData.ok && syncData.data?.unchanged) {
+          unchanged = await verifyUnchanged(syncData.data, cond, peer.id, peer.publicKey, self.publicKey);
+          if (!unchanged) console.warn(`[sync_data] unverifiable "unchanged" answer from ${peer.name}; pulling full data`);
+        }
+        if (cond && !unchanged && (syncData.data?.unchanged || (syncData.status >= 400 && syncData.status < 500))) {
+          syncData = await federationGet<SyncDataResponse>(
+            peer.endpointUrl,
+            "/api/federation/sync_data",
+            peer.tlsCertHash
+          );
+        }
 
-        if (syncData.ok && syncData.data) {
+        if (unchanged && syncData.data) {
+          // Same as the "stable hash unchanged" skip in applyFullDataSync.
+          await applyLiveServers(syncData.data.live_servers, peer.id);
+        } else if (syncData.ok && syncData.data && !syncData.data.unchanged) {
           const applied = await applyFullDataSync(syncData.data, peer.id);
           changesApplied += applied;
         } else {
@@ -586,60 +660,7 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
         console.error(`[sync_data] volatile refresh from node ${sourceNodeId} failed:`, err);
       }
     }
-    // Only update live server cache (changes frequently)
-    if (data.live_servers && data.live_servers.length > 0) {
-      federatedLiveCache.set(sourceNodeId, {
-        data: data.live_servers,
-        expires: Date.now() + LIVE_CACHE_TTL_MS,
-      });
-      const conn = await pool.getConnection();
-      try {
-        for (const ls of data.live_servers) {
-          const shortName = ls.server_short_name as string;
-          if (!shortName) continue;
-
-          let [rows] = await conn.execute(
-            `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
-            [shortName, sourceNodeId] as (string | number)[]
-          ) as unknown as [Array<{ id: number }>];
-
-          // Also check for local servers (LB routing case)
-          if (rows.length === 0) {
-            const [localRows] = await conn.execute(
-              `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
-              [shortName] as string[]
-            ) as unknown as [Array<{ id: number }>];
-            if (localRows.length > 0) {
-              await conn.execute(
-                `UPDATE login_world_servers SET federation_source_node_id = ? WHERE id = ?`,
-                [sourceNodeId, localRows[0].id] as number[]
-              );
-              console.log(`[sync_data] adopted local server "${shortName}" (id ${localRows[0].id}) as live on node ${sourceNodeId}`);
-              rows = localRows;
-            }
-          }
-
-          if (rows.length === 0) continue;
-          await conn.execute(
-            `INSERT INTO federation_server_status (world_server_id, remote_ip, players_online, server_status, zones_booted, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW())
-             ON DUPLICATE KEY UPDATE
-               remote_ip = VALUES(remote_ip),
-               players_online = VALUES(players_online),
-               server_status = VALUES(server_status),
-               zones_booted = VALUES(zones_booted),
-               updated_at = NOW()`,
-            [
-              rows[0].id,
-              (ls.remote_ip as string) || '',
-              (ls.players_online as number) || 0,
-              (ls.server_status as number) || 0,
-              (ls.zones_booted as number) || 0,
-            ] as (string | number)[]
-          );
-        }
-      } finally { conn.release(); }
-    }
+    await applyLiveServers(data.live_servers, sourceNodeId);
     return 0;
   }
 
@@ -1226,6 +1247,63 @@ async function applyFullDataSync(data: SyncDataResponse, sourceNodeId: number): 
   }
 
   return applied;
+}
+
+/** Update the live server cache and federation_server_status (changes frequently). */
+async function applyLiveServers(liveServers: Array<Record<string, unknown>> | undefined, sourceNodeId: number): Promise<void> {
+  if (liveServers && liveServers.length > 0) {
+    federatedLiveCache.set(sourceNodeId, {
+      data: liveServers,
+      expires: Date.now() + LIVE_CACHE_TTL_MS,
+    });
+    const conn = await pool.getConnection();
+    try {
+      for (const ls of liveServers) {
+        const shortName = ls.server_short_name as string;
+        if (!shortName) continue;
+
+        let [rows] = await conn.execute(
+          `SELECT id FROM login_world_servers WHERE short_name = ? AND federation_source_node_id = ? LIMIT 1`,
+          [shortName, sourceNodeId] as (string | number)[]
+        ) as unknown as [Array<{ id: number }>];
+
+        // Also check for local servers (LB routing case)
+        if (rows.length === 0) {
+          const [localRows] = await conn.execute(
+            `SELECT id FROM login_world_servers WHERE short_name = ? AND (federation_source_node_id IS NULL OR federation_source_node_id = 0) LIMIT 1`,
+            [shortName] as string[]
+          ) as unknown as [Array<{ id: number }>];
+          if (localRows.length > 0) {
+            await conn.execute(
+              `UPDATE login_world_servers SET federation_source_node_id = ? WHERE id = ?`,
+              [sourceNodeId, localRows[0].id] as number[]
+            );
+            console.log(`[sync_data] adopted local server "${shortName}" (id ${localRows[0].id}) as live on node ${sourceNodeId}`);
+            rows = localRows;
+          }
+        }
+
+        if (rows.length === 0) continue;
+        await conn.execute(
+          `INSERT INTO federation_server_status (world_server_id, remote_ip, players_online, server_status, zones_booted, updated_at)
+           VALUES (?, ?, ?, ?, ?, NOW())
+           ON DUPLICATE KEY UPDATE
+             remote_ip = VALUES(remote_ip),
+             players_online = VALUES(players_online),
+             server_status = VALUES(server_status),
+             zones_booted = VALUES(zones_booted),
+             updated_at = NOW()`,
+          [
+            rows[0].id,
+            (ls.remote_ip as string) || '',
+            (ls.players_online as number) || 0,
+            (ls.server_status as number) || 0,
+            (ls.zones_booted as number) || 0,
+          ] as (string | number)[]
+        );
+      }
+    } finally { conn.release(); }
+  }
 }
 
 /**

@@ -96,6 +96,28 @@ export async function verifySignature(
   }
 }
 
+/** Sign an arbitrary message (hex-encoded signature). Used for signed responses. */
+export async function signMessage(privateKeyHex: string, message: string): Promise<string> {
+  await ensureReady();
+  return sodium.to_hex(
+    sodium.crypto_sign_detached(sodium.from_string(message), sodium.from_hex(privateKeyHex))
+  );
+}
+
+/** Verify a signature made by signMessage. */
+export async function verifyMessage(publicKeyHex: string, signatureHex: string, message: string): Promise<boolean> {
+  await ensureReady();
+  try {
+    return sodium.crypto_sign_verify_detached(
+      sodium.from_hex(signatureHex),
+      sodium.from_string(message),
+      sodium.from_hex(publicKeyHex)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Generate a random bootstrap token (hex-encoded, 32 bytes). */
 export async function generateBootstrapToken(): Promise<string> {
   await ensureReady();
