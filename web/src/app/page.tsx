@@ -20,7 +20,7 @@ const jsonLd = {
   "@type": "WebSite",
   name: "EQEmulator.dev",
   url: "https://eqemulator.dev",
-  description: "EverQuest Emulator server directory with live player counts, setup guides and a community login server.",
+  description: "EQ Emulator server directory with live player counts, setup guides and a community login server.",
   potentialAction: {
     "@type": "SearchAction",
     target: "https://eqemulator.dev/servers?q={search_term_string}",
@@ -52,19 +52,16 @@ export default async function HomePage() {
 
       {/* Welcome */}
       <section className="relative overflow-hidden">
-        <div className="relative mx-auto max-w-5xl px-4 py-16 sm:py-20 sm:px-6 lg:px-8 text-center">
-          <p className="font-display text-xs tracking-[0.35em] uppercase text-frost-400/60 mb-5">
-            Welcome, adventurer
+        <div className="relative mx-auto max-w-4xl px-4 py-12 sm:py-16 sm:px-6 lg:px-8 text-center">
+          <p className="font-display text-xs tracking-[0.3em] uppercase text-frost-300/70 mb-4">
+            Welcome to EQ Emulator
           </p>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-parchment-100 mb-5">
-            EverQuest Emulator servers,
-            <br />
-            <span className="text-gold-gradient">free to play, run by players.</span>
+          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-parchment-100 mb-4">
+            Play EQ again. <span className="text-gold-gradient">Free, and run by players.</span>
           </h1>
-          <p className="mx-auto max-w-2xl text-base sm:text-lg text-parchment-400 mb-8 leading-relaxed">
-            Norrath never closed. Community-run worlds let you play classic EverQuest the way you
-            remember it, or try something new. Pick a world below, point your game at it, and you
-            are in. Already play on EQEmu servers? Your existing login works here too.
+          <p className="mx-auto max-w-xl text-base text-parchment-300 mb-7 leading-relaxed">
+            Pick a world, point your game at it, and you&apos;re in.
+            Already have an EQEmu login? It works here.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -96,7 +93,7 @@ export default async function HomePage() {
             <h2 className="font-display text-2xl font-bold text-parchment-100">
               {online.length > 0
                 ? `${totalPlayers.toLocaleString()} adventurers across ${online.length} ${online.length === 1 ? "world" : "worlds"}`
-                : "Worlds on EQEmulator.dev"}
+                : "Worlds on EQ Emulator"}
             </h2>
           </div>
           <Link href="/servers" className="hover-frost text-xs font-display tracking-[0.15em] uppercase text-parchment-500 whitespace-nowrap">
@@ -105,7 +102,7 @@ export default async function HomePage() {
         </div>
 
         {topWorlds.length === 0 ? (
-          <div className="rounded-lg border border-frost-400/10 bg-[#0a0e17]/80 p-10 text-center">
+          <div className="rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-10 text-center">
             <Compass className="h-8 w-8 text-parchment-700 mx-auto mb-3" />
             <p className="text-parchment-500 text-sm">
               The live list is loading. <Link href="/servers" className="text-frost-400 hover:text-frost-300">Open the server directory</Link>.
@@ -117,7 +114,7 @@ export default async function HomePage() {
               <li key={s.server_short_name}>
                 <Link
                   href={serverPath(s.server_long_name)}
-                  className="group flex h-full flex-col justify-between rounded-lg border border-frost-400/8 bg-[#0a0e16]/70 p-4 hover:border-frost-400/25 hover:bg-frost-400/[0.03] transition-all duration-300"
+                  className="group flex h-full flex-col justify-between rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-4 hover:border-frost-400/25 hover:bg-frost-400/[0.03] transition-all duration-300"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -160,7 +157,7 @@ export default async function HomePage() {
               New here?
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Playing takes three steps</h2>
-            <p className="text-parchment-400 text-sm max-w-xl mx-auto">
+            <p className="text-parchment-300 text-sm max-w-xl mx-auto">
               No subscription and no launcher. You need your own copy of the game, a one-line edit, and a login.
             </p>
           </div>
@@ -178,8 +175,8 @@ export default async function HomePage() {
                 title: "Point it at us",
                 desc: (
                   <>
-                    Edit <code className="text-frost-400/90 bg-[#0a0e16] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
-                    game folder to <code className="text-frost-400/90 bg-[#0a0e16] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
+                    Edit <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
+                    game folder to <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
                     The guide picks the right port for your client.
                   </>
                 ),
@@ -191,7 +188,7 @@ export default async function HomePage() {
                 desc: "Create a login here, or use the one you already have from the EQEmulator forums. Choose a world from the list in the game and go.",
               },
             ].map(({ n, icon: Icon, title, desc }) => (
-              <li key={n} className="relative rounded-lg border border-frost-400/8 bg-[#0a0e16]/60 p-6">
+              <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">
                     {n}
@@ -199,7 +196,7 @@ export default async function HomePage() {
                   <Icon className="h-4 w-4 text-frost-400/60" aria-hidden="true" />
                   <h3 className="font-display text-sm font-semibold text-parchment-100">{title}</h3>
                 </div>
-                <p className="text-parchment-400 text-sm leading-relaxed">{desc}</p>
+                <p className="text-parchment-300 text-sm leading-relaxed">{desc}</p>
               </li>
             ))}
           </ol>
@@ -226,7 +223,7 @@ export default async function HomePage() {
             ].map(({ title, desc }) => (
               <div key={title}>
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-2">{title}</h3>
-                <p className="text-parchment-400 text-sm leading-relaxed">{desc}</p>
+                <p className="text-parchment-300 text-sm leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
