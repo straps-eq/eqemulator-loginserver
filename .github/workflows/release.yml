@@ -1,5 +1,15 @@
 name: Build & Release
 
+# On a vX.Y.Z tag: build the three images with OCI labels, push them as
+# :X.Y.Z and :X.Y (plus the legacy :vX.Y.Z and :latest tags, see below), sign
+# every image by digest with cosign keyless (GitHub OIDC), then write a signed
+# release.json that pins the digests and attach it to the GitHub Release.
+# Nodes install releases with scripts/deploy.sh, which verifies both
+# signatures against this workflow's identity:
+#   https://github.com/straps-eq/eqemulator-loginserver/.github/workflows/release.yml@refs/tags/v*
+# Do not rename this file or move the signing into a reusable workflow
+# without updating CERT_IDENTITY_RE in scripts/deploy.sh.
+
 on:
   push:
     tags:
@@ -8,13 +18,54 @@ on:
 env:
   REGISTRY: ghcr.io
   REPO_OWNER: straps-eq
+  COSIGN_VERSION: v2.4.1 # must produce bundles the node's pinned cosign (deploy.sh) can verify
+
+permissions:
+  contents: read
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      minor: ${{ steps.v.outputs.minor }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Tag must be vX.Y.Z and match web/package.json
+        id: v
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version="${tag#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$tag" != "v$version" ]; then
+            echo "::error::tag '$tag' is not of the form vX.Y.Z"
+            exit 1
+          fi
+          pkg="$(jq -r .version web/package.json)"
+          if [ "$pkg" != "$version" ]; then
+            echo "::error::tag $tag does not match web/package.json version $pkg. Bump web/package.json, commit, and re-tag."
+            exit 1
+          fi
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "minor=${version%.*}"
+          } >> "$GITHUB_OUTPUT"
+
   build-loginserver:
+    needs: check-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write # cosign keyless
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      IMAGE: ghcr.io/straps-eq/eqemu-loginserver
+      VERSION: ${{ needs.check-version.outputs.version }}
+      MINOR: ${{ needs.check-version.outputs.minor }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -26,25 +77,47 @@ jobs:
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Extract version
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
 
-      - uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      - id: build
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ./loginserver
           push: true
+          # :latest and :vX.Y.Z are kept only for legacy 1.5.x/1.6.x nodes
+          # (they upgrade via :latest). Nothing new may depend on them:
+          # deploy.sh installs by the digests in release.json.
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-loginserver:${{ steps.version.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-loginserver:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:${{ env.MINOR }}
+            ${{ env.IMAGE }}:v${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=eqemu-loginserver
+          cache-from: type=gha,scope=loginserver
+          cache-to: type=gha,mode=max,scope=loginserver
+
+      - name: Sign image by digest (keyless)
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
 
   build-web:
+    needs: check-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      IMAGE: ghcr.io/straps-eq/eqemu-web
+      VERSION: ${{ needs.check-version.outputs.version }}
+      MINOR: ${{ needs.check-version.outputs.minor }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -56,25 +129,46 @@ jobs:
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Extract version
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
 
-      - uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      - id: build
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ./web
           push: true
+          build-args: |
+            APP_VERSION=${{ env.VERSION }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-web:${{ steps.version.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-web:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:${{ env.MINOR }}
+            ${{ env.IMAGE }}:v${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=eqemu-web
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Sign image by digest (keyless)
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
 
   build-upgrade-agent:
+    needs: check-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      IMAGE: ghcr.io/straps-eq/eqemu-upgrade-agent
+      VERSION: ${{ needs.check-version.outputs.version }}
+      MINOR: ${{ needs.check-version.outputs.minor }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -86,52 +180,148 @@ jobs:
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Extract version
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
 
-      - uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      - id: build
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./scripts/Dockerfile.upgrade-agent
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-upgrade-agent:${{ steps.version.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/eqemu-upgrade-agent:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:${{ env.MINOR }}
+            ${{ env.IMAGE }}:v${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=eqemu-upgrade-agent
+          cache-from: type=gha,scope=upgrade-agent
+          cache-to: type=gha,mode=max,scope=upgrade-agent
+
+      - name: Sign image by digest (keyless)
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
 
   create-release:
-    needs: [build-loginserver, build-web, build-upgrade-agent]
+    needs: [check-version, build-loginserver, build-web, build-upgrade-agent]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write # cosign sign-blob (keyless)
+    env:
+      TAG: ${{ needs.check-version.outputs.tag }}
+      VERSION: ${{ needs.check-version.outputs.version }}
+      WEB_REF: ghcr.io/straps-eq/eqemu-web@${{ needs.build-web.outputs.digest }}
+      LS_REF: ghcr.io/straps-eq/eqemu-loginserver@${{ needs.build-loginserver.outputs.digest }}
+      AGENT_REF: ghcr.io/straps-eq/eqemu-upgrade-agent@${{ needs.build-upgrade-agent.outputs.digest }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # previous tag, for env_keys_added
 
-      - name: Extract version
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
+      - name: Generate release.json
+        run: |
+          set -euo pipefail
+          for ref in "$WEB_REF" "$LS_REF" "$AGENT_REF"; do
+            [[ "$ref" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "::error::bad image digest: $ref"; exit 1; }
+          done
+          # shellcheck disable=SC1091
+          . .github/release-policy.env
+          [[ "${MIN_FROM_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::MIN_FROM_VERSION missing in .github/release-policy.env"; exit 1; }
+
+          # Keys compose interpolates that the oldest supported starting point
+          # (v$MIN_FROM_VERSION, else the previous release tag) did not know.
+          # Cumulative on purpose: a node may jump several releases at once.
+          if git rev-parse -q --verify "refs/tags/v$MIN_FROM_VERSION" >/dev/null; then
+            prev="v$MIN_FROM_VERSION"
+          else
+            prev="$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | awk -v t="$TAG" '$0 == t {print p; exit} {p = $0}')"
+          fi
+          echo "env_keys_added relative to: ${prev:-none}"
+
+          compose_keys() {
+            { git show "$1:docker-compose.yml" 2>/dev/null || true
+              git show "$1:docker-compose.release.yml" 2>/dev/null || true
+            } | grep -oE '\$\{[A-Z][A-Z0-9_]*' | sed 's/^\${//' | sort -u
+          }
+          if [ -n "$prev" ]; then
+            comm -13 <(compose_keys "$prev") <(compose_keys "$TAG") \
+              | grep -vxE 'WEB_IMAGE|LOGINSERVER_IMAGE|UPGRADE_AGENT_IMAGE|EQEMU_VERSION|EQEMU_SCHEMA_VERSION' > env_keys.txt || true
+          else
+            : > env_keys.txt
+          fi
+
+          git ls-tree --name-only "$TAG" web/migrations/ | sed 's|^web/migrations/||' | grep '\.sql$' | sort > migrations.txt
+          schema="$(tail -n 1 migrations.txt | sed 's/\.sql$//')"
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg released_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg web "$WEB_REF" --arg ls "$LS_REF" --arg agent "$AGENT_REF" \
+            --arg compose_ref "$TAG" --arg compose_commit "$GITHUB_SHA" \
+            --arg min_from "$MIN_FROM_VERSION" --arg schema "$schema" \
+            --arg notes "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}" \
+            --rawfile env_keys env_keys.txt --rawfile migrations migrations.txt '
+            def lines: split("\n") | map(select(length > 0));
+            { version: $version, channel: "stable", released_at: $released_at,
+              images: { web: $web, loginserver: $ls, "upgrade-agent": $agent },
+              compose_ref: $compose_ref, compose_commit: $compose_commit,
+              min_from_version: $min_from,
+              env_keys_added: ($env_keys | lines),
+              migrations: ($migrations | lines),
+              schema_version: $schema, notes_url: $notes }' > release.json
+          cat release.json
+
+      - name: Sign release.json (keyless)
+        run: |
+          cosign sign-blob --yes --bundle release.json.bundle release.json
+          # Same check every node runs before trusting the manifest.
+          cosign verify-blob --bundle release.json.bundle \
+            --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com release.json
+          for ref in "$WEB_REF" "$LS_REF" "$AGENT_REF"; do
+            cosign verify --certificate-identity-regexp '^https://github\.com/straps-eq/eqemulator-loginserver/\.github/workflows/release\.yml@refs/tags/v.*$' \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" > /dev/null
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          make_latest: true
           generate_release_notes: true
+          files: |
+            release.json
+            release.json.bundle
           body: |
-            ## Quick Start
+            ## Upgrade an existing node
 
             ```bash
-            git clone https://github.com/straps-eq/eqemulator-loginserver.git
-            cd eqemulator-loginserver
-            chmod +x scripts/setup.sh
-            ./scripts/setup.sh
-            # Edit .env with your domain
-            docker compose up -d
+            cd /opt/eqemu
+            scripts/deploy.sh ${{ env.VERSION }} --dry-run   # checks only
+            scripts/deploy.sh ${{ env.VERSION }}
             ```
 
-            ### Docker Images
-            - `ghcr.io/straps-eq/eqemu-loginserver:${{ steps.version.outputs.tag }}`
-            - `ghcr.io/straps-eq/eqemu-web:${{ steps.version.outputs.tag }}`
-            - `ghcr.io/straps-eq/eqemu-upgrade-agent:${{ steps.version.outputs.tag }}`
+            See [UPGRADING.md](https://github.com/straps-eq/eqemulator-loginserver/blob/${{ env.TAG }}/UPGRADING.md). `release.json` (signed: `release.json.bundle`) pins the images below by digest.
+
+            ## New node
+
+            ```bash
+            git clone https://github.com/straps-eq/eqemulator-loginserver.git /opt/eqemu
+            cd /opt/eqemu
+            ./scripts/setup.sh
+            ```
+
+            ### Docker images (cosign keyless signed)
+            - `${{ env.LS_REF }}`
+            - `${{ env.WEB_REF }}`
+            - `${{ env.AGENT_REF }}`
