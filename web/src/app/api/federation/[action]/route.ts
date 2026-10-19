@@ -529,6 +529,28 @@ async function handleSyncData(req: NextRequest) {
   const hourBucket = Math.floor(Date.now() / 3_600_000);
   const dataHash = crypto.createHash("sha256").update(`${stableHash}:${hourBucket}`).digest("hex").slice(0, 16);
 
+  // Conditional pull: the puller already has this data, so send only live
+  // servers, signed with our node key and bound to its nonce. Any malformed or
+  // mismatching condition falls through to the full payload.
+  const { parseSyncCondition, isUnchanged, unchangedSignatureMessage } = await import("@/lib/federation/sync-hash");
+  const cond = parseSyncCondition(req.nextUrl.searchParams);
+  if (cond && isUnchanged(cond, stableHash, volatileHash)) {
+    const { signMessage } = await import("@/lib/federation/crypto");
+    const payload = {
+      node_id: self.id,
+      unchanged: true,
+      stable_hash: stableHash,
+      volatile_hash: volatileHash,
+      live_servers: liveServers,
+      timestamp: Date.now(),
+    };
+    const signature = await signMessage(
+      self.privateKey,
+      unchangedSignatureMessage(cond.nonce, auth.node.publicKey, JSON.stringify(payload))
+    );
+    return NextResponse.json({ ...payload, signature });
+  }
+
   return NextResponse.json({
     node_id: self.id,
     data_hash: dataHash,
