@@ -131,7 +131,7 @@ Players update their `eqhost.txt`:
 Host=login.yourdomain.com:5999
 ```
 
-> **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose up -d --build`.
+> **Developer mode:** To build images locally instead of pulling pre-built ones, use `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build` (local `eqemu-*:dev` images).
 
 ### Troubleshooting
 
@@ -146,37 +146,17 @@ Host=login.yourdomain.com:5999
 
 ## Upgrading
 
-**Option A — Admin Dashboard (recommended):**
-
-Go to **Admin → System** and click **Upgrade**. The upgrade agent handles everything automatically: backup → pull → migrate → restart → nginx reload.
-
-**Option B — Manual:**
+Nodes upgrade themselves with a signed, pull-based updater that you control:
 
 ```bash
-cd eqemulator-loginserver
-
-# Pull latest code and images
-git pull origin main
-docker compose pull
-
-# Restart services
-docker compose up -d
-
-# Restart nginx to pick up new container IPs
-docker restart eqemu-nginx
-
-# Run any new database migrations
-source .env
-for f in web/migrations/*.sql; do
-  docker exec -i eqemu-mariadb mysql -u root -p"$DB_ROOT_PASSWORD" eqemu_login < "$f" 2>/dev/null
-done
+cd /opt/eqemu
+scripts/deploy.sh 1.7.0 --dry-run   # checks only
+scripts/deploy.sh 1.7.0             # backup, verify, upgrade, health-check, auto-rollback
 ```
 
-> **Note:** The `-i` flag on `docker exec` is required for piping SQL files. Migrations are idempotent — re-running all of them is safe.
+`scripts/deploy/install-timer.sh` adds an optional 15-minute check (`auto=false` by default: it only reports pending versions). Policy lives in your own `updater.conf`; the federation master can recommend a version but cannot run anything on your node. Images are public — never `docker login ghcr.io` on a node.
 
-The federation dashboard shows each node's software version. Outdated nodes display an amber **"update available"** indicator.
-
-> **Auto-updates:** Add [Watchtower](https://containrrr.dev/watchtower/) to auto-pull new images hourly. You'll still need to run migrations manually for schema changes.
+**See [UPGRADING.md](UPGRADING.md)** for setup, rollback, and how to move an existing 1.5.x/1.6.x node onto `deploy.sh`.
 
 ## Server Operators
 

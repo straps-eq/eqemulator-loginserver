@@ -1,8 +1,15 @@
 # ──────────────────────────────────────────────
 # EQEmulator.dev — Unified Docker Compose
 #
-# Default:  docker compose up -d          (uses pre-built GHCR images)
-# Dev:      docker compose up -d --build  (builds from local source)
+# Default:  docker compose up -d
+#           Uses the release images pinned by digest in .env (WEB_IMAGE,
+#           LOGINSERVER_IMAGE, UPGRADE_AGENT_IMAGE — written by
+#           scripts/deploy.sh from versions.env). Without those keys it falls
+#           back to the legacy :latest tags, so older nodes keep working.
+# Dev:      docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#           (builds from local source into local eqemu-*:dev tags, never
+#           over the ghcr.io release names)
+# Upgrades: scripts/deploy.sh <version> — see UPGRADING.md
 # ──────────────────────────────────────────────
 
 services:
@@ -29,10 +36,7 @@ services:
       retries: 5
 
   loginserver:
-    build:
-      context: ./loginserver
-      dockerfile: Dockerfile
-    image: ghcr.io/straps-eq/eqemu-loginserver:latest
+    image: ${LOGINSERVER_IMAGE:-ghcr.io/straps-eq/eqemu-loginserver:latest}
     container_name: eqemu-loginserver
     restart: always
     depends_on:
@@ -57,14 +61,7 @@ services:
       - internal
 
   web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
-        NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-localhost}
-        NEXT_PUBLIC_APP_URL: https://${DOMAIN:-localhost}
-    image: ghcr.io/straps-eq/eqemu-web:latest
+    image: ${WEB_IMAGE:-ghcr.io/straps-eq/eqemu-web:latest}
     container_name: eqemu-web
     restart: always
     depends_on:
@@ -99,6 +96,9 @@ services:
       - EXTERNAL_AUTH_API_KEY=${EXTERNAL_AUTH_API_KEY:-}
     volumes:
       - ./uploads:/app/public/uploads
+      # Read-only view of the host updater state (updater-status.json,
+      # written by scripts/deploy.sh). Nothing in web can write here.
+      - ./state:/host-state:ro
     networks:
       - internal
 
@@ -138,10 +138,7 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   upgrade-agent:
-    build:
-      context: .
-      dockerfile: scripts/Dockerfile.upgrade-agent
-    image: ghcr.io/straps-eq/eqemu-upgrade-agent:latest
+    image: ${UPGRADE_AGENT_IMAGE:-ghcr.io/straps-eq/eqemu-upgrade-agent:latest}
     container_name: eqemu-upgrade-agent
     restart: always
     volumes:
