@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/lib/client-probe/__tests__/protocol.test.js .test-build/lib/client-probe/__tests__/session.test.js"
   },
   "dependencies": {
     "@types/ioredis": "^4.28.10",
