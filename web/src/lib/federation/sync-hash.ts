@@ -67,3 +67,44 @@ export function computeVolatileHash(data: SyncCollections): string {
   }
   return digest(parts);
 }
+
+/**
+ * Conditional sync_data. The puller sends the stable hash it last applied as
+ * `if_stable` (plus `if_volatile` when a volatile refresh is due) and a random
+ * `nonce` in the signed query string. If nothing it asked about changed, the
+ * exporter answers with a small signed "unchanged" body carrying only live
+ * servers instead of every row. Older exporters ignore the query and send the
+ * full payload as before.
+ */
+export interface SyncCondition {
+  stable: string;
+  volatile: string | null;
+  nonce: string;
+}
+
+const HASH_RE = /^[0-9a-f]{32}$/;
+
+/** Parse the conditional query; null (send everything) if anything is off. */
+export function parseSyncCondition(params: URLSearchParams): SyncCondition | null {
+  const stable = params.get("if_stable");
+  const volatile = params.get("if_volatile");
+  const nonce = params.get("nonce");
+  if (!stable || !HASH_RE.test(stable) || !nonce || !HASH_RE.test(nonce)) return null;
+  if (volatile !== null && !HASH_RE.test(volatile)) return null;
+  return { stable, volatile, nonce };
+}
+
+/** True only if every hash the puller sent matches the current export. */
+export function isUnchanged(cond: SyncCondition | null, stableHash: string, volatileHash: string): boolean {
+  if (!cond || cond.stable !== stableHash) return false;
+  return cond.volatile === null || cond.volatile === volatileHash;
+}
+
+/**
+ * Message the exporter signs for an "unchanged" answer. Bound to the puller's
+ * nonce and public key so an old answer cannot be replayed to suppress a later
+ * sync. `body` is the JSON of the answer without its `signature` field.
+ */
+export function unchangedSignatureMessage(nonce: string, requesterPublicKey: string, body: string): string {
+  return `sync_data_unchanged\n${nonce}\n${requesterPublicKey.toLowerCase()}\n${body}`;
+}
