@@ -520,7 +520,7 @@ jump_allowed() { # FROM TO
 master_desired_version() {
   [ "$CF_FOLLOW_MASTER" = true ] || return 0
   local j v
-  j="$(docker exec eqemu-web wget -qO- -T 5 http://localhost:3000/api/updater/desired 2>/dev/null || true)"
+  j="$(docker exec eqemu-web wget -qO- -T 5 http://127.0.0.1:3000/api/updater/desired 2>/dev/null || true)"
   [ -n "$j" ] || return 0
   v="$(printf '%s' "$j" | jqx -r '.desired_version_stable // empty' 2>/dev/null || true)"
   v="${v#v}"
@@ -534,7 +534,7 @@ master_desired_version() {
 web_health() { # -> 0 when /api/health says ok (and schema matches if both sides report one)
   container_running eqemu-web || { HEALTH_ERR="eqemu-web not running"; return 1; }
   local j st sv
-  j="$(docker exec eqemu-web wget -qO- -T 5 http://localhost:3000/api/health 2>/dev/null || true)"
+  j="$(docker exec eqemu-web wget -qO- -T 5 http://127.0.0.1:3000/api/health 2>/dev/null || true)"
   [ -n "$j" ] || { HEALTH_ERR="web /api/health unreachable"; return 1; }
   st="$(printf '%s' "$j" | jqx -r '.status // empty' 2>/dev/null || true)"
   [ "$st" = ok ] || { HEALTH_ERR="web /api/health status=${st:-?}"; return 1; }
