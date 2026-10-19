@@ -76,6 +76,36 @@ export async function cacheSet(key: string, value: string, ttlSeconds: number): 
   return true;
 }
 
+/**
+ * Atomically set a key only if it does not exist (SET NX EX).
+ * Returns true if this call created the key, false if it already existed.
+ * In-memory fallback is atomic within the process (single-threaded event loop).
+ */
+export async function cacheSetNX(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+  const r = getRedis();
+  if (r && redisAvailable) {
+    try {
+      const res = await r.set(key, value, "EX", ttlSeconds, "NX");
+      return res === "OK";
+    } catch { /* fall through to memory */ }
+  }
+  const entry = memCache.get(key);
+  if (entry && Date.now() <= entry.expiresAt) return false;
+  if (memCache.size >= MEM_CACHE_MAX_SIZE) pruneMemCache();
+  memCache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+  return true;
+}
+
+/** Delete one or more keys (Redis and in-memory fallback). */
+export async function cacheDel(...keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  keys.forEach((k) => memCache.delete(k));
+  const r = getRedis();
+  if (r && redisAvailable) {
+    try { await r.del(...keys); } catch { /* ignore */ }
+  }
+}
+
 /** Get a key. Returns null if not found or expired. */
 export async function cacheGet(key: string): Promise<string | null> {
   const r = getRedis();
