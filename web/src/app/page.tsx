@@ -212,7 +212,7 @@ export default async function HomePage() {
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100 mb-3">Here&apos;s how it works</h2>
             <p className="text-parchment-300 text-sm max-w-xl mx-auto">
-              EQ Emulator worlds are run by the community and use your own copy of EverQuest. Getting in takes three steps, and our guide walks you through each one.
+              EQ Emulator worlds are run by the community and use your own copy of EQ. Getting in takes three steps, and our guide walks you through each one.
             </p>
           </div>
           <ol className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -221,7 +221,7 @@ export default async function HomePage() {
                 n: "1",
                 icon: Download,
                 title: "Have the game installed",
-                desc: "You play with your own copy of EverQuest. Most worlds use the Rain of Fear 2 version; some use Titanium, The Outer Brood or the current client. Each world's page says which, and the guide helps you check what you have.",
+                desc: "You play with your own copy of EQ. Most worlds use the Rain of Fear 2 version; some use Titanium, The Outer Brood or the current client. Each world's page says which, and the guide helps you check what you have.",
               },
               {
                 n: "2",
