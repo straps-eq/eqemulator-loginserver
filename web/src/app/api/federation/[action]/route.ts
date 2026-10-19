@@ -81,8 +81,9 @@ async function handleConfigGet(req: NextRequest) {
     ? await getConfigSince(sinceVersion)
     : await getAllConfig();
 
+  const { isLocalOnlyConfigKey } = await import("@/lib/federation/node");
   return NextResponse.json({
-    configs: configs.map((c) => ({
+    configs: configs.filter((c) => !isLocalOnlyConfigKey(c.configKey)).map((c) => ({
       key: c.configKey,
       value: c.configValue,
       version: c.version,
@@ -178,7 +179,8 @@ async function handleRegister(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  const configs = await getAllConfig();
+  const { isLocalOnlyConfigKey } = await import("@/lib/federation/node");
+  const configs = (await getAllConfig()).filter((c) => !isLocalOnlyConfigKey(c.configKey));
   const peers = await getActivePeers();
 
   // Notify existing peers about the new node so they don't wait for next heartbeat
@@ -631,19 +633,55 @@ async function handlePlayRequest(req: NextRequest) {
   }
 }
 
-// ── Remote Upgrade (master triggers image-only upgrade on this node) ──
-async function handleRemoteUpgrade(req: NextRequest) {
+// ── Remote commands (legacy, opt-in) ──
+// remote_upgrade, remote_upgrade_status, remote_restart and force_pull_restart
+// let the master execute things on this node through the upgrade agent. They
+// are refused unless this node's operator set federation_config
+// allow_remote_commands = 'true' (default off). Every request, accepted or
+// refused, is written to federation_audit_log.
+type GateResult =
+  | { ok: true; node: { id: number; name: string; recipientBound: boolean } }
+  | { ok: false; response: NextResponse };
+
+async function gateRemoteCommand(req: NextRequest, command: string, bodyText: string): Promise<GateResult> {
   const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
-  const bodyText = await req.text();
+  const { auditLog, remoteCommandsAllowed } = await import("@/lib/federation/node");
+  const { getClientIp } = await import("@/lib/client-ip");
+
   const auth = await authenticateFederationRequest(req, bodyText);
   if (!auth.node) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    // Unauthenticated requests are logged too, but capped so they cannot be
+    // used to flood the audit table.
+    const { rateLimit } = await import("@/lib/rate-limit");
+    const rl = await rateLimit("remote_command_unauth_audit", 30, 60_000);
+    if (rl.ok) {
+      await auditLog(0, "remote_command_received", {
+        command, accepted: false, reason: auth.error, ip: getClientIp(req),
+      });
+    }
+    return { ok: false, response: NextResponse.json({ error: auth.error }, { status: auth.status }) };
   }
 
-  // Only allow master nodes to trigger remote upgrades
+  const base = { command, from: auth.node.name, recipientBound: auth.node.recipientBound };
   if (!auth.node.isMaster) {
-    return NextResponse.json({ error: "Only master nodes can trigger remote upgrades" }, { status: 403 });
+    await auditLog(auth.node.id, "remote_command_received", { ...base, accepted: false, reason: "not_master" });
+    return { ok: false, response: NextResponse.json({ error: "Only master nodes can send remote commands" }, { status: 403 }) };
   }
+  if (!(await remoteCommandsAllowed())) {
+    await auditLog(auth.node.id, "remote_command_received", { ...base, accepted: false, reason: "disabled" });
+    console.warn(`[federation] refused ${command} from ${auth.node.name}: remote commands disabled on this node`);
+    return { ok: false, response: NextResponse.json({ error: "remote commands disabled on this node" }, { status: 403 }) };
+  }
+  await auditLog(auth.node.id, "remote_command_received", { ...base, accepted: true });
+  return { ok: true, node: auth.node };
+}
+
+// ── Remote Upgrade (master triggers image-only upgrade on this node) ──
+async function handleRemoteUpgrade(req: NextRequest) {
+  const bodyText = await req.text();
+  const gate = await gateRemoteCommand(req, "remote_upgrade", bodyText);
+  if (!gate.ok) return gate.response;
+  const auth = gate;
 
   console.log(`[federation] remote_upgrade (image-only) from ${auth.node.name}`);
 
@@ -662,11 +700,8 @@ async function handleRemoteUpgrade(req: NextRequest) {
 }
 
 async function handleRemoteUpgradeStatus(req: NextRequest) {
-  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
-  const auth = await authenticateFederationRequest(req, "");
-  if (!auth.node) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const gate = await gateRemoteCommand(req, "remote_upgrade_status", "");
+  if (!gate.ok) return gate.response;
 
   const token = process.env.UPGRADE_AGENT_TOKEN || "";
   try {
@@ -678,6 +713,39 @@ async function handleRemoteUpgradeStatus(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: "Upgrade agent not reachable" }, { status: 502 });
   }
+}
+
+// ── Notify Check (master asks this node's updater to check for updates) ──
+// Records the request only: sets federation_config update_check_requested_at,
+// which the local updater sees via GET /api/updater/desired. Executes nothing.
+async function handleNotifyCheck(req: NextRequest) {
+  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
+  const { auditLog, setConfig } = await import("@/lib/federation/node");
+  const bodyText = await req.text();
+  const auth = await authenticateFederationRequest(req, bodyText);
+  if (!auth.node) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  if (!auth.node.isMaster) {
+    return NextResponse.json({ error: "Only master nodes can request an update check" }, { status: 403 });
+  }
+  const { rateLimit } = await import("@/lib/rate-limit");
+  const rl = await rateLimit(`notify_check:${auth.node.id}`, 2, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Rate limited", retry_after_ms: rl.retryAfterMs }, { status: 429 });
+  }
+
+  let reason: string | null = null;
+  try {
+    const body = bodyText ? JSON.parse(bodyText) : {};
+    if (typeof body.reason === "string") reason = body.reason.slice(0, 200);
+  } catch {}
+
+  const requestedAt = new Date().toISOString();
+  await setConfig("update_check_requested_at", requestedAt);
+  await auditLog(auth.node.id, "notify_check_received", { from: auth.node.name, reason, recipientBound: auth.node.recipientBound });
+  console.log(`[federation] notify_check from ${auth.node.name}${reason ? ` (${reason})` : ""}: recorded, nothing executed`);
+  return NextResponse.json({ recorded: true, requested_at: requestedAt });
 }
 
 // ── Notify Sync (peer tells us to re-sync now) ──
@@ -751,17 +819,15 @@ async function handleSync(req: NextRequest) {
 
 // ── Remote Restart (master restarts a service on this node) ──
 async function handleRemoteRestart(req: NextRequest) {
-  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const bodyText = await req.text();
-  const auth = await authenticateFederationRequest(req, bodyText);
-  if (!auth.node) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-  if (!auth.node.isMaster) {
-    return NextResponse.json({ error: "Only master nodes can trigger remote restarts" }, { status: 403 });
-  }
+  const gate = await gateRemoteCommand(req, "remote_restart", bodyText);
+  if (!gate.ok) return gate.response;
+  const auth = gate;
 
-  const body = bodyText ? JSON.parse(bodyText) : {};
+  let body: { service?: string } = {};
+  try { body = bodyText ? JSON.parse(bodyText) : {}; } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   const service = body.service || "loginserver";
   const allowed = ["loginserver", "web", "nginx"];
   if (!allowed.includes(service)) {
@@ -785,18 +851,16 @@ async function handleRemoteRestart(req: NextRequest) {
 
 // ── Force Pull & Restart (master triggers direct image pull + restart on this node) ──
 async function handleForcePullRestart(req: NextRequest) {
-  const { authenticateFederationRequest } = await import("@/lib/federation/middleware");
   const bodyText = await req.text();
-  const auth = await authenticateFederationRequest(req, bodyText);
-  if (!auth.node) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-  if (!auth.node.isMaster) {
-    return NextResponse.json({ error: "Only master nodes can trigger force pull" }, { status: 403 });
-  }
+  const gate = await gateRemoteCommand(req, "force_pull_restart", bodyText);
+  if (!gate.ok) return gate.response;
+  const auth = gate;
 
-  const body = bodyText ? JSON.parse(bodyText) : {};
-  const mode = body.mode || "direct";
+  let body: { mode?: string } = {};
+  try { body = bodyText ? JSON.parse(bodyText) : {}; } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const mode = body.mode === "compose" ? "compose" : "direct";
   console.log(`[federation] force_pull_restart mode=${mode} from ${auth.node.name}`);
 
   const token = process.env.UPGRADE_AGENT_TOKEN || "";
@@ -853,6 +917,8 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         return await handlePlayRequest(req);
       case "notify_sync":
         return await handleNotifySync(req);
+      case "notify_check":
+        return await handleNotifyCheck(req);
       case "remote_upgrade":
         return await handleRemoteUpgrade(req);
       case "remote_restart":
