@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ClientChooser } from "./client-chooser";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/getting-started" },
   title: "How to Play EverQuest on Private Servers",
   description:
     "Step-by-step guide to connecting to EverQuest private servers through EQEmulator.dev. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",

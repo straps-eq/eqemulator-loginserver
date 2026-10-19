@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { loginWorldServers, serverProfiles } from "@/db/schema";
+import { serverProfiles } from "@/db/schema";
 import { eq, or } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { serverPath, slugify } from "@/lib/slug";
+import { getServer, getLiveData } from "@/lib/servers";
 import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -14,15 +16,12 @@ import { serializeJsonLd } from "@/lib/json-ld";
 
 export const dynamic = "force-dynamic";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eqemulator.dev";
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id: rawId } = await params;
-  const numId = parseInt(decodeURIComponent(rawId), 10);
   try {
-    const [server] = await db
-      .select({ longName: loginWorldServers.longName, tagDescription: loginWorldServers.tagDescription })
-      .from(loginWorldServers)
-      .where(isNaN(numId) ? eq(loginWorldServers.shortName, decodeURIComponent(rawId)) : eq(loginWorldServers.id, numId))
-      .limit(1);
+    const server = await getServer(decodeURIComponent(rawId));
     if (server) {
       const title = `${server.longName} — EverQuest Private Server`;
       const description = server.tagDescription
@@ -31,25 +30,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       return {
         title,
         description,
-        openGraph: { title, description },
+        alternates: { canonical: serverPath(server.longName) },
+        openGraph: { title, description, type: "website" },
       };
     }
   } catch {}
   return { title: "Server Details" };
-}
-
-async function getServer(idOrSlug: string) {
-  const numId = parseInt(idOrSlug, 10);
-  const [server] = await db
-    .select()
-    .from(loginWorldServers)
-    .where(
-      isNaN(numId)
-        ? eq(loginWorldServers.shortName, idOrSlug)
-        : eq(loginWorldServers.id, numId)
-    )
-    .limit(1);
-  return server || null;
 }
 
 async function getProfile(worldServerId: number, adminId: number) {
@@ -66,50 +52,17 @@ async function getProfile(worldServerId: number, adminId: number) {
   return profile || null;
 }
 
-async function getLiveData(shortName: string, longName: string) {
-  const http = require("http");
-  const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
-  const token = process.env.LOGINSERVER_API_TOKEN || "";
-  const servers: any[] = await new Promise((resolve) => {
-    const req = http.get(`${apiUrl}/v1/servers/list`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, (res: any) => {
-      let data = "";
-      res.on("data", (chunk: string) => data += chunk);
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(Array.isArray(json) ? json : []);
-        } catch { resolve([]); }
-      });
-    });
-    req.on("error", () => resolve([]));
-    req.setTimeout(5000, () => { req.destroy(); resolve([]); });
-  });
-
-  const local = servers.find(
-    (s) => s.server_short_name === shortName || s.server_long_name === longName
-  );
-  if (local) return local;
-
-  // Fallback: check federated live cache for servers not connected to this loginserver
-  try {
-    const { getFederatedLiveServers } = require("@/lib/federation/sync");
-    const federated = getFederatedLiveServers();
-    return federated.find(
-      (s: any) => s.server_short_name === shortName || s.server_long_name === longName
-    ) || null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function ServerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   const { id: rawId } = await params;
 
-  const server = await getServer(decodeURIComponent(rawId));
+  const segment = decodeURIComponent(rawId);
+  const server = await getServer(segment);
   if (!server) notFound();
+
+  // Old id and short-name URLs live on as redirects to the slug.
+  const canonicalPath = serverPath(server.longName);
+  if (segment !== slugify(server.longName)) permanentRedirect(canonicalPath);
 
   const adminId = server.loginServerAdminId || 0;
   const isClaimed = adminId > 0;
@@ -124,7 +77,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     "@context": "https://schema.org",
     "@type": "GameServer",
     name: server.longName,
-    url: `https://eqemulator.dev/servers/${server.id}`,
+    url: `${SITE_URL}${canonicalPath}`,
     description: profile?.description
       ? profile.description.replace(/<[^>]*>/g, "").slice(0, 200)
       : server.tagDescription || `${server.longName} — EverQuest private server on EQEmulator.dev`,

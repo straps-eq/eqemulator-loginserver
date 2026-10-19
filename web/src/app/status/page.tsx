@@ -6,6 +6,7 @@ import { StatusDashboard } from "./status-dashboard";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/status" },
   title: "System Status — Service Health & Uptime",
   description:
     "Real-time health and uptime monitoring for EQEmulator.dev login infrastructure. Service status, system metrics, and performance telemetry.",

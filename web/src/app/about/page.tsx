@@ -5,6 +5,7 @@ import { Globe, Shield, Server, Users, Zap, Network } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/about" },
   title: "About — EverQuest Emulator Community Infrastructure",
   description:
     "What EQEmulator.dev is, how the federated login mesh works, and why it matters for the EverQuest private server community.",

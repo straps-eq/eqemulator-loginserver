@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { serverPath } from "@/lib/slug";
 import { WifiOff, ShieldCheck } from "lucide-react";
 
 interface ServerData {
@@ -30,7 +31,6 @@ const tierMeta: Record<string, { label: string; accent: string; headerBg: string
 };
 
 export function ServerList({ initial }: { initial: ServerData[] }) {
-  const router = useRouter();
   const [servers, setServers] = useState<ServerData[]>(initial);
   const totalPlayers = servers.reduce((sum, s) => sum + s.players_online, 0);
 
@@ -114,12 +114,13 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                   const hideCount = server.show_player_count === false;
 
                   return (
-                    <div
+                    <Link
                       key={`${server.server_short_name}-${i}`}
-                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] ${
-                        server.db_id ? "cursor-pointer" : ""
-                      } ${i < tierServers.length - 1 ? "border-b border-frost-400/5" : ""}`}
-                      onClick={() => server.server_short_name && router.push(`/servers/${encodeURIComponent(server.server_short_name)}`, { scroll: false })}
+                      href={serverPath(server.server_long_name)}
+                      scroll={false}
+                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_90px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] focus-visible:outline-none focus-visible:bg-frost-400/[0.06] ${
+                        i < tierServers.length - 1 ? "border-b border-frost-400/5" : ""
+                      }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`h-2 w-2 rounded-full flex-shrink-0 ${isOnline ? "bg-forest-500" : isLocked ? "bg-amber-400" : "bg-parchment-800"}`} />
@@ -152,7 +153,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                           {isOnline ? "Online" : isLocked ? "Locked" : "Offline"}
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

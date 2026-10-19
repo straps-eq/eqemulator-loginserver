@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getSession } from "@/lib/session";
@@ -5,6 +6,10 @@ import { Compass, Shield, Activity, Settings } from "lucide-react";
 import { LiveStats } from "./live-stats";
 import { StatusIndicator } from "./status-indicator";
 import { serializeJsonLd } from "@/lib/json-ld";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const jsonLd = {
   "@context": "https://schema.org",

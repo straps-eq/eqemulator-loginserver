@@ -6,6 +6,7 @@ import { Server, Settings, Shield, Plus, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/server-operators" },
   title: "List Your EverQuest Server — Operator Guide",
   description:
     "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing with live player counts, server profiles, and operator tools.",

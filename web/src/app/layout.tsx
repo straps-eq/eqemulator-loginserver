@@ -26,13 +26,10 @@ export const metadata: Metadata = {
       "Browse EverQuest private servers with live player counts. Community-run login infrastructure compatible with existing eqemulator.net accounts.",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "EQEmulator.dev — EverQuest Private Server Directory & Login",
     description:
       "Browse EverQuest private servers with live player counts. Community-run login infrastructure.",
-  },
-  alternates: {
-    canonical: SITE_URL,
   },
   icons: {
     icon: [
@@ -53,6 +50,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+        />
+      </head>
       <body className="min-h-screen bg-obsidian-950 text-parchment-300 antialiased font-body relative">
         <div className="relative z-10">
           {children}

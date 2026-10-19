@@ -7,6 +7,7 @@ import { ServerList } from "./server-list";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/servers" },
   title: "EverQuest Private Server List — Live Player Counts",
   description:
     "Browse active EverQuest private servers with real-time player counts, population tiers, and server profiles. Find your next EQ adventure.",
