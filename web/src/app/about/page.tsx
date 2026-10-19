@@ -40,7 +40,7 @@ export default async function AboutPage() {
 
         {/* Architecture overview */}
         <section className="mb-16">
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/60 p-6 sm:p-8">
+          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/60 p-6 sm:p-8">
             <h2 className="font-display text-lg font-semibold text-parchment-100 mb-4">
               Architecture
             </h2>
@@ -108,7 +108,7 @@ export default async function AboutPage() {
                 desc: "The infrastructure is open source and community-run. No single person or organization controls the network. The code is public on GitHub.",
               },
             ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#2a2118]/60 p-5">
                 <div className="inline-flex items-center justify-center w-9 h-9 rounded border border-frost-400/15 bg-frost-400/5 mb-3">
                   <Icon className="h-4 w-4 text-frost-400/70" />
                 </div>
@@ -143,7 +143,7 @@ export default async function AboutPage() {
                 desc: "The entire codebase is open source. Every security measure, every sync protocol, every line of code is publicly auditable on GitHub.",
               },
             ].map(({ title, desc }) => (
-              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#0a0e16]/60 p-5">
+              <div key={title} className="rounded-lg border border-frost-400/6 bg-[#2a2118]/60 p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-200 mb-1.5">{title}</h3>
                 <p className="text-xs text-parchment-500 leading-relaxed">{desc}</p>
               </div>
@@ -153,7 +153,7 @@ export default async function AboutPage() {
 
         {/* Compatibility */}
         <section className="mb-16">
-          <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/60 p-6 sm:p-8">
+          <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/60 p-6 sm:p-8">
             <h2 className="font-display text-lg font-semibold text-parchment-100 mb-4">
               Compatibility
             </h2>

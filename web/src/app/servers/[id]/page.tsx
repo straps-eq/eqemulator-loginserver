@@ -138,12 +138,12 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                 alt={`${server.longName} banner`}
                 className="w-full h-48 sm:h-56 object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e16]/60 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#2a2118]/60 to-transparent pointer-events-none" />
             </div>
           )}
 
           {/* Description */}
-          <div className="mt-5 relative overflow-hidden rounded-lg border border-frost-400/8 bg-gradient-to-br from-[#0a0e16]/95 via-[#0e1420]/95 to-[#0c1019]/95">
+          <div className="mt-5 relative overflow-hidden rounded-lg border border-frost-400/8 bg-gradient-to-br from-[#2a2118]/95 via-[#2e241b]/95 to-[#241c14]/95">
             <div className="absolute top-0 left-0 w-12 h-px bg-gradient-to-r from-frost-400/20 to-transparent" />
             <div className="absolute top-0 left-0 h-12 w-px bg-gradient-to-b from-frost-400/20 to-transparent" />
             <div className="p-6">
@@ -171,7 +171,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
 
           {/* Ruleset */}
           {profile?.customRuleset && (
-            <div className="mt-5 relative overflow-hidden rounded-lg border border-frost-400/8 bg-gradient-to-br from-[#0a0e16]/95 via-[#0e1420]/95 to-[#0c1019]/95">
+            <div className="mt-5 relative overflow-hidden rounded-lg border border-frost-400/8 bg-gradient-to-br from-[#2a2118]/95 via-[#2e241b]/95 to-[#241c14]/95">
               <div className="absolute top-0 left-0 w-12 h-px bg-gradient-to-r from-arcane-400/20 to-transparent" />
               <div className="absolute top-0 left-0 h-12 w-px bg-gradient-to-b from-arcane-400/20 to-transparent" />
               <div className="p-6">

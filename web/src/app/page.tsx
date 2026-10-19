@@ -66,7 +66,7 @@ export default async function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/servers"
-              className="rounded border border-frost-400/25 bg-frost-400/5 px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-frost-300 hover:bg-frost-400/10 hover:border-frost-400/40 hover:shadow-[0_0_20px_rgba(52,187,250,0.12)] transition-all duration-300"
+              className="rounded border border-frost-400/25 bg-frost-400/5 px-10 py-3.5 text-sm font-display font-medium tracking-wider uppercase text-frost-300 hover:bg-frost-400/10 hover:border-frost-400/40 hover:shadow-[0_0_20px_rgba(212,166,80,0.12)] transition-all duration-300"
             >
               Find a world
             </Link>
@@ -102,7 +102,7 @@ export default async function HomePage() {
         </div>
 
         {topWorlds.length === 0 ? (
-          <div className="rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-10 text-center">
+          <div className="rounded-lg border border-frost-400/15 bg-[#332920]/85 p-10 text-center">
             <Compass className="h-8 w-8 text-parchment-700 mx-auto mb-3" />
             <p className="text-parchment-500 text-sm">
               The live list is loading. <Link href="/servers" className="text-frost-400 hover:text-frost-300">Open the server directory</Link>.
@@ -114,7 +114,7 @@ export default async function HomePage() {
               <li key={s.server_short_name}>
                 <Link
                   href={serverPath(s.server_long_name)}
-                  className="group flex h-full flex-col justify-between rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-4 hover:border-frost-400/25 hover:bg-frost-400/[0.03] transition-all duration-300"
+                  className="group flex h-full flex-col justify-between rounded-lg border border-frost-400/15 bg-[#332920]/85 p-4 hover:border-frost-400/25 hover:bg-frost-400/[0.03] transition-all duration-300"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -175,8 +175,8 @@ export default async function HomePage() {
                 title: "Tell the game where to connect",
                 desc: (
                   <>
-                    Edit <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
-                    game folder to <code className="text-frost-400/90 bg-[#080b12] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
+                    Edit <code className="text-frost-400/90 bg-[#1c1610] px-1 py-0.5 rounded text-[11px] font-mono">eqhost.txt</code> in your
+                    game folder to <code className="text-frost-400/90 bg-[#1c1610] px-1 py-0.5 rounded text-[11px] font-mono">login.eqemulator.dev:5999</code>.
                     It&apos;s one line, and the guide shows exactly where it goes.
                   </>
                 ),
@@ -188,7 +188,7 @@ export default async function HomePage() {
                 desc: "Create a login here in a minute, or use the one you already have from the EQEmulator forums. Start the game, choose a world from the list, and you're in.",
               },
             ].map(({ n, icon: Icon, title, desc }) => (
-              <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#121a2a]/85 p-6">
+              <li key={n} className="relative rounded-lg border border-frost-400/15 bg-[#332920]/85 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">
                     {n}
@@ -234,7 +234,7 @@ export default async function HomePage() {
       {/* For server operators */}
       <section className="relative">
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
-          <div className="rounded-lg border border-arcane-400/20 bg-[#121a2a]/85 p-6 sm:p-10">
+          <div className="rounded-lg border border-arcane-400/20 bg-[#332920]/85 p-6 sm:p-10">
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
               <div>
                 <span className="font-display text-xs tracking-[0.35em] uppercase text-arcane-400/70 block mb-3">
@@ -273,7 +273,7 @@ export default async function HomePage() {
                 <p className="font-display text-[10px] tracking-[0.25em] uppercase text-parchment-500 mb-2">
                   Add to your world&apos;s config
                 </p>
-                <pre className="bg-[#080b12] border border-frost-400/15 rounded-lg p-5 text-sm text-parchment-200 overflow-x-auto font-mono">
+                <pre className="bg-[#1c1610] border border-frost-400/15 rounded-lg p-5 text-sm text-parchment-200 overflow-x-auto font-mono">
 {`"loginserver2": {
   "host": "worldserver.eqemulator.dev",
   "port": "5998"

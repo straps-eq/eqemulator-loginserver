@@ -43,17 +43,17 @@ export function ServerDetailLive({ serverId, shortName, longName, initialPlayers
 
   return (
     <div className="grid grid-cols-3 gap-4">
-      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 text-center">
+      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 text-center">
         <Users className="h-5 w-5 text-frost-400 mx-auto mb-2" />
         <div className="font-display text-2xl font-bold text-parchment-100">{players}</div>
         <div className="text-xs text-parchment-500 uppercase tracking-wide mt-1">Players Online</div>
       </div>
-      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 text-center">
+      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 text-center">
         <Wifi className="h-5 w-5 text-arcane-400 mx-auto mb-2" />
         <div className="font-display text-2xl font-bold text-parchment-100">{zones}</div>
         <div className="text-xs text-parchment-500 uppercase tracking-wide mt-1">Zones Booted</div>
       </div>
-      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#171d2d]/90 to-[#131825]/95 p-5 text-center">
+      <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#3a2e23]/90 to-[#2e241b]/95 p-5 text-center">
         <div className={`h-5 w-5 rounded-full mx-auto mb-2 ${status > 0 ? "bg-forest-500 shadow-[0_0_10px_rgba(77,138,92,0.5)]" : "bg-obsidian-600"}`} />
         <div className="font-display text-2xl font-bold text-parchment-100">{status > 0 ? "Up" : "Down"}</div>
         <div className="text-xs text-parchment-500 uppercase tracking-wide mt-1">Status</div>

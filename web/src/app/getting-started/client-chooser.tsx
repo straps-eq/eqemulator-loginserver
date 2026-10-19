@@ -92,7 +92,7 @@ export function ClientChooser() {
                 "text-left rounded border px-4 py-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-frost-400/50",
                 selected
                   ? "border-frost-400/40 bg-frost-400/10"
-                  : "border-frost-400/8 bg-[#0e1017] hover:border-frost-400/20"
+                  : "border-frost-400/8 bg-[#241c14] hover:border-frost-400/20"
               )}
             >
               <span className="flex items-center justify-between gap-2">
@@ -117,7 +117,7 @@ export function ClientChooser() {
         <p className="text-parchment-500 text-xs mb-3">{opt.note}</p>
         <p className="text-parchment-400 text-sm mb-2">
           Replace the contents of{" "}
-          <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> with:
+          <code className="text-frost-400 bg-[#241c14] px-1.5 py-0.5 rounded text-xs">eqhost.txt</code> with:
         </p>
         <CodeBlock
           code={`[LoginServer]\nHost=login.eqemulator.dev:${opt.port}`}

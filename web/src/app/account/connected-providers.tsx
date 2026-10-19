@@ -78,7 +78,7 @@ export function ConnectedProviders() {
         return (
           <div
             key={provider}
-            className="flex items-center justify-between rounded-md border border-frost-400/8 bg-[#0a0e17]/40 px-4 py-3"
+            className="flex items-center justify-between rounded-md border border-frost-400/8 bg-[#2a2118]/40 px-4 py-3"
           >
             <div className="flex items-center gap-3">
               <span className={`text-sm font-medium ${info.color}`}>{info.label}</span>

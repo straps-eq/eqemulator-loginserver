@@ -130,7 +130,7 @@ export function AdminDashboard() {
   return (
     <div className="space-y-8">
       {/* Role Reference */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-5 max-w-2xl">
+      <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-5 max-w-2xl">
         <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400 mb-3">Admin Roles</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded border border-amber-400/10 bg-amber-400/[0.02] p-3">
@@ -202,7 +202,7 @@ export function AdminDashboard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search accounts..."
-            className="w-full rounded border border-frost-400/10 bg-[#0a0e17]/60 pl-9 pr-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
+            className="w-full rounded border border-frost-400/10 bg-[#2a2118]/60 pl-9 pr-3 py-2 text-sm text-parchment-300 placeholder-parchment-700 focus:border-frost-400/30 focus:outline-none"
           />
         </div>
         <button
@@ -210,7 +210,7 @@ export function AdminDashboard() {
             setLoading(true);
             fetchData();
           }}
-          className="rounded border border-frost-400/10 bg-[#0a0e17]/60 p-2 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
+          className="rounded border border-frost-400/10 bg-[#2a2118]/60 p-2 text-parchment-500 hover:text-frost-400 hover:border-frost-400/25 transition-colors"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
@@ -220,7 +220,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Accounts Table */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+      <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 overflow-hidden">
         {/* Header */}
         <div className="grid grid-cols-[1fr_1.2fr_80px_100px_120px_80px] gap-2 px-4 py-2.5 border-b border-frost-400/8 text-[10px] font-display uppercase tracking-wider text-parchment-600">
           <span>Username</span>
@@ -265,7 +265,7 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 p-4">
+    <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 p-4">
       <div className="flex items-center gap-2 text-parchment-600 mb-2">
         {icon}
         <span className="text-[10px] font-display uppercase tracking-wider">
@@ -498,7 +498,7 @@ function AccountRow({
               {account.oauthLinks.map((link) => (
                 <div
                   key={link.id}
-                  className="flex items-center justify-between rounded border border-frost-400/8 bg-[#080b12]/50 px-3 py-2"
+                  className="flex items-center justify-between rounded border border-frost-400/8 bg-[#1c1610]/50 px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
                     <Link2 className="h-3 w-3 text-frost-400/50" />
@@ -547,7 +547,7 @@ function AccountRow({
               {account.worldServerAdmins.map((wa) => (
                 <div
                   key={wa.adminId}
-                  className="rounded border border-frost-400/8 bg-[#080b12]/50 p-3"
+                  className="rounded border border-frost-400/8 bg-[#1c1610]/50 p-3"
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Server className="h-3 w-3 text-frost-400/50" />

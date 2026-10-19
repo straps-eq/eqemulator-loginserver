@@ -48,10 +48,10 @@ export default async function ServerOperatorsPage() {
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Quick Start — Add worldserver.eqemulator.dev</h2>
                   <p className="text-parchment-400 text-sm mb-3">
                     Add a new loginserver entry to your{" "}
-                    <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">eqemu_config.json</code>.
+                    <code className="text-frost-400 bg-[#241c14] px-1.5 py-0.5 rounded text-xs">eqemu_config.json</code>.
                     Your server will appear in the directory within seconds of connecting.
                   </p>
-                  <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-4 text-sm text-parchment-300 overflow-x-auto">
+                  <pre className="bg-[#241c14] border border-frost-400/8 rounded p-4 text-sm text-parchment-300 overflow-x-auto">
 {`{
   "server": {
     "world": {
@@ -85,10 +85,10 @@ export default async function ServerOperatorsPage() {
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Running Both Login Servers</h2>
                   <p className="text-parchment-400 text-sm mb-3">
                     Your world server can register with multiple login servers simultaneously.
-                    Keep your existing <code className="text-frost-400 bg-[#0e1017] px-1.5 py-0.5 rounded text-xs">loginserver1</code> entry
+                    Keep your existing <code className="text-frost-400 bg-[#241c14] px-1.5 py-0.5 rounded text-xs">loginserver1</code> entry
                     for eqemulator.net and add eqemulator.dev as a second:
                   </p>
-                  <pre className="bg-[#0e1017] border border-frost-400/8 rounded p-4 text-sm text-parchment-300 overflow-x-auto">
+                  <pre className="bg-[#241c14] border border-frost-400/8 rounded p-4 text-sm text-parchment-300 overflow-x-auto">
 {`{
   "server": {
     "world": {
@@ -108,7 +108,7 @@ export default async function ServerOperatorsPage() {
                   <p className="text-parchment-500 text-xs mt-3">
                     Your server appears on <strong className="text-parchment-300">both</strong> server lists.
                     Players connecting through either login server can reach your world.
-                    The <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">&quot;legacy&quot;: &quot;1&quot;</code> flag
+                    The <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">&quot;legacy&quot;: &quot;1&quot;</code> flag
                     is required for login.eqemulator.net (auto-detected if hostname contains &quot;login.eqemulator.net&quot;).
                   </p>
                 </div>
@@ -174,9 +174,9 @@ export default async function ServerOperatorsPage() {
                       <h3 className="text-sm font-medium text-parchment-200 mb-1">Naming convention</h3>
                       <p className="text-parchment-400 text-sm">
                         Loginserver entries are numbered sequentially:{" "}
-                        <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver1</code>,{" "}
-                        <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver2</code>,{" "}
-                        <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver3</code>, etc.
+                        <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver1</code>,{" "}
+                        <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver2</code>,{" "}
+                        <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver3</code>, etc.
                         The world server iterates through all numbered entries on startup.
                       </p>
                     </div>
@@ -259,10 +259,10 @@ export default async function ServerOperatorsPage() {
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">No new ports for you</h3>
                 <p className="text-parchment-400 text-sm">
-                  ToB clients log in on port <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">15900</code>, which lives on <em>our</em> loginserver.
+                  ToB clients log in on port <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">15900</code>, which lives on <em>our</em> loginserver.
                   You don&apos;t open anything new. Your world keeps registering with 
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code> on TCP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">5998</code> exactly as before,
-                  and your <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver</code> config entries don&apos;t change.
+                  <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code> on TCP <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">5998</code> exactly as before,
+                  and your <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver</code> config entries don&apos;t change.
                 </p>
               </CardContent>
             </Card>
@@ -275,14 +275,14 @@ export default async function ServerOperatorsPage() {
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">1</span>
                     <div>
                       <strong className="text-parchment-200">Back up your database.</strong> Do this before moving
-                      your server to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.
+                      your server to <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">develop-v2</code>.
                     </div>
                   </li>
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">2</span>
                     <div>
-                      <strong className="text-parchment-200">Build world and zone from upstream EQEmu/Server <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">develop-v2</code>.</strong>{" "}
-                      That branch includes the ToB patch (<code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">common/patches/tob*.cpp</code>). Older builds
+                      <strong className="text-parchment-200">Build world and zone from upstream EQEmu/Server <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">develop-v2</code>.</strong>{" "}
+                      That branch includes the ToB patch (<code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">common/patches/tob*.cpp</code>). Older builds
                       can&apos;t talk to ToB clients.
                     </div>
                   </li>
@@ -290,19 +290,19 @@ export default async function ServerOperatorsPage() {
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">3</span>
                     <div>
                       <strong className="text-parchment-200">Install the ToB patch file.</strong> Copy 
-                      <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">utils/patches/patch_TOB.conf</code> from the source tree into your server&apos;s
-                      patches directory, next to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_RoF2.conf</code>.
+                      <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">utils/patches/patch_TOB.conf</code> from the source tree into your server&apos;s
+                      patches directory, next to <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">patch_RoF2.conf</code>.
                     </div>
                   </li>
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">4</span>
                     <div className="min-w-0 flex-1">
-                      <strong className="text-parchment-200">Allow ToB in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>.</strong>{" "}
-                      The rule must include <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code>, or be left blank to allow every client.
+                      <strong className="text-parchment-200">Allow ToB in <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>.</strong>{" "}
+                      The rule must include <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">TOB</code>, or be left blank to allow every client.
                       <div className="mt-3 flex gap-2.5 rounded border border-gold-400/20 bg-gold-400/5 p-3">
                         <AlertTriangle className="h-4 w-4 flex-shrink-0 text-gold-300 mt-0.5" aria-hidden="true" />
                         <p className="text-parchment-300 text-xs leading-relaxed">
-                          On develop-v2 the default is <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. That <strong>blocks Titanium,
+                          On develop-v2 the default is <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. That <strong>blocks Titanium,
                           SoF, SoD and UF</strong> players. If you support those clients, add them to the rule or
                           leave it blank.
                         </p>
@@ -312,7 +312,7 @@ export default async function ServerOperatorsPage() {
                   <li className="flex gap-3">
                     <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border border-frost-400/15 bg-frost-400/5 font-mono text-frost-400/70 text-xs">5</span>
                     <div>
-                      <strong className="text-parchment-200">Keep your world&apos;s client port on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.</strong>{" "}
+                      <strong className="text-parchment-200">Keep your world&apos;s client port on UDP <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">9000</code>.</strong>{" "}
                       The ToB client always connects to world on 9000, so a world on a custom port won&apos;t work
                       for ToB players.
                     </div>
@@ -326,10 +326,10 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-3">How a ToB login flows</h3>
                 <ol className="space-y-2 text-parchment-400 text-sm list-decimal list-inside">
                   <li>
-                    The ToB client logs in to <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">login.eqemulator.dev:15900</code> and gets the server list.
+                    The ToB client logs in to <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">login.eqemulator.dev:15900</code> and gets the server list.
                   </li>
                   <li>
-                    The player picks your world. The client connects to your world on UDP <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">9000</code>.
+                    The player picks your world. The client connects to your world on UDP <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">9000</code>.
                     If your world doesn&apos;t accept ToB, entry fails here.
                   </li>
                   <li>From there, zoning works the same as for any other client, using your usual zone ports.</li>
@@ -353,10 +353,10 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">My server isn&apos;t appearing in the list</h3>
                 <p className="text-parchment-400 text-sm">
                   Check your world server logs for loginserver connection messages. Ensure{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code>{" "}
+                  <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">worldserver.eqemulator.dev</code>{" "}
                   is reachable from your server on port 5998 (TCP). Verify the config key is named{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver2</code>{" "}
-                  (not <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver_2</code>).
+                  <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver2</code>{" "}
+                  (not <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver_2</code>).
                 </p>
               </CardContent>
             </Card>
@@ -375,9 +375,9 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">ToB players can see my server but can&apos;t get in</h3>
                 <p className="text-parchment-400 text-sm">
                   Work through the <a href="#tob" className="hover-frost text-frost-400">ToB checklist</a>: a
-                  develop-v2 build of world and zone, <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">patch_TOB.conf</code> in
-                  your patches directory, <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">TOB</code> allowed
-                  in <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>, and
+                  develop-v2 build of world and zone, <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">patch_TOB.conf</code> in
+                  your patches directory, <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">TOB</code> allowed
+                  in <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">World:SupportedClients</code>, and
                   the world client port on UDP 9000.
                 </p>
               </CardContent>
@@ -386,8 +386,8 @@ export default async function ServerOperatorsPage() {
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">After moving to develop-v2, Titanium/SoF/SoD/UF players can&apos;t get in</h3>
                 <p className="text-parchment-400 text-sm">
-                  The develop-v2 default for <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">World:SupportedClients</code> is{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. Add the other clients
+                  The develop-v2 default for <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">World:SupportedClients</code> is{" "}
+                  <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">RoF2,TOB</code>. Add the other clients
                   you support to the rule, or leave it blank to allow all clients.
                 </p>
               </CardContent>
@@ -397,7 +397,7 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Can I connect to worldserver.eqemulator.dev only (not eqemulator.net)?</h3>
                 <p className="text-parchment-400 text-sm">
                   Yes. Just configure a single{" "}
-                  <code className="text-frost-400 bg-[#0e1017] px-1 py-0.5 rounded text-xs">loginserver1</code>{" "}
+                  <code className="text-frost-400 bg-[#241c14] px-1 py-0.5 rounded text-xs">loginserver1</code>{" "}
                   pointing at worldserver.eqemulator.dev. Players using their eqemulator.net credentials will still
                   work thanks to LSPX account proxying.
                 </p>

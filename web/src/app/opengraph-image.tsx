@@ -17,19 +17,19 @@ export default function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          background: "linear-gradient(160deg, #080b12 0%, #0e1420 55%, #0b1a26 100%)",
+          background: "linear-gradient(160deg, #1c1610 0%, #2e241b 55%, #0b1a26 100%)",
           color: "#f3efe5",
           fontFamily: "Georgia, serif",
         }}
       >
-        <div style={{ fontSize: 28, letterSpacing: 12, textTransform: "uppercase", color: "#7ad2fd", opacity: 0.8 }}>
+        <div style={{ fontSize: 28, letterSpacing: 12, textTransform: "uppercase", color: "#e3c27a", opacity: 0.8 }}>
           EverQuest Emulator
         </div>
         <div style={{ fontSize: 92, fontWeight: 700, marginTop: 18, color: "#e8dcc8" }}>EQEmulator.dev</div>
         <div style={{ fontSize: 36, marginTop: 24, color: "#c7b494", fontFamily: "sans-serif" }}>
           Private server directory with live player counts
         </div>
-        <div style={{ marginTop: 56, width: 520, height: 2, background: "linear-gradient(90deg, transparent, #34bbfa, transparent)" }} />
+        <div style={{ marginTop: 56, width: 520, height: 2, background: "linear-gradient(90deg, transparent, #d4a650, transparent)" }} />
       </div>
     ),
     size

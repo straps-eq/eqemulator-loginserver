@@ -146,7 +146,7 @@ export function LogsDashboard() {
           <select
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
-            className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+            className="rounded border border-frost-400/10 bg-[#2a2118] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
           >
             {LEVEL_OPTIONS.map((l) => (
               <option key={l} value={l}>
@@ -157,7 +157,7 @@ export function LogsDashboard() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+            className="rounded border border-frost-400/10 bg-[#2a2118] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
           >
             {SOURCE_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -201,7 +201,7 @@ export function LogsDashboard() {
       )}
 
       {/* Event list */}
-      <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+      <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 overflow-hidden">
         <div className="px-5 py-3 border-b border-frost-400/8 flex items-center justify-between">
           <h3 className="text-xs font-display uppercase tracking-wider text-parchment-400">
             Recent Events
@@ -295,7 +295,7 @@ function ContainerLogs() {
   }, [service, tail]);
 
   return (
-    <div className="rounded-lg border border-frost-400/8 bg-[#0a0e17]/50 overflow-hidden">
+    <div className="rounded-lg border border-frost-400/8 bg-[#2a2118]/50 overflow-hidden">
       <button
         onClick={() => { setOpen(!open); if (!open && lines.length === 0) fetchLogs(); }}
         className="w-full px-5 py-3 flex items-center justify-between hover:bg-frost-400/[0.02] transition-colors"
@@ -321,7 +321,7 @@ function ContainerLogs() {
             <select
               value={service}
               onChange={(e) => setService(e.target.value)}
-              className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+              className="rounded border border-frost-400/10 bg-[#2a2118] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
             >
               {CONTAINER_SERVICES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -330,7 +330,7 @@ function ContainerLogs() {
             <select
               value={tail}
               onChange={(e) => setTail(Number(e.target.value))}
-              className="rounded border border-frost-400/10 bg-[#0a0e17] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
+              className="rounded border border-frost-400/10 bg-[#2a2118] px-2 py-1 text-xs text-parchment-400 focus:outline-none focus:border-frost-400/30"
             >
               {TAIL_OPTIONS.map((t) => (
                 <option key={t} value={t}>Last {t} lines</option>

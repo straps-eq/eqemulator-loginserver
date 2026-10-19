@@ -83,7 +83,7 @@ export function ChangePasswordButton() {
         onClose={handleClose}
         className="backdrop:bg-black/60 bg-transparent p-0 m-auto"
       >
-        <div className="w-[24rem] rounded-lg border border-frost-400/10 bg-gradient-to-b from-[#171d2d] to-[#131825] p-6 shadow-2xl">
+        <div className="w-[24rem] rounded-lg border border-frost-400/10 bg-gradient-to-b from-[#3a2e23] to-[#2e241b] p-6 shadow-2xl">
           <h3 className="font-display text-sm font-semibold text-parchment-200 uppercase tracking-wider mb-5">
             Change Password
           </h3>
