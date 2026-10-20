@@ -10,6 +10,8 @@ services:
   mariadb:
     image: mariadb:10.11
     container_name: eqemu-mariadb
+    # Give InnoDB time to flush on docker stop / host reboot (default is 10s, then SIGKILL)
+    stop_grace_period: 2m
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
