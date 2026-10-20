@@ -273,13 +273,13 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
           </div>
           <div className="flex-1" />
           {info.websiteUrl && (
-            <a href={ensureProtocol(info.websiteUrl)} target="_blank" rel="noopener noreferrer"
+            <a href={ensureProtocol(info.websiteUrl)} target="_blank" rel="nofollow ugc noopener noreferrer"
               className="hover-frost flex items-center gap-1.5 text-frost-400/70 text-xs transition-colors">
               <Globe className="h-3 w-3" /> Website
             </a>
           )}
           {info.discordUrl && (
-            <a href={ensureProtocol(info.discordUrl)} target="_blank" rel="noopener noreferrer"
+            <a href={ensureProtocol(info.discordUrl)} target="_blank" rel="nofollow ugc noopener noreferrer"
               className="hover-frost flex items-center gap-1.5 text-frost-400/70 text-xs transition-colors">
               <MessageCircle className="h-3 w-3" /> Discord
             </a>
