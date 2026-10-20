@@ -64,8 +64,8 @@ export default async function AboutPage() {
             <p className="text-sm text-parchment-400/80 leading-relaxed">
               All node-to-node communication is authenticated with public-key cryptography and encrypted
               in transit. If any single node goes offline, the rest of the network continues serving
-              without interruption. Your existing eqemulator.net credentials work here automatically
-              via transparent proxy — no re-registration needed.
+              without interruption. If you already play on EQEmu servers, the game login you use today
+              works here too: type it at the game client&apos;s login screen.
             </p>
           </div>
         </section>
@@ -95,7 +95,7 @@ export default async function AboutPage() {
               {
                 icon: Globe,
                 title: "Seamless Migration",
-                desc: "Existing eqemulator.net accounts work via transparent proxy. When you log in here, your account migrates automatically — no action required.",
+                desc: "The game login you already use on EQEmu servers works here. Type it at the game client\u2019s login screen; nothing to set up on this site.",
               },
               {
                 icon: Shield,
@@ -159,8 +159,8 @@ export default async function AboutPage() {
             </h2>
             <div className="space-y-3 text-sm text-parchment-400/80 leading-relaxed">
               <p>
-                <strong className="text-parchment-200">Existing accounts work.</strong> If you have an eqemulator.net
-                login, it works here automatically via our transparent proxy (LSPX). No registration needed.
+                <strong className="text-parchment-200">Existing game logins work.</strong> If you already log in to EQEmu
+                servers, the same login works at the game client&apos;s login screen. This site never asks for that password.
               </p>
               <p>
                 <strong className="text-parchment-200">Server operators can dual-list.</strong> World servers can connect
