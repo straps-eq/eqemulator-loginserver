@@ -22,7 +22,7 @@ const jsonLd = [
     "@type": "WebSite",
     "@id": "https://eqemulator.dev/#website",
     name: "EQEmulator.dev",
-    alternateName: ["EQ Emulator", "EQEmulator", "EQEmu Server List"],
+    alternateName: ["EQEmu Server List"],
     url: "https://eqemulator.dev",
     description: "EQEmu server list with live player counts, guides for new players, and a community login server for EQ Emulator worlds.",
     inLanguage: "en",
