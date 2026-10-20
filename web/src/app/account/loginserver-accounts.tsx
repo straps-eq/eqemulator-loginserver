@@ -144,7 +144,7 @@ export function LoginServerAccounts() {
               Claim Existing Loginserver Account
             </h4>
             <p className="text-[11px] text-parchment-500 mb-4">
-              Enter the username and password of a game login you already use on this login server to link it to your EQEmulator.dev account.
+              Enter a game login you created on EQEmulator.dev to link it to this account. Logins from other login servers keep working in the game and don't need linking.
             </p>
             <div className="space-y-3">
               <div>
