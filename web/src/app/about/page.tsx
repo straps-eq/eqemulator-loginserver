@@ -94,7 +94,7 @@ export default async function AboutPage() {
               },
               {
                 icon: Globe,
-                title: "Seamless Migration",
+                title: "Works with your existing account",
                 desc: "The game login you already use on EQEmu servers works here. Type it at the game client\u2019s login screen; nothing to set up on this site.",
               },
               {

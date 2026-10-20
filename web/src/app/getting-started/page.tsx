@@ -135,13 +135,12 @@ export default async function GettingStartedPage() {
                 <div>
                   <h2 className="font-display text-base font-semibold text-parchment-100 mb-2">Does my existing game login work?</h2>
                   <p className="text-parchment-400 text-sm mb-2">
-                    Yes. If you already log in to EQEmu servers through the EQEmulator forums&apos; login server,
-                    type the same username and password into the game client&apos;s login screen. Our login server
-                    checks it with theirs and lets you in.
+                    Yes. If you already play on EQEmu servers, log in at the game client&apos;s login screen
+                    the same way you always do.
                   </p>
                   <p className="text-parchment-500 text-xs">
-                    This only happens in the game client. EQEmulator.dev never asks for your forum password on a web page.
-                </p>
+                    You only ever type it into the game. This website never asks for it.
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -190,14 +189,6 @@ export default async function GettingStartedPage() {
                     Server Operator Guide
                   </Link>{" "}
                   with them — it only takes a one-line config change.
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-5">
-                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I changed my forum password. Does it update here?</h3>
-                <p className="text-parchment-400 text-sm">
-                  Yes. The next time you log in through the game client, the new password is picked up automatically.
                 </p>
               </CardContent>
             </Card>

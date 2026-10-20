@@ -215,17 +215,15 @@ export default async function ServerOperatorsPage() {
         <div className="mt-12">
           <h2 className="font-display text-xl font-bold text-parchment-100 mb-5">How Player Authentication Works</h2>
           <p className="text-parchment-400 text-sm mb-4">
-            This login server runs <strong className="text-parchment-200">LSPX (Login Server Proxy)</strong>,
-            which means players&apos; existing EQEmu game logins work here automatically.
+            Players use the same EQEmu game account they already have. Nothing changes for them.
           </p>
           <div className="space-y-3">
             <Card>
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Transparent to players</h3>
                 <p className="text-parchment-400 text-sm">
-                  When a player types their existing game login at the game client&apos;s login screen,
-                  the login server checks it with the upstream login server and remembers it. No
-                  re-registration needed, and password changes upstream are picked up on next login.
+                  Players log in from the game client with the account they already have. There is
+                  nothing to sign up for and nothing to set up on this website.
                 </p>
               </CardContent>
             </Card>
@@ -234,7 +232,7 @@ export default async function ServerOperatorsPage() {
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">What this means for your server</h3>
                 <p className="text-parchment-400 text-sm">
                   Players connecting through eqemulator.dev use the same game login they already have.
-                  From your world server&apos;s perspective, it works the same as the upstream login server.
+                  From your world server&apos;s perspective, nothing changes.
                   Players keep their same account IDs and characters.
                 </p>
               </CardContent>
@@ -398,8 +396,8 @@ export default async function ServerOperatorsPage() {
                 <p className="text-parchment-400 text-sm">
                   Yes. Just configure a single{" "}
                   <code className="text-frost-400 bg-[#1b2238] px-1 py-0.5 rounded text-xs">loginserver1</code>{" "}
-                  pointing at worldserver.eqemulator.dev. Players with existing upstream game logins can still
-                  log in thanks to LSPX account proxying.
+                  pointing at worldserver.eqemulator.dev. Players with existing EQEmu game accounts can
+                  still log in.
                 </p>
               </CardContent>
             </Card>
