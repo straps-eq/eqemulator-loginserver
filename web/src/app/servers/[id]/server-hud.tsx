@@ -125,7 +125,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
             );
             if (match) {
               setPlayers(match.players_online ?? 0);
-              setStatus(match.server_status ?? 0);
+              setStatus(match.server_status ?? -1);
             }
           }
         }
@@ -135,7 +135,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
     return () => clearInterval(interval);
   }, [serverId, info.shortName, info.longName]);
 
-  const isOnline = status > 0;
+  const isOnline = status >= 0;
   const isLocked = status === -2;
 
   return (

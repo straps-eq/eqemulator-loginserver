@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
       const longName = (s.server_long_name || "unknown").replace(/"/g, '\\"');
       const labels = `server_short_name="${name}",server_long_name="${longName}"`;
       const players = s.players_online ?? 0;
-      const status = s.server_status > 0 ? 1 : 0;
+      const status = s.server_status >= 0 ? 1 : 0;
       const zones = s.zones_booted ?? 0;
       totalPlayers += players;
 

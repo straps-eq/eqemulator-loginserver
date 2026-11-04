@@ -89,7 +89,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
     },
     ...(liveData?.players_online !== undefined && {
       numberOfPlayers: liveData.players_online,
-      serverStatus: liveData.server_status ? "Online" : "Offline",
+      serverStatus: liveData.server_status >= 0 ? "Online" : "Offline",
     }),
   };
 
@@ -135,7 +135,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               description: profile?.description,
             }}
             initialPlayers={liveData?.players_online ?? 0}
-            initialStatus={liveData?.server_status ?? 0}
+            initialStatus={liveData?.server_status ?? -1}
           />
 
           {/* Population chart */}

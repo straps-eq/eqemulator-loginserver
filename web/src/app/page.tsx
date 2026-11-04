@@ -50,7 +50,7 @@ export default async function HomePage() {
     getPublicServerList().catch(() => [] as PublicServer[]),
   ]);
 
-  const online = servers.filter((s) => s.server_status > 0 && !s.is_offline);
+  const online = servers.filter((s) => s.server_status >= 0 && !s.is_offline);
   const totalPlayers = online.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
   const topWorlds = [...online]
     .sort((a, b) => (b.players_online ?? 0) - (a.players_online ?? 0))

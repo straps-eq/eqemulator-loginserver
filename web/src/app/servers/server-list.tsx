@@ -225,7 +225,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
 
                 {/* Server rows */}
                 {tierServers.map((server, i) => {
-                  const isOnline = server.server_status > 0;
+                  const isOnline = server.server_status >= 0 && !server.is_offline;
                   const isLocked = server.server_status === -2;
                   const hideCount = server.show_player_count === false;
 

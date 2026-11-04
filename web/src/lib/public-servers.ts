@@ -159,7 +159,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
         server_long_name: d.longName,
         server_short_name: d.shortName,
         server_list_type_id: d.loginServerListTypeId,
-        server_status: liveFed?.server_status ?? 0,
+        server_status: liveFed?.server_status ?? -1,
         zones_booted: liveFed?.zones_booted ?? 0,
         players_online: showPlayerCount ? playersOnline : undefined,
         world_id: liveFed?.world_id ?? 0,
@@ -202,7 +202,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
       const liveFed = federatedLive.find(
         (l: any) => l.server_short_name === d.shortName || l.server_long_name === d.longName
       ) as Record<string, any> | undefined;
-      const isLiveOnPeer = liveFed && (liveFed.server_status > 0 || liveFed.zones_booted > 0);
+      const isLiveOnPeer = liveFed && (liveFed.server_status >= 0 || liveFed.zones_booted > 0);
       const playersOnline = liveFed?.players_online ?? 0;
       const manualTier = profile?.displayTier;
       const effectiveTier = manualTier || (isLiveOnPeer ? autoTier(playersOnline, highMin, mediumMin) : "low");
@@ -211,7 +211,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
         server_long_name: d.longName,
         server_short_name: d.shortName,
         server_list_type_id: d.loginServerListTypeId,
-        server_status: liveFed?.server_status ?? 0,
+        server_status: liveFed?.server_status ?? -1,
         zones_booted: liveFed?.zones_booted ?? 0,
         players_online: showPlayerCount ? playersOnline : undefined,
         world_id: liveFed?.world_id ?? 0,

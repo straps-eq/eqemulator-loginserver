@@ -24,7 +24,7 @@ export default async function ServerOpenGraphImage({ params }: { params: Promise
       tagline = server.tagDescription || "";
       const live = await getLiveData(server.shortName, server.longName);
       if (live) {
-        online = (live.server_status ?? 0) > 0;
+        online = (live.server_status ?? -1) >= 0;
         players = typeof live.players_online === "number" ? live.players_online : null;
       }
     }

@@ -30,7 +30,7 @@ export function ServerDetailLive({ serverId, shortName, longName, initialPlayers
             if (match) {
               setPlayers(match.players_online ?? 0);
               setZones(match.zones_booted ?? 0);
-              setStatus(match.server_status ?? 0);
+              setStatus(match.server_status ?? -1);
             }
           }
         }
@@ -54,8 +54,8 @@ export function ServerDetailLive({ serverId, shortName, longName, initialPlayers
         <div className="text-xs text-parchment-500 uppercase tracking-wide mt-1">Zones Booted</div>
       </div>
       <div className="rounded border border-frost-400/8 bg-gradient-to-b from-[#2a3350]/90 to-[#222a44]/95 p-5 text-center">
-        <div className={`h-5 w-5 rounded-full mx-auto mb-2 ${status > 0 ? "bg-forest-500 shadow-[0_0_10px_rgba(77,138,92,0.5)]" : "bg-obsidian-600"}`} />
-        <div className="font-display text-2xl font-bold text-parchment-100">{status > 0 ? "Up" : "Down"}</div>
+        <div className={`h-5 w-5 rounded-full mx-auto mb-2 ${status >= 0 ? "bg-forest-500 shadow-[0_0_10px_rgba(77,138,92,0.5)]" : "bg-obsidian-600"}`} />
+        <div className="font-display text-2xl font-bold text-parchment-100">{status >= 0 ? "Up" : "Down"}</div>
         <div className="text-xs text-parchment-500 uppercase tracking-wide mt-1">Status</div>
       </div>
     </div>
