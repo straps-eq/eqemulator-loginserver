@@ -74,7 +74,7 @@ export async function GET(
     // Live data
     players_online: liveData?.players_online ?? 0,
     zones_booted: liveData?.zones_booted ?? 0,
-    server_status: liveData?.server_status ?? 0,
+    server_status: liveData?.server_status ?? -1,
     // Profile data
     profile: profile ? {
       description: profile.description,
