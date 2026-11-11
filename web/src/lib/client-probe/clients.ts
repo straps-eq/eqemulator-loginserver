@@ -83,21 +83,21 @@ export function parsePatchOpcodes(text: string | undefined): ClientOpcodes {
 }
 
 /**
- * World-side opcodes of the EQL patch (utils/patches/patch_EQL.conf on the
- * eql branch; worlds log "Registered patch [EQL]"). OP_ApproveWorld is unused,
+ * World-side opcodes of the EQL patch, Nov 10 build (utils/patches/patch_EQL.conf
+ * on the eql branch; worlds log "Registered patch [EQL]"). OP_ApproveWorld is unused,
  * and OP_GuildsList isn't mapped by the world yet, so the probe doesn't wait
  * for either. CLIENT_PROBE_EQL_OPCODES overrides these if a build changes them.
  */
 const EQL_WORLD_OPCODES = [
-  "OP_SendLoginInfo=0x0437",
-  "OP_LogServer=0x7601",
-  "OP_EnterWorld=0x533d",
-  "OP_PostEnterWorld=0x08e3",
-  "OP_ExpansionInfo=0x3b27",
-  "OP_SendMaxCharacters=0x6265",
-  "OP_SendMembership=0x1785",
-  "OP_SendMembershipDetails=0x684b",
-  "OP_SendCharInfo=0x4a0d",
+  "OP_SendLoginInfo=0x21b1",
+  "OP_LogServer=0x2b52",
+  "OP_EnterWorld=0x5566",
+  "OP_PostEnterWorld=0x46e7",
+  "OP_ExpansionInfo=0x0f2f",
+  "OP_SendMaxCharacters=0x3ce4",
+  "OP_SendMembership=0x4050",
+  "OP_SendMembershipDetails=0x150b",
+  "OP_SendCharInfo=0x01de",
 ].join(",");
 
 /** EverQuest Legends, probed with the world opcodes above. */

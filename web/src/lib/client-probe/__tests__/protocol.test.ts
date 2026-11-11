@@ -215,8 +215,8 @@ test("EQL world opcodes come from patch file form and stay off until set", () =>
   const eql = getClient("eql")!;
   assert.equal(eql.serverName, "EQL");
   assert.equal(isProbeable(eql), true);
-  assert.equal(eql.opcodes.sendLoginInfo, 0x0437);
-  assert.equal(eql.opcodes.sendCharInfo, 0x4a0d);
+  assert.equal(eql.opcodes.sendLoginInfo, 0x21b1);
+  assert.equal(eql.opcodes.sendCharInfo, 0x01de);
   assert.equal(eql.opcodes.guildsList, 0);
 
   const op = parsePatchOpcodes("OP_SendLoginInfo=0x1a2b, OP_SendCharInfo=0x0c0d\nop_logserver=0x00ff OP_Bogus=0x1 OP_EnterWorld=zz");
