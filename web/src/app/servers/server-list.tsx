@@ -33,8 +33,13 @@ const tierMeta: Record<string, { label: string; accent: string; headerBg: string
 
 /** Full client name for captions; ToB is introduced by its full name. */
 function clientName(c: ClientId): string {
-  return c === "tob" ? "The Outer Brood (ToB)" : `${CLIENT_TITLES[c]} (${CLIENT_LABELS[c]})`;
+  if (c === "tob") return "The Outer Brood (ToB)";
+  if (c === "eql") return "the EverQuest Legends client (EQL)";
+  return `${CLIENT_TITLES[c]} (${CLIENT_LABELS[c]})`;
 }
+
+/** Clients whose filter chip gets a gold star. */
+const STARRED: ClientId[] = ["tob", "eql"];
 
 const sortOptions: { id: ServerSort; label: string }[] = [
   { id: "players", label: "Most players" },
@@ -119,7 +124,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                       : "border-frost-400/20 bg-[#202842]/70 text-parchment-200 hover:border-frost-400/40 hover:text-frost-200"
                   }`}
                 >
-                  {id === "tob" && (
+                  {id && STARRED.indexOf(id) !== -1 && (
                     <span aria-hidden="true" className={active ? "text-[#1b2350]" : "text-[#f4d590]"}>★</span>
                   )}
                   {id ? CLIENT_LABELS[id] : "All"}

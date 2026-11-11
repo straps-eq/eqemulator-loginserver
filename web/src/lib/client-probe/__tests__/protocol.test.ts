@@ -26,7 +26,7 @@ import {
   xorDecode,
   xorEncode,
 } from "../protocol";
-import { CLIENTS, LOGIN_INFO_SIZE, encodeLoginInfo, getClient } from "../clients";
+import { CLIENTS, LOGIN_INFO_SIZE, encodeLoginInfo, getClient, isProbeable, parsePatchOpcodes } from "../clients";
 import { classifyProbe, ProbeObservation } from "../classify";
 
 const session = (over: Partial<SessionParams> = {}): SessionParams => ({
@@ -205,10 +205,25 @@ test("LoginInfo encodes account id and key for every client", () => {
 });
 
 test("each client has a distinct login opcode", () => {
-  const ops = CLIENTS.map((c) => c.opcodes.sendLoginInfo);
+  const ops = CLIENTS.filter(isProbeable).map((c) => c.opcodes.sendLoginInfo);
   assert.equal(new Set(ops).size, ops.length);
   assert.equal(getClient("rof2")!.opcodes.sendLoginInfo, 0x7a09);
   assert.equal(getClient("tob")!.opcodes.sendLoginInfo, 0x722a);
+});
+
+test("EQL world opcodes come from patch file form and stay off until set", () => {
+  const eql = getClient("eql")!;
+  assert.equal(eql.serverName, "EQL");
+  assert.equal(isProbeable(eql), !!process.env.CLIENT_PROBE_EQL_OPCODES);
+
+  const op = parsePatchOpcodes("OP_SendLoginInfo=0x1a2b, OP_SendCharInfo=0x0c0d\nop_logserver=0x00ff OP_Bogus=0x1 OP_EnterWorld=zz");
+  assert.equal(op.sendLoginInfo, 0x1a2b);
+  assert.equal(op.sendCharInfo, 0x0c0d);
+  assert.equal(op.logServer, 0x00ff);
+  assert.equal(op.enterWorld, 0);
+  assert.equal(op.guildsList, 0);
+  assert.equal(isProbeable({ ...eql, opcodes: op }), true);
+  assert.equal(isProbeable({ ...eql, opcodes: parsePatchOpcodes("") }), false);
 });
 
 test("classification", () => {

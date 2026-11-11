@@ -49,10 +49,12 @@ services:
       - "5999:5999/udp"
       - "15900:15900/udp"
       - "15901:15901/udp"
+      - "15902:15902/udp"
       - "5998:5998/tcp"
       - "5999:5999/tcp"
       - "15900:15900/tcp"
       - "15901:15901/tcp"
+      - "15902:15902/tcp"
     networks:
       - internal
 
@@ -90,6 +92,8 @@ services:
       - CLIENT_PROBE_ENABLED=${CLIENT_PROBE_ENABLED:-}
       - CLIENT_PROBE_INTERVAL_HOURS=${CLIENT_PROBE_INTERVAL_HOURS:-}
       - CLIENT_PROBE_CLIENTS=${CLIENT_PROBE_CLIENTS:-}
+      # EQL world opcodes for the probe, patch_EQL.conf names: OP_SendLoginInfo=0x....,OP_SendCharInfo=0x....,...
+      - CLIENT_PROBE_EQL_OPCODES=${CLIENT_PROBE_EQL_OPCODES:-}
       - REDIS_URL=redis://redis:6379
       - UPGRADE_AGENT_TOKEN=${UPGRADE_AGENT_TOKEN}
     volumes:

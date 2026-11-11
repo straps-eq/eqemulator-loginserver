@@ -41,6 +41,7 @@ CF_MAX_JUMP="major"; yes jump_allowed 1.6.2 3.0.0
 
 # ── window (date is faked) ──
 FAKE_HM="0400"; FAKE_DAY="Tue"; FAKE_YDAY="Mon"
+# shellcheck disable=SC2329 # called indirectly by the sourced deploy.sh functions
 date() {
   case "$*" in
     "-u +%H") echo "${FAKE_HM:0:2}" ;;

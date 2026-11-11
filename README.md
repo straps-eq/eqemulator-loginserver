@@ -57,6 +57,7 @@ EQEmulator.dev replaces the single-point-of-failure model of centralized login s
 | 5999 | UDP | SoD/UF/RoF/RoF2 client login |
 | 15900 | UDP (TCP also published) | ToB (The Outer Brood) client login |
 | 15901 | UDP (TCP also published) | Live client, current supported build (see [LIVE_CLIENT.md](LIVE_CLIENT.md)) |
+| 15902 | UDP (TCP also published) | EverQuest Legends (EQL) client, off by default (see [EQL_CLIENT.md](EQL_CLIENT.md)) |
 
 ### Step 1 — Install Docker
 
@@ -200,6 +201,7 @@ If you want to run a separate federation (not connected to EQEmulator.dev), you 
 | 5999 | UDP | SoD/UF/RoF/RoF2 client login |
 | 15900 | UDP (TCP also published) | ToB (The Outer Brood) client login |
 | 15901 | UDP (TCP also published) | Live client, current supported build (see [LIVE_CLIENT.md](LIVE_CLIENT.md)) |
+| 15902 | UDP (TCP also published) | EverQuest Legends (EQL) client, off by default (see [EQL_CLIENT.md](EQL_CLIENT.md)) |
 | 6000 | TCP | Loginserver internal API |
 
 ## Project Structure

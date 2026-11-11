@@ -73,7 +73,8 @@ Node operators can switch the probe off for their whole node with
 |---|---|---|
 | `CLIENT_PROBE_ENABLED` | empty | Empty: probe only on the federation master. `true` or `false` forces it on or off. |
 | `CLIENT_PROBE_INTERVAL_HOURS` | `6` | Hours between cycles (minimum 1). |
-| `CLIENT_PROBE_CLIENTS` | all | Comma-separated subset of `titanium,sof,sod,uf,rof,rof2,tob`. |
+| `CLIENT_PROBE_CLIENTS` | all | Comma-separated subset of `titanium,sof,sod,uf,rof,rof2,tob,eql`. |
+| `CLIENT_PROBE_EQL_OPCODES` | empty | World opcodes of the EQL patch, in `patch_EQL.conf` form: `OP_SendLoginInfo=0x....,OP_LogServer=0x....,OP_EnterWorld=0x....,OP_PostEnterWorld=0x....,OP_ExpansionInfo=0x....,OP_SendMaxCharacters=0x....,OP_SendMembership=0x....,OP_SendMembershipDetails=0x....,OP_SendCharInfo=0x....` (plus `OP_GuildsList` / `OP_ApproveWorld` if the world sends them). EQL is not probed while this is empty. See [EQL_CLIENT.md](../EQL_CLIENT.md). |
 
 The schedule checks every 10 minutes whether a cycle is due, measured from the
 last stored result, so restarting the web container does not cause extra

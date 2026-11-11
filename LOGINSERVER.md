@@ -44,6 +44,7 @@ This is a fork of the [EQEmu Server](https://github.com/EQEmu/Server) loginserve
 | 5999 | UDP | SoD/UF/RoF/RoF2 client connections |
 | 15900 | UDP (TCP also published) | ToB (The Outer Brood) client connections |
 | 15901 | UDP (TCP also published) | Live client, current supported build (see [LIVE_CLIENT.md](LIVE_CLIENT.md)) |
+| 15902 | UDP (TCP also published) | EverQuest Legends (EQL) client, off by default (see [EQL_CLIENT.md](EQL_CLIENT.md)) |
 | 6000 | TCP | Internal HTTP API (world server data, federation) |
 
 ## Packet Flow

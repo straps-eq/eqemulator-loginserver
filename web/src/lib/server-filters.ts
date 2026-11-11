@@ -7,7 +7,7 @@ import { CLIENT_ORDER, type ClientId } from "./client-probe/labels";
 export type ServerSort = "players" | "name";
 
 /** Chips always shown; other clients get a chip only when some world supports them. */
-export const PRIMARY_CLIENTS: ClientId[] = ["titanium", "rof2", "tob"];
+export const PRIMARY_CLIENTS: ClientId[] = ["titanium", "rof2", "tob", "eql"];
 
 /** The fields filtering needs, so this module doesn't pull in the DB layer. */
 export interface FilterableServer {
