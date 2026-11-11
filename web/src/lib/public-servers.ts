@@ -11,6 +11,25 @@ import { getClientSupportSummaries, type ClientSupportSummary } from "@/lib/clie
  * with profile settings (tier, hidden counts, trust). Shared by /api/servers,
  * the directory page and the home page so they all render the same list.
  */
+
+/**
+ * The registration row for a live world. The loginserver's world id wins: a
+ * renamed world gets a new row with the same short name, and matching by name
+ * first would show the old row's details and client badges. Name matching is
+ * the fallback for a world still connected as id 0.
+ */
+function matchDbServer<T extends { id: number; shortName: string | null; longName: string | null }>(
+  dbServers: T[],
+  live: { world_id?: unknown; server_short_name?: unknown; server_long_name?: unknown }
+): T | undefined {
+  const id = Number(live.world_id) || 0;
+  if (id > 0) {
+    const byId = dbServers.find((d) => d.id === id);
+    if (byId) return byId;
+  }
+  return dbServers.find((d) => d.shortName === live.server_short_name || d.longName === live.server_long_name);
+}
+
 export interface PublicServer {
   server_long_name: string;
   server_short_name: string;
@@ -102,9 +121,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
   } catch {}
 
   const enriched = liveServers.map((live: any) => {
-    const dbMatch = dbServers.find(
-      (d) => d.shortName === live.server_short_name || d.longName === live.server_long_name
-    );
+    const dbMatch = matchDbServer(dbServers, live);
     const adminId = dbMatch?.loginServerAdminId || 0;
     const profile = dbMatch
       ? profiles.find((p) => p.worldServerId === dbMatch.id || (adminId > 0 && p.loginServerAdminId === adminId))
@@ -246,9 +263,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
     lastSyncTime = now;
     const updates: Promise<unknown>[] = [];
     for (const live of liveServers) {
-      const dbMatch = dbServers.find(
-        (d) => d.shortName === live.server_short_name || d.longName === live.server_long_name
-      );
+      const dbMatch = matchDbServer(dbServers, live);
       if (!dbMatch) continue;
       const profile = profiles.find(
         (p) => p.worldServerId === dbMatch.id || ((dbMatch.loginServerAdminId || 0) > 0 && p.loginServerAdminId === dbMatch.loginServerAdminId)
