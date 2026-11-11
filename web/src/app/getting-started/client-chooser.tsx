@@ -39,6 +39,20 @@ const OPTIONS: ClientOption[] = [
     ),
   },
   {
+    id: "eql",
+    name: "EQL",
+    clients: "EverQuest Legends",
+    port: 15902,
+    badge: "New",
+    note: "For players using the EverQuest Legends client.",
+    warning: (
+      <>
+        EQL players only see worlds that support EQL. If the server list is empty after you log in, no
+        world supports EQL yet. Check with your server, or use a RoF2/SoD+ client on port 5999.
+      </>
+    ),
+  },
+  {
     id: "titanium",
     name: "Titanium",
     clients: "Titanium",
@@ -71,7 +85,7 @@ export function ClientChooser() {
         role="tablist"
         aria-label="Choose your EverQuest client"
         onKeyDown={onKeyDown}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4"
       >
         {OPTIONS.map((o, i) => {
           const selected = i === active;

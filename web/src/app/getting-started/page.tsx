@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/getting-started" },
   title: "How to Play on EQEmu Servers — Getting Started",
   description:
-    "Step-by-step guide to playing on EQEmu (EverQuest Emulator) servers. Pick your client (RoF2, SoD+, ToB or Titanium), update eqhost.txt, and start playing in minutes.",
+    "Step-by-step guide to playing on EQEmu (EverQuest Emulator) servers. Pick your client (RoF2, SoD+, ToB, EQL or Titanium), update eqhost.txt, and start playing in minutes.",
   openGraph: {
     images: ["/opengraph-image"],
     title: "How to Play on EQEmu Servers — Getting Started",
@@ -58,6 +58,10 @@ export default async function GettingStartedPage() {
                     <li className="flex items-start gap-2">
                       <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
                       <span><strong className="text-parchment-200">ToB</strong> — Only works on worlds that support ToB</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
+                      <span><strong className="text-parchment-200">EQL</strong> — EverQuest Legends. Only shows worlds that support EQL</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-frost-400/50 mt-1" aria-hidden="true">•</span>
@@ -155,8 +159,8 @@ export default async function GettingStartedPage() {
               <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Which port does my client use?</h3>
                 <p className="text-parchment-400 text-sm">
-                  RoF2 and SoD+ clients use port 5999 (most common), ToB uses port 15900, and Titanium uses
-                  port 5998. If unsure, use 5999.
+                  RoF2 and SoD+ clients use port 5999 (most common), ToB uses port 15900, EverQuest Legends
+                  (EQL) uses port 15902, and Titanium uses port 5998. If unsure, use 5999.
                 </p>
               </CardContent>
             </Card>
@@ -167,6 +171,17 @@ export default async function GettingStartedPage() {
                   The server list shows every world, but a ToB client can only enter worlds that support ToB.
                   If a world doesn&apos;t, entry fails after you pick it. Ask that server which clients it supports,
                   or use a RoF2/SoD+ client on port 5999 instead.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I&apos;m on EverQuest Legends and the server list is empty. Why?</h3>
+                <p className="text-parchment-400 text-sm">
+                  An EQL client only sees worlds that support EQL. We test every world every few hours, so a
+                  world that adds EQL support shows up on its own. If the list is empty, no world supports EQL
+                  yet. Check that your eqhost.txt uses port 15902, or use a RoF2/SoD+ client on port 5999 in
+                  the meantime.
                 </p>
               </CardContent>
             </Card>

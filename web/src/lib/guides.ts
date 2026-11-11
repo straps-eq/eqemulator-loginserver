@@ -25,10 +25,10 @@ export const GUIDES: Guide[] = [
   {
     slug: "eq-clients",
     title: "Which EQ client do I need?",
-    metaTitle: "Which EQ Client Do I Need for EQEmu? Titanium, RoF2, ToB and Live",
+    metaTitle: "Which EQ Client Do I Need for EQEmu? Titanium, RoF2, ToB, EQL and Live",
     description:
-      "Titanium, RoF2, The Outer Brood or the current client: which EQ client works on which EQEmu server, which port each one uses, and how to check before you pick a world.",
-    updated: "2026-10-19",
+      "Titanium, RoF2, The Outer Brood, EverQuest Legends or the current client: which EQ client works on which EQEmu server, which port each one uses, and how to check before you pick a world.",
+    updated: "2026-11-11",
   },
   {
     slug: "eqhost-txt",
@@ -36,7 +36,7 @@ export const GUIDES: Guide[] = [
     metaTitle: "eqhost.txt for EQEmu: Where It Is and What to Put in It",
     description:
       "eqhost.txt tells your EQ client which login server to use. Where to find it, exactly what to put in it for each client, and how to fix the most common login problems.",
-    updated: "2026-10-19",
+    updated: "2026-11-11",
   },
   {
     slug: "mac-and-linux",
