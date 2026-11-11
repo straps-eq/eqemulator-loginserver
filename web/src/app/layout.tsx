@@ -1,11 +1,36 @@
 import type { Metadata } from "next";
-import { Cinzel, Cormorant_Garamond, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 // Self-hosted at build time: no render-blocking request to Google Fonts.
-const cinzel = Cinzel({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-cinzel", display: "swap" });
-const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-cormorant", display: "swap" });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// Fonts are bundled (latin subset, SIL OFL, see fonts/OFL-*.txt) so the build never
+// depends on fonts.googleapis.com answering.
+const cinzel = localFont({
+  src: [
+    { path: "./fonts/cinzel-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/cinzel-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/cinzel-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cinzel-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-cinzel",
+  display: "swap",
+});
+const cormorant = localFont({
+  src: [
+    { path: "./fonts/cormorant-garamond-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-cormorant",
+  display: "swap",
+});
+const inter = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
+  style: "normal",
+  variable: "--font-inter",
+  display: "swap",
+});
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eqemulator.dev";
 
