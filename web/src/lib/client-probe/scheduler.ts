@@ -5,12 +5,21 @@
  * stored result, default 6 hours) and whether the probe is enabled on this
  * node; restarts therefore do not cause extra probing. The first check waits
  * a few minutes after startup plus a random offset so nodes do not line up.
+ *
+ * Every minute it also looks for connected worlds that have never been
+ * probed (a world that just registered or connected for the first time) and
+ * probes only those, so a new world gets its badges without waiting for the
+ * next full cycle.
  */
 const CHECK_EVERY_MS = 10 * 60 * 1000;
 const FIRST_CHECK_MIN_MS = 5 * 60 * 1000;
 const FIRST_CHECK_JITTER_MS = 10 * 60 * 1000;
 /** A cycle that stored nothing (e.g. loginserver down) is retried after this. */
 const RETRY_AFTER_MS = 60 * 60 * 1000;
+const NEW_WORLD_CHECK_MS = 60 * 1000;
+const NEW_WORLD_FIRST_CHECK_MS = 2 * 60 * 1000;
+/** A new world whose probe stored nothing is tried again after this. */
+const NEW_WORLD_RETRY_MS = 30 * 60 * 1000;
 
 const g = globalThis as unknown as { __clientProbeScheduler?: boolean };
 
@@ -34,6 +43,31 @@ export function startClientProbeScheduler(): void {
       console.error("[client-probe] scheduler error:", err);
     }
   };
+
+  const newWorldAttempts = new Map<number, number>();
+  const checkNewWorlds = async () => {
+    try {
+      const runner = await import("./runner");
+      const { enabled } = await runner.isProbeEnabled();
+      if (!enabled || runner.getProbeState().running) return;
+      const { getAllProbeRows } = await import("./store");
+      const probed = new Set((await getAllProbeRows()).map((r) => Number(r.world_server_id)));
+      const { targets } = await runner.getTargets();
+      const now = Date.now();
+      const fresh = targets
+        .map((t) => t.worldServerId)
+        .filter((id) => !probed.has(id) && now - (newWorldAttempts.get(id) || 0) >= NEW_WORLD_RETRY_MS);
+      if (fresh.length === 0) return;
+      for (const id of fresh) newWorldAttempts.set(id, now);
+      await runner.runProbeCycle({ trigger: "new world", worldServerIds: fresh });
+    } catch (err) {
+      console.error("[client-probe] new world check error:", err);
+    }
+  };
+  setTimeout(() => {
+    void checkNewWorlds();
+    setInterval(() => void checkNewWorlds(), NEW_WORLD_CHECK_MS);
+  }, NEW_WORLD_FIRST_CHECK_MS);
 
   const first = FIRST_CHECK_MIN_MS + Math.floor(Math.random() * FIRST_CHECK_JITTER_MS);
   setTimeout(() => {

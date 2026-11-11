@@ -162,7 +162,8 @@ export function ClientProbePanel() {
               {worldIds.map((id) => {
                 const rows = byWorld.get(id) ?? new Map<string, ProbeRow>();
                 const optedOut = data.optedOut.indexOf(id) !== -1;
-                const offline = data.connected !== undefined && !connected.has(id);
+                // Opted-out worlds are left out of the connected list, so don't call them offline.
+                const offline = data.connected !== undefined && !connected.has(id) && !optedOut;
                 return (
                   <tr key={id} className="border-t border-frost-400/5">
                     <td

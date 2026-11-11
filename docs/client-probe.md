@@ -80,7 +80,9 @@ Node operators can switch the probe off for their whole node with
 
 The schedule checks every 10 minutes whether a cycle is due, measured from the
 last stored result, so restarting the web container does not cause extra
-probing. The first check runs 5 to 15 minutes after startup.
+probing. The first check runs 5 to 15 minutes after startup. Every minute it
+also probes any connected world that has no results yet, so a new world gets
+its badges within a couple of minutes instead of at the next cycle.
 
 The admin System page has a Client Probe panel with the last results per
 world (hover a cell for the reason), a **Probe now** button for all worlds

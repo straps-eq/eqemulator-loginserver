@@ -171,56 +171,31 @@ function pickHost(s: ServerListItem): string {
   return remote || local;
 }
 
-/**
- * A world that the loginserver auto-registered on this connection reports
- * world_id 0 until it reconnects. Look its id up by name so it is probed (and
- * listed) right away instead of after its next reconnect.
- */
-async function resolveWorldIds(live: ServerListItem[]): Promise<Map<ServerListItem, number>> {
-  const ids = new Map<ServerListItem, number>();
-  const missing: ServerListItem[] = [];
-  for (const s of live) {
-    const id = Number(s.world_id);
-    if (id) ids.set(s, id);
-    else missing.push(s);
-  }
-  for (const s of missing) {
-    try {
-      const [rows] = await pool.execute(
-        `SELECT id FROM login_world_servers WHERE short_name = ? AND long_name = ? ORDER BY id DESC LIMIT 1`,
-        [String(s.server_short_name || ""), String(s.server_long_name || "")]
-      );
-      const list = rows as Array<{ id: number }>;
-      if (list.length > 0) ids.set(s, Number(list[0].id));
-    } catch {
-      // leave it unresolved; it is reported as skipped
-    }
-  }
-  return ids;
-}
-
 /** Worlds connected to this node's loginserver right now, minus opted-out and unaddressable ones. */
-export async function getTargets(onlyWorldId?: number): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
+export async function getTargets(onlyWorldIds?: number[]): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
   const res = await getServerList();
   if (!res.ok || !Array.isArray(res.data)) {
     throw new Error(`loginserver server list unavailable: ${res.error || "bad response"}`);
   }
   const live = dedupeLiveServers(res.data);
-  const ids = await resolveWorldIds(live);
   const optedOut = await getOptedOutWorldIds();
   const targets: ProbeTarget[] = [];
   const skipped: ProbeRunReport["skipped"] = [];
   const seen = new Set<number>();
 
   for (const s of live) {
-    const id = ids.get(s) || 0;
+    // A world's first connection after it auto-registers reports id 0 until
+    // it reconnects. The loginserver can't route a session key (or list it to
+    // EQL clients) under its real id until then, so it waits for the reconnect;
+    // the new-world check probes it as soon as it has an id.
+    const id = Number(s.world_id);
     if (!id) {
-      if (!onlyWorldId) skipped.push({ short_name: String(s.server_short_name || ""), reason: "no world id yet" });
+      if (!onlyWorldIds) skipped.push({ short_name: String(s.server_short_name || ""), reason: "no world id until it reconnects" });
       continue;
     }
     if (seen.has(id)) continue;
     seen.add(id);
-    if (onlyWorldId && id !== onlyWorldId) continue;
+    if (onlyWorldIds && onlyWorldIds.indexOf(id) === -1) continue;
     const shortName = String(s.server_short_name || "");
     if (optedOut.has(id)) { skipped.push({ short_name: shortName, reason: "opted out" }); continue; }
     const host = pickHost(s);
@@ -307,7 +282,12 @@ async function probeOneWorld(target: ProbeTarget, accountId: number, clients: Cl
  * Run one probe cycle. Returns null when a cycle is already running.
  * `worldServerId` limits the run to one world (admin "probe now").
  */
-export async function runProbeCycle(opts: { trigger: string; worldServerId?: number }): Promise<ProbeRunReport | null> {
+export async function runProbeCycle(opts: {
+  trigger: string;
+  worldServerId?: number;
+  /** A set of worlds (the scheduler's new-world check). */
+  worldServerIds?: number[];
+}): Promise<ProbeRunReport | null> {
   const s = state();
   if (s.running) return null;
   s.running = true;
@@ -327,7 +307,8 @@ export async function runProbeCycle(opts: { trigger: string; worldServerId?: num
     const account = await ensureProbeAccount();
     if ("error" in account) throw new Error(account.error);
 
-    const { targets, skipped } = await getTargets(opts.worldServerId);
+    const only = opts.worldServerIds ?? (opts.worldServerId ? [opts.worldServerId] : undefined);
+    const { targets, skipped } = await getTargets(only);
     report.skipped = skipped;
     report.total = targets.length;
     const clients = probeClients();
