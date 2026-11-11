@@ -54,6 +54,10 @@ Host=login.eqemulator.dev:5999`}</code></pre>
             <td>The Outer Brood (ToB)</td>
             <td><code>Host=login.eqemulator.dev:15900</code></td>
           </tr>
+          <tr>
+            <td>EQ Legends (EQL)</td>
+            <td><code>Host=login.eqemulator.dev:15902</code></td>
+          </tr>
         </tbody>
       </table>
       <p>

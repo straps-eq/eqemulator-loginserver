@@ -43,6 +43,11 @@ export default function EqClientsPage() {
             <td><code>15900</code></td>
           </tr>
           <tr>
+            <td><strong>EQ Legends (EQL)</strong></td>
+            <td>Worlds that have added EQL support.</td>
+            <td><code>15902</code></td>
+          </tr>
+          <tr>
             <td><strong>Current client</strong></td>
             <td>A few worlds that ship their own patcher.</td>
             <td><code>15901</code></td>
@@ -51,7 +56,7 @@ export default function EqClientsPage() {
       </table>
       <p>
         The port goes in <Link href="/guides/eqhost-txt">eqhost.txt</Link> after{" "}
-        <code>login.eqemulator.dev:</code>. All four connect to the same login, so your account works no
+        <code>login.eqemulator.dev:</code>. All five connect to the same login, so your account works no
         matter which client you use.
       </p>
 
@@ -74,6 +79,14 @@ export default function EqClientsPage() {
         list, but can only enter worlds that support it. If you pick a world that doesn&apos;t, the game
         stops at world entry. You can{" "}
         <Link href="/servers?client=tob">see which worlds support ToB</Link> in the server list.
+      </p>
+
+      <h2>EQ Legends (EQL)</h2>
+      <p>
+        The EQ Legends client has its own port, 15902. Unlike ToB, it only lists worlds that support it,
+        so everything you see in the list is a world you can enter. Support is brand new, so the list may
+        be short at first. You can{" "}
+        <Link href="/servers?client=eql">see which worlds support EQL</Link> in the server list.
       </p>
 
       <h2>The current client</h2>
