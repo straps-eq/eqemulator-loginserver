@@ -7,7 +7,8 @@
  * a few minutes after startup plus a random offset so nodes do not line up.
  *
  * Every minute it also looks for connected worlds that have never been
- * probed (a world that just registered or connected for the first time) and
+ * probed for every client (a world that just registered or connected for the
+ * first time, or a client that was just added) and
  * probes only those, so a new world gets its badges without waiting for the
  * next full cycle.
  */
@@ -51,7 +52,18 @@ export function startClientProbeScheduler(): void {
       const { enabled } = await runner.isProbeEnabled();
       if (!enabled || runner.getProbeState().running) return;
       const { getAllProbeRows } = await import("./store");
-      const probed = new Set((await getAllProbeRows()).map((r) => Number(r.world_server_id)));
+      // A world counts as probed once it has a result for every probed client,
+      // so adding a client (like EQL) also gets every world tested for it.
+      const wanted = runner.probeClients().map((c) => c.id as string);
+      const have = new Map<number, Set<string>>();
+      for (const r of await getAllProbeRows()) {
+        const id = Number(r.world_server_id);
+        if (!have.has(id)) have.set(id, new Set());
+        have.get(id)!.add(r.client);
+      }
+      const probed = new Set(
+        Array.from(have.entries()).filter(([, got]) => wanted.every((c) => got.has(c))).map(([id]) => id)
+      );
       const { targets } = await runner.getTargets();
       const now = Date.now();
       const fresh = targets
