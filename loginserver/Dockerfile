@@ -152,6 +152,12 @@ RUN python3 /tmp/eql_client.py /build/source \
  && grep -n 'eql_port' /build/source/loginserver/client_manager.cpp \
  && grep -n 'IsEQLWorld' /build/source/loginserver/world_server_manager.cpp /build/source/loginserver/client.cpp
 
+# Patch: an auto-registered world gets its new server id on the same
+# connection instead of running as id 0 until it reconnects.
+COPY patches/auto_register_id.py /tmp/auto_register_id.py
+RUN python3 /tmp/auto_register_id.py /build/source \
+ && grep -n 'm_server_id                    = created.id;' /build/source/loginserver/world_server.cpp
+
 # Build loginserver only
 RUN mkdir build && cd build \
     && cmake .. \
