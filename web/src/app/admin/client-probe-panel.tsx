@@ -20,9 +20,19 @@ interface ProbeStatusData {
   clients: string[];
   account: string;
   running: boolean;
-  lastRun: { trigger: string; started_at: string; finished_at: string | null; error: string | null } | null;
+  lastRun: {
+    trigger: string;
+    started_at: string;
+    finished_at: string | null;
+    error: string | null;
+    total?: number;
+    worlds?: unknown[];
+    skipped?: Array<{ short_name: string; reason: string }>;
+  } | null;
   lastResultAt: string | null;
   optedOut: number[];
+  /** Worlds connected to the loginserver right now (absent on older servers). */
+  connected?: number[];
   worlds: Array<{ id: number; long_name: string; short_name: string }>;
   results: ProbeRow[];
 }
@@ -96,7 +106,15 @@ export function ClientProbePanel() {
     byWorld.get(id)!.set(r.client, r);
   }
   const worldName = (id: number) => data.worlds.find((w) => Number(w.id) === id)?.long_name || `World #${id}`;
-  const worldIds = Array.from(byWorld.keys()).sort((a, b) => worldName(a).localeCompare(worldName(b)));
+  const connected = new Set((data.connected || []).map(Number));
+  // Every world with a result plus every connected world, so a world that was
+  // never probed still has a row and a "probe" link.
+  const worldIds = Array.from(new Set([...Array.from(byWorld.keys()), ...Array.from(connected)])).sort((a, b) =>
+    worldName(a).localeCompare(worldName(b))
+  );
+  const progress =
+    data.running && data.lastRun?.total ? ` ${data.lastRun.worlds?.length ?? 0}/${data.lastRun.total}` : "";
+  const skipped = data.lastRun?.skipped || [];
 
   return (
     <div className="rounded-lg border border-frost-400/8 bg-[#202842]/50 p-5">
@@ -110,7 +128,7 @@ export function ClientProbePanel() {
           className="flex items-center gap-1.5 rounded border border-frost-400/10 px-3 py-1.5 text-xs text-parchment-400 hover:text-frost-400 hover:border-frost-400/25 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${data.running ? "animate-spin" : ""}`} />
-          {data.running ? "Probing..." : "Probe now"}
+          {data.running ? `Probing...${progress}` : "Probe now"}
         </button>
       </div>
       <p className="text-xs text-parchment-400 mb-3">
@@ -120,6 +138,11 @@ export function ClientProbePanel() {
         {data.lastRun?.error && <span className="text-red-400/80"> · last run failed: {data.lastRun.error}</span>}
       </p>
       {message && <p className="text-xs text-frost-400 mb-3">{message}</p>}
+      {skipped.length > 0 && (
+        <p className="text-xs text-parchment-400 mb-3">
+          Skipped last run: {skipped.map((s) => `${s.short_name} (${s.reason})`).join(", ")}
+        </p>
+      )}
 
       {worldIds.length === 0 ? (
         <p className="text-xs text-parchment-400">No results yet.</p>
@@ -137,11 +160,19 @@ export function ClientProbePanel() {
             </thead>
             <tbody>
               {worldIds.map((id) => {
-                const rows = byWorld.get(id)!;
+                const rows = byWorld.get(id) ?? new Map<string, ProbeRow>();
                 const optedOut = data.optedOut.indexOf(id) !== -1;
+                const offline = data.connected !== undefined && !connected.has(id);
                 return (
                   <tr key={id} className="border-t border-frost-400/5">
-                    <td className="py-1.5 pr-3 text-parchment-300 truncate max-w-[14rem]">{worldName(id)}</td>
+                    <td
+                      className={`py-1.5 pr-3 truncate max-w-[14rem] ${offline ? "text-parchment-500" : "text-parchment-300"}`}
+                      title={offline ? "Not connected right now" : rows.size === 0 ? "Connected, not probed yet" : undefined}
+                    >
+                      {worldName(id)}
+                      {offline && <span className="ml-1.5 text-[10px] uppercase tracking-wider">offline</span>}
+                      {!offline && rows.size === 0 && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-frost-400/70">new</span>}
+                    </td>
                     {CLIENT_ORDER.map((c: ClientId) => {
                       const r = rows.get(c);
                       return (
@@ -155,7 +186,7 @@ export function ClientProbePanel() {
                       );
                     })}
                     <td className="py-1.5 pl-2 text-right whitespace-nowrap">
-                      <button onClick={() => probeNow(id)} disabled={data.running} className="text-frost-300 hover:text-frost-300 disabled:opacity-50 mr-3">
+                      <button onClick={() => probeNow(id)} disabled={data.running || offline} className="text-frost-300 hover:text-frost-300 disabled:opacity-50 mr-3">
                         probe
                       </button>
                       <button onClick={() => toggleOptOut(id, !optedOut)} className="text-parchment-400 hover:text-parchment-300">

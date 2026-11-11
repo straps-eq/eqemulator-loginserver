@@ -11,7 +11,7 @@ client does, and records what the world does with it.
 ## How it works
 
 For every world connected to this node's loginserver, one client version at a
-time:
+time (several worlds are probed in parallel, see `CLIENT_PROBE_CONCURRENCY`):
 
 1. The loginserver tells the world that the probe account is about to log in
    and gives it a one-time session key. This is the same message the world
@@ -51,7 +51,8 @@ disappear. Worlds that have not been checked yet show "Not checked yet".
 - **One short login per client per cycle.** That is at most 7 logins per
   world every 6 hours, a few seconds each, one after another, never two at
   once. If the world does not answer the first one, the rest are skipped for
-  that cycle. Only one world is probed at a time.
+  that cycle. Other worlds are probed at the same time, but your world only
+  ever sees one probe login at a time.
 - **What shows up in your logs.** A connection from the eqemulator.dev server's
   address, "Account (eqemudev-probe) Logging (in) to character select", and a
   disconnect right after. Your world also records the login IP for the
@@ -73,6 +74,7 @@ Node operators can switch the probe off for their whole node with
 |---|---|---|
 | `CLIENT_PROBE_ENABLED` | empty | Empty: probe only on the federation master. `true` or `false` forces it on or off. |
 | `CLIENT_PROBE_INTERVAL_HOURS` | `6` | Hours between cycles (minimum 1). |
+| `CLIENT_PROBE_CONCURRENCY` | `6` | Worlds probed at the same time (1-32). Each world still gets one client at a time. |
 | `CLIENT_PROBE_CLIENTS` | all | Comma-separated subset of `titanium,sof,sod,uf,rof,rof2,tob,eql`. |
 | `CLIENT_PROBE_EQL_OPCODES` | empty | World opcodes of the EQL patch, in `patch_EQL.conf` form: `OP_SendLoginInfo=0x....,OP_LogServer=0x....,OP_EnterWorld=0x....,OP_PostEnterWorld=0x....,OP_ExpansionInfo=0x....,OP_SendMaxCharacters=0x....,OP_SendMembership=0x....,OP_SendMembershipDetails=0x....,OP_SendCharInfo=0x....` (plus `OP_GuildsList` / `OP_ApproveWorld` if the world sends them). EQL is not probed while this is empty. See [EQL_CLIENT.md](../EQL_CLIENT.md). |
 
