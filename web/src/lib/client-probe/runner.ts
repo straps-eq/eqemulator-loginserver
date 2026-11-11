@@ -13,7 +13,7 @@ import { createAccount, dedupeLiveServers, getServerList, sendClientAuth, Server
 import { CLIENTS, ClientDef, ClientId, isProbeable } from "./clients";
 import { CLIENT_ORDER } from "./labels";
 import { probeWorldClient } from "./session";
-import { getOptedOutWorldIds, saveProbeResult } from "./store";
+import { getAllProbeRows, getOptedOutWorldIds, saveProbeResult } from "./store";
 import type { ProbeStatus } from "./classify";
 
 export const PROBE_ACCOUNT_NAME = "eqemudev-probe";
@@ -199,8 +199,12 @@ async function resolveWorldIds(live: ServerListItem[]): Promise<Map<ServerListIt
   return ids;
 }
 
-/** Worlds connected to this node's loginserver right now, minus opted-out and unaddressable ones. */
-export async function getTargets(onlyWorldId?: number): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
+/**
+ * Worlds connected to this node's loginserver right now, minus opted-out and
+ * unaddressable ones. `only` limits the list to those world ids.
+ */
+export async function getTargets(only?: number | number[]): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
+  const onlySet = only === undefined ? null : new Set(Array.isArray(only) ? only : [only]);
   const res = await getServerList();
   if (!res.ok || !Array.isArray(res.data)) {
     throw new Error(`loginserver server list unavailable: ${res.error || "bad response"}`);
@@ -215,12 +219,12 @@ export async function getTargets(onlyWorldId?: number): Promise<{ targets: Probe
   for (const s of live) {
     const id = ids.get(s) || 0;
     if (!id) {
-      if (!onlyWorldId) skipped.push({ short_name: String(s.server_short_name || ""), reason: "no world id yet" });
+      if (!onlySet) skipped.push({ short_name: String(s.server_short_name || ""), reason: "no world id yet" });
       continue;
     }
     if (seen.has(id)) continue;
     seen.add(id);
-    if (onlyWorldId && id !== onlyWorldId) continue;
+    if (onlySet && !onlySet.has(id)) continue;
     const shortName = String(s.server_short_name || "");
     if (optedOut.has(id)) { skipped.push({ short_name: shortName, reason: "opted out" }); continue; }
     const host = pickHost(s);
@@ -228,6 +232,29 @@ export async function getTargets(onlyWorldId?: number): Promise<{ targets: Probe
     targets.push({ worldServerId: id, shortName, host });
   }
   return { targets, skipped };
+}
+
+/**
+ * Connected worlds that are missing a result for at least one probed client:
+ * worlds that just registered, and every world after a client is added (e.g.
+ * EQL). Every attempt stores a row per client, even "unreachable", so a world
+ * drops off this list once it has been probed.
+ */
+export async function findUnprobedWorlds(): Promise<number[]> {
+  const [{ targets }, rows] = await Promise.all([getTargets(), getAllProbeRows()]);
+  const clients = probeClients().map((c) => c.id as string);
+  const have = new Map<number, Set<string>>();
+  for (const r of rows) {
+    const id = Number(r.world_server_id);
+    if (!have.has(id)) have.set(id, new Set());
+    have.get(id)!.add(r.client);
+  }
+  return targets
+    .filter((t) => {
+      const done = have.get(t.worldServerId);
+      return !done || clients.some((c) => !done.has(c));
+    })
+    .map((t) => t.worldServerId);
 }
 
 // ── Running ──
@@ -305,9 +332,14 @@ async function probeOneWorld(target: ProbeTarget, accountId: number, clients: Cl
 
 /**
  * Run one probe cycle. Returns null when a cycle is already running.
- * `worldServerId` limits the run to one world (admin "probe now").
+ * `worldServerId` limits the run to one world (admin "probe now"),
+ * `worldServerIds` to a set of worlds (new worlds, from the scheduler).
  */
-export async function runProbeCycle(opts: { trigger: string; worldServerId?: number }): Promise<ProbeRunReport | null> {
+export async function runProbeCycle(opts: {
+  trigger: string;
+  worldServerId?: number;
+  worldServerIds?: number[];
+}): Promise<ProbeRunReport | null> {
   const s = state();
   if (s.running) return null;
   s.running = true;
@@ -327,7 +359,7 @@ export async function runProbeCycle(opts: { trigger: string; worldServerId?: num
     const account = await ensureProbeAccount();
     if ("error" in account) throw new Error(account.error);
 
-    const { targets, skipped } = await getTargets(opts.worldServerId);
+    const { targets, skipped } = await getTargets(opts.worldServerIds ?? opts.worldServerId);
     report.skipped = skipped;
     report.total = targets.length;
     const clients = probeClients();

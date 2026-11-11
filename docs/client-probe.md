@@ -82,6 +82,12 @@ The schedule checks every 10 minutes whether a cycle is due, measured from the
 last stored result, so restarting the web container does not cause extra
 probing. The first check runs 5 to 15 minutes after startup.
 
+New worlds don't wait for the next cycle. Every minute the probe looks for
+connected worlds that have no result yet for some client and probes just those:
+a world that just registered is probed within a minute or two, and so is every
+world after a client is added (for example EQL once `CLIENT_PROBE_EQL_OPCODES`
+is set). A world whose probe stored nothing is tried again after 30 minutes.
+
 The admin System page has a Client Probe panel with the last results per
 world (hover a cell for the reason), a **Probe now** button for all worlds
 or for one world, and the opt-out switch. The same actions are available on
