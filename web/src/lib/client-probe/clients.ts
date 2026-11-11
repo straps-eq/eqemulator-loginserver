@@ -83,11 +83,24 @@ export function parsePatchOpcodes(text: string | undefined): ClientOpcodes {
 }
 
 /**
- * EverQuest Legends. The world side is the world operator's EQL patch
- * ("Registered patch [EQL]" in the world log), whose opcodes are set with
- * CLIENT_PROBE_EQL_OPCODES (same names as patch_EQL.conf). Until they are set
- * EQL is not probed, so no world is listed for EQL clients.
+ * World-side opcodes of the EQL patch (utils/patches/patch_EQL.conf on the
+ * eql branch; worlds log "Registered patch [EQL]"). OP_ApproveWorld is unused,
+ * and OP_GuildsList isn't mapped by the world yet, so the probe doesn't wait
+ * for either. CLIENT_PROBE_EQL_OPCODES overrides these if a build changes them.
  */
+const EQL_WORLD_OPCODES = [
+  "OP_SendLoginInfo=0x0437",
+  "OP_LogServer=0x7601",
+  "OP_EnterWorld=0x533d",
+  "OP_PostEnterWorld=0x08e3",
+  "OP_ExpansionInfo=0x3b27",
+  "OP_SendMaxCharacters=0x6265",
+  "OP_SendMembership=0x1785",
+  "OP_SendMembershipDetails=0x684b",
+  "OP_SendCharInfo=0x4a0d",
+].join(",");
+
+/** EverQuest Legends, probed with the world opcodes above. */
 function eqlClient(opcodes: string | undefined): ClientDef {
   return {
     id: "eql",
@@ -234,7 +247,7 @@ export const CLIENTS: ClientDef[] = [
       sendCharInfo: 0x5d1a,
     },
   },
-  eqlClient(process.env.CLIENT_PROBE_EQL_OPCODES),
+  eqlClient(process.env.CLIENT_PROBE_EQL_OPCODES || EQL_WORLD_OPCODES),
 ];
 
 export const CLIENT_IDS: ClientId[] = CLIENTS.map((c) => c.id);

@@ -176,6 +176,9 @@ COPY --from=builder /build/source/build/bin/loginserver .
 COPY --from=builder /build/source/loginserver/login_util/ ./data/
 # Login opcode files that ship with the image (not on the data volume).
 COPY opcodes/ ./opcodes/
+# The shared EQEmu init reads eqemu_config.json for the log directory. Without it
+# startup logs "Failed to load eqemu config" and tries to create a directory "".
+RUN echo '{"server":{"directories":{"logs":"logs/"}}}' > eqemu_config.json
 
 # Note: The EQEmu loginserver binary requires root at runtime (signal handling,
 # shared memory). Container hardening is applied via docker-compose security_opt.
