@@ -421,7 +421,15 @@ export async function POST(request: NextRequest) {
         store.getLastProbeTime(),
       ]);
       const st = runner.getProbeState();
-      const ids = Array.from(new Set(rows.map((r) => Number(r.world_server_id))));
+      // Worlds connected right now, so a world that was never probed still gets
+      // a row (and a "probe" link). Best effort: the results still show without it.
+      let connected: number[] = [];
+      try {
+        connected = (await runner.getTargets()).targets.map((t) => t.worldServerId);
+      } catch {
+        connected = [];
+      }
+      const ids = Array.from(new Set([...rows.map((r) => Number(r.world_server_id)), ...connected]));
       let worlds: Array<{ id: number; long_name: string; short_name: string }> = [];
       if (ids.length > 0) {
         const { pool } = await import("@/lib/db");
@@ -441,12 +449,13 @@ export async function POST(request: NextRequest) {
         lastRun: st.last,
         lastResultAt: last ? last.toISOString() : null,
         optedOut: Array.from(optedOut),
+        connected,
         worlds,
         results: rows,
       });
     }
     case "client_probe_run": {
-      // Starts a cycle in the background (it takes ~1 minute per world);
+      // Starts a cycle in the background (about 30 s per world, several worlds in parallel);
       // poll client_probe_status for the outcome.
       const runner = await import("@/lib/client-probe/runner");
       if (runner.getProbeState().running) {

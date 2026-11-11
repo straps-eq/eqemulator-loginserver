@@ -3,7 +3,9 @@
  * and each client version, mint a session key for the probe account through
  * the loginserver API, log in over UDP and record the result.
  *
- * One world at a time, one client at a time. See docs/client-probe.md.
+ * Several worlds at once (CLIENT_PROBE_CONCURRENCY, default 6), but one client
+ * at a time per world, so a world never sees two probe logins together.
+ * See docs/client-probe.md.
  */
 import crypto from "crypto";
 import { pool } from "@/lib/db";
@@ -21,7 +23,7 @@ const WORLD_UDP_PORT = 9000;
 /** Time for the loginserver main loop to deliver ClientAuth to the world. */
 const AUTH_DELIVERY_WAIT_MS = 1500;
 const PAUSE_BETWEEN_CLIENTS_MS = 2000;
-const PAUSE_BETWEEN_WORLDS_MS = 5000;
+const DEFAULT_CONCURRENCY = 6;
 
 // ── Configuration ──
 
@@ -54,6 +56,12 @@ export function probeIntervalMs(): number {
   return (Number.isFinite(h) && h >= 1 ? h : 6) * 60 * 60 * 1000;
 }
 
+/** CLIENT_PROBE_CONCURRENCY=n worlds probed at the same time (1-32, default 6). */
+export function probeConcurrency(): number {
+  const n = parseInt(process.env.CLIENT_PROBE_CONCURRENCY || "", 10);
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 32) : DEFAULT_CONCURRENCY;
+}
+
 /** CLIENT_PROBE_CLIENTS=titanium,rof2,... limits the clients probed. */
 export function probeClients(): ClientDef[] {
   const raw = (process.env.CLIENT_PROBE_CLIENTS || "").trim().toLowerCase();
@@ -77,6 +85,8 @@ export interface ProbeRunReport {
   trigger: string;
   started_at: string;
   finished_at: string | null;
+  /** Worlds this run probes (worlds.length of them are done). */
+  total: number;
   worlds: ProbeWorldReport[];
   skipped: Array<{ short_name: string; reason: string }>;
   error: string | null;
@@ -161,7 +171,8 @@ function pickHost(s: ServerListItem): string {
   return remote || local;
 }
 
-async function getTargets(onlyWorldId?: number): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
+/** Worlds connected to this node's loginserver right now, minus opted-out and unaddressable ones. */
+export async function getTargets(onlyWorldIds?: number[]): Promise<{ targets: ProbeTarget[]; skipped: ProbeRunReport["skipped"] }> {
   const res = await getServerList();
   if (!res.ok || !Array.isArray(res.data)) {
     throw new Error(`loginserver server list unavailable: ${res.error || "bad response"}`);
@@ -173,10 +184,18 @@ async function getTargets(onlyWorldId?: number): Promise<{ targets: ProbeTarget[
   const seen = new Set<number>();
 
   for (const s of live) {
+    // A world's first connection after it auto-registers reports id 0 until
+    // it reconnects. The loginserver can't route a session key (or list it to
+    // EQL clients) under its real id until then, so it waits for the reconnect;
+    // the new-world check probes it as soon as it has an id.
     const id = Number(s.world_id);
-    if (!id || seen.has(id)) continue;
+    if (!id) {
+      if (!onlyWorldIds) skipped.push({ short_name: String(s.server_short_name || ""), reason: "no world id until it reconnects" });
+      continue;
+    }
+    if (seen.has(id)) continue;
     seen.add(id);
-    if (onlyWorldId && id !== onlyWorldId) continue;
+    if (onlyWorldIds && onlyWorldIds.indexOf(id) === -1) continue;
     const shortName = String(s.server_short_name || "");
     if (optedOut.has(id)) { skipped.push({ short_name: shortName, reason: "opted out" }); continue; }
     const host = pickHost(s);
@@ -263,7 +282,12 @@ async function probeOneWorld(target: ProbeTarget, accountId: number, clients: Cl
  * Run one probe cycle. Returns null when a cycle is already running.
  * `worldServerId` limits the run to one world (admin "probe now").
  */
-export async function runProbeCycle(opts: { trigger: string; worldServerId?: number }): Promise<ProbeRunReport | null> {
+export async function runProbeCycle(opts: {
+  trigger: string;
+  worldServerId?: number;
+  /** A set of worlds (the scheduler's new-world check). */
+  worldServerIds?: number[];
+}): Promise<ProbeRunReport | null> {
   const s = state();
   if (s.running) return null;
   s.running = true;
@@ -272,6 +296,7 @@ export async function runProbeCycle(opts: { trigger: string; worldServerId?: num
     trigger: opts.trigger,
     started_at: new Date().toISOString(),
     finished_at: null,
+    total: 0,
     worlds: [],
     skipped: [],
     error: null,
@@ -282,18 +307,28 @@ export async function runProbeCycle(opts: { trigger: string; worldServerId?: num
     const account = await ensureProbeAccount();
     if ("error" in account) throw new Error(account.error);
 
-    const { targets, skipped } = await getTargets(opts.worldServerId);
+    const only = opts.worldServerIds ?? (opts.worldServerId ? [opts.worldServerId] : undefined);
+    const { targets, skipped } = await getTargets(only);
     report.skipped = skipped;
+    report.total = targets.length;
     const clients = probeClients();
-    console.log(`[client-probe] ${opts.trigger}: probing ${targets.length} world(s) x ${clients.length} client(s)`);
+    const workers = Math.min(probeConcurrency(), targets.length);
+    console.log(
+      `[client-probe] ${opts.trigger}: probing ${targets.length} world(s) x ${clients.length} client(s), ${workers} at a time`
+    );
 
-    for (let i = 0; i < targets.length; i++) {
-      const w = await probeOneWorld(targets[i], account.id, clients);
-      report.worlds.push(w);
-      const summary = w.results.map((r) => `${r.client}=${r.status}`).join(" ");
-      console.log(`[client-probe] ${targets[i].shortName}: ${summary}`);
-      if (i < targets.length - 1) await sleep(PAUSE_BETWEEN_WORLDS_MS);
-    }
+    // A small worker pool: each worker takes the next world until none are left.
+    let next = 0;
+    const worker = async () => {
+      while (next < targets.length) {
+        const target = targets[next++];
+        const w = await probeOneWorld(target, account.id, clients);
+        report.worlds.push(w);
+        const summary = w.results.map((r) => `${r.client}=${r.status}`).join(" ");
+        console.log(`[client-probe] ${target.shortName}: ${summary}`);
+      }
+    };
+    await Promise.all(Array.from({ length: workers }, () => worker()));
   } catch (err) {
     report.error = err instanceof Error ? err.message : String(err);
     console.error(`[client-probe] ${opts.trigger} failed: ${report.error}`);
