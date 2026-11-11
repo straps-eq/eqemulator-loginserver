@@ -27,7 +27,7 @@ export function ClientSupportInline({ summary }: { summary?: ClientSupportView |
       {supported.map((c, i) => (
         <span key={c}>
           {i > 0 && " · "}
-          {c === "tob" ? (
+          {c === "tob" || c === "eql" ? (
             <span className="text-frost-300 font-semibold">
               <span aria-hidden="true">★ </span>
               {CLIENT_LABELS[c]}

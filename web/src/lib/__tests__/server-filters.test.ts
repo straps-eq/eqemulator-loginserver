@@ -47,12 +47,22 @@ test("isUnchecked covers no result and unreachable-with-nothing", () => {
   assert.deepEqual(servers.filter(isUnchecked).map((s) => s.server_long_name), ["Cazic", "Druzzil"]);
 });
 
-test("clientChips shows only Titanium, RoF2 and ToB", () => {
+test("clientChips shows only Titanium, RoF2, ToB and EQL", () => {
   assert.deepEqual(clientChips(servers, null), [
     { id: "titanium", count: 1 },
     { id: "rof2", count: 2 },
     { id: "tob", count: 1 },
+    { id: "eql", count: 0 },
   ]);
+});
+
+test("EQL filter keeps only worlds the probe found EQL-capable", () => {
+  const withEql: FilterableServer[] = [
+    ...servers,
+    { server_long_name: "Firiona", client_support: { supported: ["tob", "eql"], unreachable: false } },
+  ];
+  assert.equal(parseClientFilter("EQL"), "eql");
+  assert.deepEqual(filterByClient(withEql, "eql").map((s) => s.server_long_name), ["Firiona"]);
 });
 
 test("directoryHref leaves defaults out", () => {

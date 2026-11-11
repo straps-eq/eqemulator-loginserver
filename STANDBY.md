@@ -28,6 +28,7 @@ Firewall (provider firewall, or `ufw`):
 | 5999 | TCP + UDP | SoD/UF/RoF/RoF2 logins |
 | 15900 | TCP + UDP | ToB logins |
 | 15901 | TCP + UDP | Live client logins |
+| 15902 | TCP + UDP | EverQuest Legends (EQL) client logins, when enabled |
 
 DNS: an A record for the hostname pointing at the server. If the domain is on
 Cloudflare, set the record to **DNS only**. Logins are UDP and do not pass
@@ -67,7 +68,7 @@ ufw default deny incoming && ufw default allow outgoing
 ufw allow from <your IP> to any port 22 proto tcp
 ufw allow 80,443/tcp
 ufw allow 5998:5999/tcp && ufw allow 5998:5999/udp
-ufw allow 15900:15901/tcp && ufw allow 15900:15901/udp
+ufw allow 15900:15902/tcp && ufw allow 15900:15902/udp
 ufw --force enable
 systemctl enable --now fail2ban
 dpkg-reconfigure -f noninteractive unattended-upgrades

@@ -47,6 +47,57 @@ export interface ClientDef {
 
 export const LOGIN_INFO_SIZE = 464;
 
+/** patch_<client>.conf names for the opcodes the probe uses. */
+const PATCH_NAMES: Record<keyof ClientOpcodes, string> = {
+  sendLoginInfo: "OP_SendLoginInfo",
+  guildsList: "OP_GuildsList",
+  logServer: "OP_LogServer",
+  approveWorld: "OP_ApproveWorld",
+  enterWorld: "OP_EnterWorld",
+  postEnterWorld: "OP_PostEnterWorld",
+  expansionInfo: "OP_ExpansionInfo",
+  sendMaxCharacters: "OP_SendMaxCharacters",
+  sendMembership: "OP_SendMembership",
+  sendMembershipDetails: "OP_SendMembershipDetails",
+  sendCharInfo: "OP_SendCharInfo",
+};
+
+/**
+ * Opcodes in patch file form, "OP_SendLoginInfo=0x1234,OP_LogServer=0x...",
+ * separated by commas, spaces or new lines. Unknown names and bad values are
+ * ignored; anything not given stays 0 (not sent / not known).
+ */
+export function parsePatchOpcodes(text: string | undefined): ClientOpcodes {
+  const op: ClientOpcodes = {
+    sendLoginInfo: 0, guildsList: 0, logServer: 0, approveWorld: 0, enterWorld: 0, postEnterWorld: 0,
+    expansionInfo: 0, sendMaxCharacters: 0, sendMembership: 0, sendMembershipDetails: 0, sendCharInfo: 0,
+  };
+  const byName = new Map(Object.entries(PATCH_NAMES).map(([k, n]) => [n.toLowerCase(), k as keyof ClientOpcodes]));
+  for (const part of (text || "").split(/[\s,;]+/)) {
+    const m = /^(OP_\w+)=(0x[0-9a-f]{1,4})$/i.exec(part.trim());
+    if (!m) continue;
+    const key = byName.get(m[1].toLowerCase());
+    if (key) op[key] = parseInt(m[2], 16);
+  }
+  return op;
+}
+
+/**
+ * EverQuest Legends. The world side is the world operator's EQL patch
+ * ("Registered patch [EQL]" in the world log), whose opcodes are set with
+ * CLIENT_PROBE_EQL_OPCODES (same names as patch_EQL.conf). Until they are set
+ * EQL is not probed, so no world is listed for EQL clients.
+ */
+function eqlClient(opcodes: string | undefined): ClientDef {
+  return {
+    id: "eql",
+    label: CLIENT_LABELS.eql,
+    serverName: "EQL",
+    loginInfoSize: LOGIN_INFO_SIZE,
+    opcodes: parsePatchOpcodes(opcodes),
+  };
+}
+
 export const CLIENTS: ClientDef[] = [
   {
     id: "titanium",
@@ -183,9 +234,15 @@ export const CLIENTS: ClientDef[] = [
       sendCharInfo: 0x5d1a,
     },
   },
+  eqlClient(process.env.CLIENT_PROBE_EQL_OPCODES),
 ];
 
 export const CLIENT_IDS: ClientId[] = CLIENTS.map((c) => c.id);
+
+/** False for a client whose world opcodes aren't known yet: the probe skips it. */
+export function isProbeable(c: ClientDef): boolean {
+  return c.opcodes.sendLoginInfo !== 0 && c.opcodes.sendCharInfo !== 0;
+}
 
 export function getClient(id: string): ClientDef | undefined {
   return CLIENTS.find((c) => c.id === id);

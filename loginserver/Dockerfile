@@ -142,6 +142,16 @@ open(f,'w').write(s)" \
  && echo "=== Verify password redaction patch ===" \
  && grep -n 'password \[<redacted>\]' /build/source/loginserver/world_server.cpp
 
+# Patch: EverQuest Legends (EQL) client login. A separate, optional listener
+# (client_configuration.eql_port / eql_opcodes) running the ToB protocol with
+# the EQL opcode file; EQL clients only see worlds the client probe found
+# EQL-capable. ToB, RoF2 and older clients are untouched. Details in the script.
+COPY patches/eql_client.py /tmp/eql_client.py
+RUN python3 /tmp/eql_client.py /build/source \
+ && echo "=== Verify EQL patch ===" \
+ && grep -n 'eql_port' /build/source/loginserver/client_manager.cpp \
+ && grep -n 'IsEQLWorld' /build/source/loginserver/world_server_manager.cpp /build/source/loginserver/client.cpp
+
 # Build loginserver only
 RUN mkdir build && cd build \
     && cmake .. \
@@ -164,10 +174,12 @@ WORKDIR /opt/loginserver
 
 COPY --from=builder /build/source/build/bin/loginserver .
 COPY --from=builder /build/source/loginserver/login_util/ ./data/
+# Login opcode files that ship with the image (not on the data volume).
+COPY opcodes/ ./opcodes/
 
 # Note: The EQEmu loginserver binary requires root at runtime (signal handling,
 # shared memory). Container hardening is applied via docker-compose security_opt.
 
-EXPOSE 5998/udp 5999/udp 15900/udp 15901/udp 5998/tcp 5999/tcp 15900/tcp 15901/tcp 6000/tcp
+EXPOSE 5998/udp 5999/udp 15900/udp 15901/udp 15902/udp 5998/tcp 5999/tcp 15900/tcp 15901/tcp 15902/tcp 6000/tcp
 
 CMD ["./loginserver"]

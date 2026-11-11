@@ -48,6 +48,8 @@
     "tob_opcodes": "login_opcodes_tob.conf",
     "live_port": 15901,
     "live_opcodes": "",
+    "eql_port": 15902,
+    "eql_opcodes": "",
     "display_expansions": true,
     "max_expansions_mask": 524287
   }

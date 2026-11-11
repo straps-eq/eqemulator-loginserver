@@ -8,7 +8,7 @@
 import crypto from "crypto";
 import { pool } from "@/lib/db";
 import { createAccount, dedupeLiveServers, getServerList, sendClientAuth, ServerListItem } from "@/lib/loginserver-api";
-import { CLIENTS, ClientDef, ClientId } from "./clients";
+import { CLIENTS, ClientDef, ClientId, isProbeable } from "./clients";
 import { CLIENT_ORDER } from "./labels";
 import { probeWorldClient } from "./session";
 import { getOptedOutWorldIds, saveProbeResult } from "./store";
@@ -57,10 +57,11 @@ export function probeIntervalMs(): number {
 /** CLIENT_PROBE_CLIENTS=titanium,rof2,... limits the clients probed. */
 export function probeClients(): ClientDef[] {
   const raw = (process.env.CLIENT_PROBE_CLIENTS || "").trim().toLowerCase();
-  const shown = CLIENTS.filter((c) => CLIENT_ORDER.indexOf(c.id) !== -1);
+  const known = CLIENTS.filter(isProbeable);
+  const shown = known.filter((c) => CLIENT_ORDER.indexOf(c.id) !== -1);
   if (!raw) return shown;
   const wanted = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  const list = CLIENTS.filter((c) => wanted.indexOf(c.id) !== -1);
+  const list = known.filter((c) => wanted.indexOf(c.id) !== -1);
   return list.length > 0 ? list : shown;
 }
 
