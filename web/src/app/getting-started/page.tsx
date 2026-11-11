@@ -176,6 +176,15 @@ export default async function GettingStartedPage() {
             </Card>
             <Card>
               <CardContent className="p-5">
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">I&apos;m on EQ Legends and the server list is empty. Why?</h3>
+                <p className="text-parchment-400 text-sm">
+                  The EQ Legends client only lists worlds that support EQL. An empty list means no world supports
+                  it yet. Ask your server whether it plans to, or use another client in the meantime.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
                 <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">Do I need a separate account for each server?</h3>
                 <p className="text-parchment-400 text-sm">
                   No. Your loginserver account works across every server in the directory. Each server
