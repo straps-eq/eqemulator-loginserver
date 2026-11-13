@@ -27,7 +27,7 @@ export default function OpenGraphImage() {
         </div>
         <div style={{ fontSize: 92, fontWeight: 700, marginTop: 18, color: "#e8dcc8" }}>EQEmulator.dev</div>
         <div style={{ fontSize: 36, marginTop: 24, color: "#c7b494", fontFamily: "sans-serif" }}>
-          Private server directory with live player counts
+          Private server directory with live status
         </div>
         <div style={{ marginTop: 56, width: 520, height: 2, background: "linear-gradient(90deg, transparent, #d4a650, transparent)" }} />
       </div>

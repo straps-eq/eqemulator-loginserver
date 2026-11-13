@@ -1,24 +1,22 @@
-// Server directory client filter and sort. Run with `npm test`.
+// Server directory client filter and order. Run with `npm test`.
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import {
   parseClientFilter,
-  parseSort,
   filterByClient,
   isUnchecked,
   clientChips,
   directoryHref,
   byName,
-  byPlayers,
   isTestServer,
   type FilterableServer,
 } from "../server-filters";
 
 const servers: FilterableServer[] = [
-  { server_long_name: "Bristlebane", players_online: 12, client_support: { supported: ["rof2", "tob"], unreachable: false } },
-  { server_long_name: "akanon", players_online: 40, client_support: { supported: ["titanium", "rof2"], unreachable: false } },
-  { server_long_name: "Cazic", players_online: 3, client_support: null },
-  { server_long_name: "Druzzil", players_online: 0, client_support: { supported: [], unreachable: true } },
+  { server_long_name: "Bristlebane", client_support: { supported: ["rof2", "tob"], unreachable: false } },
+  { server_long_name: "akanon", client_support: { supported: ["titanium", "rof2"], unreachable: false } },
+  { server_long_name: "Cazic", client_support: null },
+  { server_long_name: "Druzzil", client_support: { supported: [], unreachable: true } },
   { server_long_name: "Erollisi", client_support: { supported: ["uf"], unreachable: false } },
 ];
 
@@ -28,13 +26,6 @@ test("parseClientFilter accepts known ids only", () => {
   assert.equal(parseClientFilter("live"), null);
   assert.equal(parseClientFilter(undefined), null);
   assert.equal(parseClientFilter(["tob"]), null);
-});
-
-test("parseSort defaults to players", () => {
-  assert.equal(parseSort("name"), "name");
-  assert.equal(parseSort("players"), "players");
-  assert.equal(parseSort("zones"), "players");
-  assert.equal(parseSort(undefined), "players");
 });
 
 test("filterByClient keeps everything under All and drops unchecked worlds otherwise", () => {
@@ -65,16 +56,13 @@ test("EQL filter keeps only worlds the probe found EQL-capable", () => {
   assert.deepEqual(filterByClient(withEql, "eql").map((s) => s.server_long_name), ["Firiona"]);
 });
 
-test("directoryHref leaves defaults out", () => {
-  assert.equal(directoryHref(null, "players"), "/servers");
-  assert.equal(directoryHref("tob", "players"), "/servers?client=tob");
-  assert.equal(directoryHref("tob", "name"), "/servers?client=tob&sort=name");
-  assert.equal(directoryHref(null, "name"), "/servers?sort=name");
+test("directoryHref", () => {
+  assert.equal(directoryHref(null), "/servers");
+  assert.equal(directoryHref("tob"), "/servers?client=tob");
 });
 
 test("sorts", () => {
   assert.deepEqual([...servers].sort(byName).map((s) => s.server_long_name), ["akanon", "Bristlebane", "Cazic", "Druzzil", "Erollisi"]);
-  assert.equal([...servers].sort(byPlayers)[0].server_long_name, "akanon");
 });
 
 test("name sort puts test and dev worlds last", () => {

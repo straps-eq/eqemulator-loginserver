@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { loginWorldServers, serverProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { activityFor } from "@/lib/activity";
+import { getActivityThresholds } from "@/lib/public-servers";
 
 export const dynamic = "force-dynamic";
 
@@ -71,8 +73,8 @@ export async function GET(
     list_type_id: server.loginServerListTypeId,
     is_trusted: server.isServerTrusted,
     note: server.note,
-    // Live data
-    players_online: liveData?.players_online ?? 0,
+    // Live data. Activity band only: exact counts are not public.
+    activity: activityFor(liveData?.players_online ?? 0, await getActivityThresholds()),
     zones_booted: liveData?.zones_booted ?? 0,
     server_status: liveData?.server_status ?? -1,
     // Profile data

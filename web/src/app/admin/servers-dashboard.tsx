@@ -24,7 +24,7 @@ interface TierConfig {
 
 export function ServersDashboard() {
   const [servers, setServers] = useState<ServerInfo[]>([]);
-  const [config, setConfig] = useState<TierConfig>({ tier_high_min_players: "400", tier_medium_min_players: "100" });
+  const [config, setConfig] = useState<TierConfig>({ tier_high_min_players: "251", tier_medium_min_players: "75" });
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -32,16 +32,11 @@ export function ServersDashboard() {
 
   async function fetchData() {
     try {
-      const [serversRes, configRes] = await Promise.all([
-        fetch("/api/servers"),
-        fetch("/api/admin/server-tiers"),
-      ]);
-      if (serversRes.ok) {
-        const data = await serversRes.json();
-        setServers(Array.isArray(data) ? data : []);
-      }
+      // Admin-only: the public /api/servers has activity bands, not counts.
+      const configRes = await fetch("/api/admin/server-tiers");
       if (configRes.ok) {
         const data = await configRes.json();
+        setServers(Array.isArray(data.servers) ? data.servers : []);
         if (data.config) setConfig(data.config);
         if (data.overrides) setOverrides(data.overrides);
       }
@@ -131,7 +126,9 @@ export function ServersDashboard() {
           </div>
         </div>
         <p className="text-[11px] text-parchment-500 mb-3">
-          Servers below Medium threshold default to Low Population. Manual overrides take priority over auto-classification.
+          These thresholds set the public activity band (Idle at 0 players, then Low, Medium, High) and the in-game
+          list type (Idle counts as Low). Manual overrides below only change the in-game list type; the public band
+          always follows the live count.
         </p>
         <button
           onClick={saveConfig}

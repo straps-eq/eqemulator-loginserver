@@ -244,7 +244,8 @@ export async function GET() {
   const connectedWorlds = servers.length;
   const totalPlayers = servers.reduce((sum: number, s: any) => sum + (s.players_online ?? 0), 0);
 
-  // Public response: service health + player summary
+  // Public response: service health + world count. The player total is
+  // admin-only (the public site shows activity bands, not counts).
   const publicResponse: Record<string, unknown> = {
     overall: allUp ? "operational" : "degraded",
     loginserver: loginserver.status,
@@ -252,8 +253,7 @@ export async function GET() {
     services,
     summary: {
       connectedWorlds,
-      totalPlayers,
-    },
+    } as Record<string, number>,
     version: APP_VERSION,
     checkedAt: new Date().toISOString(),
   };
@@ -263,6 +263,7 @@ export async function GET() {
     const { getSession } = await import("@/lib/session");
     const session = await getSession();
     if (session.isLoggedIn && session.isAdmin) {
+      (publicResponse.summary as Record<string, number>).totalPlayers = totalPlayers;
       const dbStats = await getDbStats();
       publicResponse.system = {
         cpu: getCpuUsage(),

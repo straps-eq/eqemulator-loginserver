@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getServer, getLiveData } from "@/lib/servers";
+import { activityFor, ACTIVITY_LABELS } from "@/lib/activity";
+import { getActivityThresholds } from "@/lib/public-servers";
 
 export const runtime = "nodejs";
 export const alt = "EverQuest private server on EQEmulator.dev";
@@ -7,14 +9,15 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Per-server social preview: name, tagline and players online right now,
- * so a link pasted in Discord or Reddit unfurls with live numbers.
+ * Per-server social preview: name, tagline and whether it's online with its
+ * activity band (never an exact count), so a link pasted in Discord or Reddit
+ * unfurls with live status.
  */
 export default async function ServerOpenGraphImage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
   let name = "EverQuest Private Server";
   let tagline = "";
-  let players: number | null = null;
+  let band: string | null = null;
   let online = false;
 
   try {
@@ -25,7 +28,7 @@ export default async function ServerOpenGraphImage({ params }: { params: Promise
       const live = await getLiveData(server.shortName, server.longName);
       if (live) {
         online = (live.server_status ?? -1) >= 0;
-        players = typeof live.players_online === "number" ? live.players_online : null;
+        if (online) band = ACTIVITY_LABELS[activityFor(live.players_online, await getActivityThresholds())];
       }
     }
   } catch {}
@@ -60,7 +63,7 @@ export default async function ServerOpenGraphImage({ params }: { params: Promise
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ width: 22, height: 22, borderRadius: 11, background: online ? "#6da67a" : "#5e1f2e" }} />
             <div style={{ fontSize: 40, color: online ? "#f3efe5" : "#b89e7a" }}>
-              {players !== null ? `${players} online` : online ? "Online" : "Offline"}
+              {online ? (band ? `Online · ${band} activity` : "Online") : "Offline"}
             </div>
           </div>
           <div style={{ fontSize: 30, color: "#e3c27a", opacity: 0.9 }}>eqemulator.dev</div>

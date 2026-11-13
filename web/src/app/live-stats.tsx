@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Server } from "lucide-react";
+import { Server } from "lucide-react";
 
 export function LiveStats() {
+  // Worlds online only: the public site shows activity bands, not player counts.
   const [serverCount, setServerCount] = useState(0);
-  const [playerCount, setPlayerCount] = useState(0);
 
   useEffect(() => {
     const poll = async () => {
@@ -14,8 +14,7 @@ export function LiveStats() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
-            setServerCount(data.length);
-            setPlayerCount(data.reduce((sum: number, s: any) => sum + (s.players_online || 0), 0));
+            setServerCount(data.filter((s: any) => s.server_status >= 0 && !s.is_offline).length);
           }
         }
       } catch {}
@@ -26,7 +25,7 @@ export function LiveStats() {
     return () => clearInterval(interval);
   }, []);
 
-  if (serverCount === 0 && playerCount === 0) return null;
+  if (serverCount === 0) return null;
 
   return (
     <div className="flex items-center justify-center gap-8 mt-8">
@@ -35,14 +34,6 @@ export function LiveStats() {
         <span className="font-display text-lg font-bold text-parchment-100">{serverCount}</span>
         <span className="text-xs text-parchment-500 uppercase tracking-wide">
           {serverCount === 1 ? "World" : "Worlds"} Online
-        </span>
-      </div>
-      <div className="w-px h-5 bg-frost-400/15" />
-      <div className="flex items-center gap-2.5">
-        <Users className="h-4 w-4 text-arcane-400" />
-        <span className="font-display text-lg font-bold text-parchment-100">{playerCount}</span>
-        <span className="text-xs text-parchment-500 uppercase tracking-wide">
-          {playerCount === 1 ? "Adventurer" : "Adventurers"} Online
         </span>
       </div>
     </div>

@@ -3,6 +3,8 @@ import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { serverProfiles, platformConfig, platformAdmins } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { getServerListWithCounts } from "@/lib/public-servers";
+import { DEFAULT_THRESHOLDS } from "@/lib/activity";
 
 async function requireAdmin() {
   const session = await getSession();
@@ -19,14 +21,15 @@ async function requireAdmin() {
   return session;
 }
 
-// GET — return current tier config + per-server overrides
+// GET — return current tier config, per-server overrides, and the server list
+// with exact player counts (the public /api/servers only has activity bands)
 export async function GET() {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [configRows, profiles] = await Promise.all([
+  const [configRows, profiles, servers] = await Promise.all([
     db.select().from(platformConfig).where(
       inArray(platformConfig.configKey, ["tier_high_min_players", "tier_medium_min_players"])
     ),
@@ -34,11 +37,12 @@ export async function GET() {
       worldServerId: serverProfiles.worldServerId,
       displayTier: serverProfiles.displayTier,
     }).from(serverProfiles),
+    getServerListWithCounts().catch(() => []),
   ]);
 
   const config: Record<string, string> = {
-    tier_high_min_players: "400",
-    tier_medium_min_players: "100",
+    tier_high_min_players: String(DEFAULT_THRESHOLDS.highMin),
+    tier_medium_min_players: String(DEFAULT_THRESHOLDS.mediumMin),
   };
   for (const row of configRows) {
     config[row.configKey] = row.configValue;
@@ -52,7 +56,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ config, overrides });
+  return NextResponse.json({ config, overrides, servers });
 }
 
 // POST — update config or set per-server tier

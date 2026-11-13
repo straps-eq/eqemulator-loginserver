@@ -25,7 +25,8 @@ interface StatusData {
   };
   summary: {
     connectedWorlds: number;
-    totalPlayers: number;
+    /** Admin only. */
+    totalPlayers?: number;
   };
   platform: {
     registeredAccounts: number;
@@ -233,7 +234,7 @@ export function StatusDashboard() {
           <div className="rounded-lg border border-frost-400/8 bg-[#202842]/80 p-4 text-center">
             <Users className="h-4 w-4 text-frost-400/50 mx-auto mb-1.5" />
             <span className="font-display text-lg font-bold text-frost-300 block" style={{ textShadow: "0 0 12px rgba(212,166,80,0.2)" }}>
-              {data.summary.totalPlayers}
+              {data.summary.totalPlayers ?? 0}
             </span>
             <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em]">Players</span>
           </div>

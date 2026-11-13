@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/server-operators" },
   title: "List Your EverQuest Server — Operator Guide",
   description:
-    "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing with live player counts, server profiles, and operator tools.",
+    "Connect your EQEmu world server to EQEmulator.dev. One config line, automatic listing with live status and activity, server profiles, and operator tools.",
   openGraph: {
     images: ["/opengraph-image"],
     title: "List Your EverQuest Server — Operator Guide",
@@ -360,9 +360,9 @@ export default async function ServerOperatorsPage() {
             </Card>
             <Card>
               <CardContent className="p-5">
-                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">My server shows 0 players even though people are online</h3>
+                <h3 className="font-display text-sm font-semibold text-parchment-100 mb-1.5">My server shows Idle even though people are online</h3>
                 <p className="text-parchment-400 text-sm">
-                  Player count is reported by the world server to each login server independently.
+                  Activity comes from the player count your world server reports to each login server independently.
                   Make sure your world server is running a recent enough version that supports
                   multi-loginserver player count reporting.
                 </p>

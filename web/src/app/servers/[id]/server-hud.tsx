@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Users, Shield, ShieldCheck, Globe, MessageCircle, Activity } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Users, Shield, ShieldCheck, Globe, MessageCircle, Activity as ActivityIcon } from "lucide-react";
 import { ClientSupportBadges, type ClientSupportView } from "@/components/client-badges";
+import { ActivityBars, ACTIVITY_TEXT } from "@/components/activity-badge";
+import { ACTIVITY_LABELS, type Activity } from "@/lib/activity";
 
 interface ServerInfo {
   longName: string;
@@ -21,37 +23,21 @@ interface ServerInfo {
 interface Props {
   serverId: number;
   info: ServerInfo;
-  initialPlayers: number;
+  initialActivity: Activity;
   initialStatus: number;
 }
 
-function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: number }) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<number>(0);
-  const startRef = useRef<number>(0);
-  const frameRef = useRef<number>(0);
-
-  useEffect(() => {
-    startRef.current = ref.current;
-    const startTime = performance.now();
-    const diff = value - startRef.current;
-
-    const animate = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(startRef.current + diff * eased);
-      setDisplay(current);
-      ref.current = current;
-      if (progress < 1) {
-        frameRef.current = requestAnimationFrame(animate);
-      }
-    };
-    frameRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameRef.current);
-  }, [value, duration]);
-
-  return <>{display}</>;
+/** A band shown big: signal bars over the label, in the band's color. */
+function BandValue({ activity, size = "lg" }: { activity: Activity | null; size?: "lg" | "md" }) {
+  if (!activity) return <span className="font-display text-2xl font-bold text-parchment-500">—</span>;
+  return (
+    <span className={`flex flex-col items-center gap-2 ${ACTIVITY_TEXT[activity]}`}>
+      <ActivityBars activity={activity} className={size === "lg" ? "scale-[1.6] origin-bottom" : "scale-125 origin-bottom"} />
+      <span className={`font-display font-bold ${size === "lg" ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"}`}>
+        {ACTIVITY_LABELS[activity]}
+      </span>
+    </span>
+  );
 }
 
 function UptimeRing({ percent }: { percent: number }) {
@@ -88,12 +74,12 @@ function ensureProtocol(url: string): string {
   return `https://${url}`;
 }
 
-export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Props) {
-  const [players, setPlayers] = useState(initialPlayers);
+export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Props) {
+  const [activity, setActivity] = useState<Activity>(initialActivity);
   const [status, setStatus] = useState(initialStatus);
   const [uptime, setUptime] = useState<number | null>(null);
-  const [avgPlayers, setAvgPlayers] = useState<number | null>(null);
-  const [peakPlayers, setPeakPlayers] = useState<number | null>(null);
+  const [typical, setTypical] = useState<Activity | null>(null);
+  const [busiest, setBusiest] = useState<Activity | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -104,8 +90,8 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
       .then((r) => r.json())
       .then((data) => {
         if (data.stats) {
-          setAvgPlayers(data.stats.avg);
-          setPeakPlayers(data.stats.max);
+          setTypical(data.stats.typical ?? null);
+          setBusiest(data.stats.busiest ?? null);
           if (data.stats.uptime_pct !== undefined && data.stats.uptime_pct !== null) {
             setUptime(data.stats.uptime_pct);
           }
@@ -124,7 +110,7 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
               (s: any) => s.server_short_name === info.shortName || s.server_long_name === info.longName
             );
             if (match) {
-              setPlayers(match.players_online ?? 0);
+              setActivity(match.activity ?? "idle");
               setStatus(match.server_status ?? -1);
             }
           }
@@ -212,13 +198,11 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-          {/* Online Players — glowing hero box */}
+          {/* Activity now — glowing hero box */}
           <div className={`relative rounded-lg border border-frost-400/20 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "200ms", boxShadow: "0 0 20px rgba(212,166,80,0.08), inset 0 0 20px rgba(212,166,80,0.04)" }}>
             <Users className="h-5 w-5 text-frost-400/50 mb-3" />
-            <span className="font-display text-3xl sm:text-4xl font-bold text-frost-300" style={{ textShadow: "0 0 20px rgba(212,166,80,0.3)" }}>
-              <AnimatedNumber value={players} />
-            </span>
-            <span className="text-xs text-frost-400/60 uppercase tracking-[0.2em] mt-2">Online</span>
+            <BandValue activity={isOnline ? activity : null} />
+            <span className="text-xs text-frost-400/60 uppercase tracking-[0.2em] mt-2">Activity</span>
           </div>
 
           {/* Uptime */}
@@ -234,22 +218,18 @@ export function ServerHUD({ serverId, info, initialPlayers, initialStatus }: Pro
             <span className="text-xs text-parchment-500 uppercase tracking-[0.2em]">Uptime</span>
           </div>
 
-          {/* Avg Players */}
+          {/* Typical band over 30 days */}
           <div className={`relative rounded-lg border border-frost-400/10 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "500ms" }}>
             <Users className="h-5 w-5 text-arcane-400/40 mb-3" />
-            <span className="font-display text-2xl sm:text-3xl font-bold text-parchment-100">
-              {avgPlayers !== null ? <AnimatedNumber value={avgPlayers} /> : "—"}
-            </span>
-            <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Avg Players</span>
+            <BandValue activity={typical} size="md" />
+            <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Typical</span>
           </div>
 
-          {/* Peak Players */}
+          {/* Busiest band over 30 days */}
           <div className={`relative rounded-lg border border-frost-400/10 bg-[#10152a]/90 p-5 sm:p-6 flex flex-col items-center justify-center transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`} style={{ transitionDelay: "650ms" }}>
-            <Activity className="h-5 w-5 text-frost-400/40 mb-3" />
-            <span className="font-display text-2xl sm:text-3xl font-bold text-parchment-100">
-              {peakPlayers !== null ? <AnimatedNumber value={peakPlayers} /> : "—"}
-            </span>
-            <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Peak</span>
+            <ActivityIcon className="h-5 w-5 text-frost-400/40 mb-3" />
+            <BandValue activity={busiest} size="md" />
+            <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Busiest</span>
           </div>
         </div>
 
