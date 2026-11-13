@@ -11,6 +11,8 @@ import { ActivityBadge } from "@/components/activity-badge";
 import { CLIENT_LABELS, CLIENT_TITLES, type ClientId } from "@/lib/client-probe/labels";
 import {
   byListing,
+  isActive,
+  isTestServer,
   clientChips,
   directoryHref,
   filterByClient,
@@ -69,6 +71,13 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
   // A-Z, not ranked by population, so a small world gets the same footing as a
   // busy one: worlds with players on, then idle/offline worlds, then test/dev.
   const sorted = [...visible].sort(byListing);
+  // Three quiet sections in one table: active worlds, then idle/offline, then
+  // test/dev (byListing already orders them that way).
+  const sections = [
+    { key: "active", label: null as string | null, servers: sorted.filter((s) => !isTestServer(s.server_long_name) && isActive(s)) },
+    { key: "quiet", label: "Idle & offline", servers: sorted.filter((s) => !isTestServer(s.server_long_name) && !isActive(s)) },
+    { key: "test", label: "Test & dev", servers: sorted.filter((s) => isTestServer(s.server_long_name)) },
+  ].filter((g) => g.servers.length > 0);
 
   return (
     <>
@@ -79,7 +88,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <h1 className="font-display text-3xl font-bold text-parchment-100">EQEmu Server List</h1>
         <p className="text-parchment-500 mt-2 text-sm">
           <span className="text-frost-400">{onlineCount}</span> world{onlineCount !== 1 ? "s" : ""} online, listed A to Z.
-          Activity shows how busy each world is right now: Low, Medium or High. Idle worlds and test servers are listed after them.
+          Activity shows how busy each world is right now: Low, Medium or High. Idle and offline worlds, then test servers, are listed below.
         </p>
       </div>
 
@@ -166,8 +175,17 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
             <span className="text-[10px] text-parchment-700 uppercase tracking-[0.15em] font-display text-center hidden sm:block">Status</span>
           </div>
 
+          {sections.map((section) => (
+            <div key={section.key}>
+              {/* Section bar: a dark strip, not a new card */}
+              {section.label && (
+                <div className="flex items-center gap-2 px-4 py-1.5 bg-[#141a2c]/80 border-y border-frost-400/5">
+                  <span className="text-[10px] text-parchment-500 uppercase tracking-[0.2em] font-display">{section.label}</span>
+                  <span className="text-[10px] text-parchment-700">{section.servers.length}</span>
+                </div>
+              )}
           {/* Server rows */}
-          {sorted.map((server, i) => {
+          {section.servers.map((server, i) => {
             const isOnline = server.server_status >= 0 && !server.is_offline;
             const isLocked = server.server_status === -2;
 
@@ -177,7 +195,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
                 href={serverPath(server.server_long_name)}
                 scroll={false}
                 className={`grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_120px_90px] gap-x-4 px-4 py-3 items-center transition-colors duration-200 hover:bg-frost-400/[0.03] focus-visible:outline-none focus-visible:bg-frost-400/[0.06] ${
-                  i < sorted.length - 1 ? "border-b border-frost-400/5" : ""
+                  i < section.servers.length - 1 ? "border-b border-frost-400/5" : ""
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -215,6 +233,8 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
               </Link>
             );
           })}
+            </div>
+          ))}
         </div>
       )}
     </>
