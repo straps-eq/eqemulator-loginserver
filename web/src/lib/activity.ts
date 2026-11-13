@@ -56,3 +56,15 @@ export function parseThresholds(mediumRaw?: string | null, highRaw?: string | nu
   const highMin = Number.isFinite(high) && high > mediumMin ? high : Math.max(DEFAULT_THRESHOLDS.highMin, mediumMin + 1);
   return { mediumMin, highMin };
 }
+
+/**
+ * A world's status as the public may see it. EQEmu worlds report their player
+ * count as their status (>= 0 up, -1 down, -2 locked), so the raw value would
+ * give the count away: up becomes 0, down / locked are kept.
+ */
+export function publicStatus(status: number | null | undefined): number {
+  const n = Number(status);
+  if (!Number.isFinite(n)) return -1;
+  if (n >= 0) return 0;
+  return n === -2 ? -2 : -1;
+}
