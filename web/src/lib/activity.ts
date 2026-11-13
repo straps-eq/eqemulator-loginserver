@@ -68,3 +68,23 @@ export function publicStatus(status: number | null | undefined): number {
   if (n >= 0) return 0;
   return n === -2 ? -2 : -1;
 }
+
+/** Steps a band is split into for charts: enough to show the shape, too coarse to read a count. */
+export const BAND_STEPS = 4;
+
+/**
+ * Where a count sits inside its band, from 0 (bottom) to 1 (top), rounded to
+ * BAND_STEPS steps, so a chart can show activity rising and falling without
+ * revealing the count. Idle is always 0. High has no top, so it is measured on
+ * a log scale up to 4x its threshold.
+ */
+export function bandPosition(players: number | null | undefined, t: ActivityThresholds = DEFAULT_THRESHOLDS): number {
+  const n = Number(players) || 0;
+  const a = activityFor(n, t);
+  let f = 0;
+  if (a === "low") f = (n - 1) / Math.max(1, t.mediumMin - 2);
+  else if (a === "medium") f = (n - t.mediumMin) / Math.max(1, t.highMin - 1 - t.mediumMin);
+  else if (a === "high") f = Math.log(n / t.highMin) / Math.log(4);
+  f = Math.max(0, Math.min(1, f));
+  return Math.round(f * BAND_STEPS) / BAND_STEPS;
+}

@@ -5,20 +5,32 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { ACTIVITY_LABELS, ACTIVITY_ORDER, type Activity } from "@/lib/activity";
 
-/** Activity history from /api/servers/[id]/history: a band level (0 idle .. 3 high) per sample. */
+/**
+ * Activity history from /api/servers/[id]/history: a band level (0 idle ..
+ * 3 high) and a coarse position inside the band (pos 0..1) per sample.
+ */
 interface StatsData {
-  history: { level: number; time: string }[];
+  history: { level: number; pos?: number; time: string }[];
   /** avg / max only for the world's owner and admins. */
   stats: { typical: Activity | null; busiest: Activity | null; samples: number; avg?: number; max?: number };
 }
 
-/** Faint horizontal zone per band behind the line, strongest for High. */
-const ZONE_FILL = [
-  "rgba(184,158,122,0.025)",
-  "rgba(217,204,180,0.04)",
-  "rgba(212,166,80,0.06)",
-  "rgba(109,166,122,0.08)",
+/** Horizontal zone per band behind the line: fill, edge line and label color. */
+const ZONES = [
+  { fill: "rgba(120,110,100,0.07)", edge: "rgba(184,158,122,0.10)", label: "rgba(184,158,122,0.55)" },
+  { fill: "rgba(217,204,180,0.07)", edge: "rgba(217,204,180,0.14)", label: "rgba(217,204,180,0.70)" },
+  { fill: "rgba(212,166,80,0.10)", edge: "rgba(212,166,80,0.20)", label: "rgba(227,194,122,0.85)" },
+  { fill: "rgba(109,166,122,0.12)", edge: "rgba(109,166,122,0.24)", label: "rgba(130,190,145,0.90)" },
 ];
+
+/**
+ * Chart height for a sample: band i fills [i, i+1]. Idle sits in the middle
+ * of its zone; other bands move between 0.12 and 0.88 of theirs by position.
+ */
+function plotY(level: number, pos: number | undefined): number {
+  if (level <= 0) return 0.5;
+  return level + 0.12 + (pos ?? 0.5) * 0.76;
+}
 
 function UPlotChart({ data }: { data: StatsData }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,8 +41,8 @@ function UPlotChart({ data }: { data: StatsData }) {
     if (!containerRef.current || data.history.length < 2) return;
 
     const timestamps = data.history.map((h) => Math.floor(new Date(h.time).getTime() / 1000));
-    const levels = data.history.map((h) => h.level);
-    const plotData: uPlot.AlignedData = [timestamps, levels];
+    const ys = data.history.map((h) => plotY(h.level, h.pos));
+    const plotData: uPlot.AlignedData = [timestamps, ys];
 
     const gradientFill = (u: uPlot) => {
       const ctx = u.ctx;
@@ -59,7 +71,7 @@ function UPlotChart({ data }: { data: StatsData }) {
       legend: { show: false },
       axes: [
         {
-          stroke: "rgba(212,166,80,0.06)",
+          stroke: "rgba(217,204,180,0.35)",
           grid: { stroke: "rgba(212,166,80,0.04)", width: 1 },
           ticks: { stroke: "rgba(212,166,80,0.06)", width: 1, size: 4 },
           font: "9px 'JetBrains Mono', monospace",
@@ -73,21 +85,23 @@ function UPlotChart({ data }: { data: StatsData }) {
             }),
         },
         {
-          stroke: "rgba(212,166,80,0.06)",
-          grid: { stroke: "rgba(212,166,80,0.035)", width: 1 },
-          ticks: { stroke: "rgba(212,166,80,0.06)", width: 1, size: 4 },
-          font: "9px 'JetBrains Mono', monospace",
-          labelFont: "9px 'JetBrains Mono', monospace",
+          // Band names readable at a glance (the axis stroke is the label color)
+          stroke: "rgba(217,204,180,0.65)",
+          ticks: { show: false },
+          font: "10px 'JetBrains Mono', monospace",
+          labelFont: "10px 'JetBrains Mono', monospace",
           gap: 6,
-          size: 52,
-          splits: () => [0, 1, 2, 3],
-          values: (u: uPlot, vals: number[]) => vals.map((v) => ACTIVITY_LABELS[ACTIVITY_ORDER[v]] ?? ""),
+          size: 58,
+          // One tick per zone, at its middle, labelled with the band name.
+          splits: () => [0.5, 1.5, 2.5, 3.5],
+          values: (u: uPlot, vals: number[]) => vals.map((v) => ACTIVITY_LABELS[ACTIVITY_ORDER[Math.floor(v)]] ?? ""),
+          grid: { show: false },
         },
       ],
       scales: {
         x: { time: true },
         // Always the full Idle..High scale, so a quiet world reads as quiet, not as a dramatic swing.
-        y: { auto: false, range: [-0.5, 3.5] },
+        y: { auto: false, range: [0, 4] },
       },
       series: [
         {},
@@ -97,7 +111,7 @@ function UPlotChart({ data }: { data: StatsData }) {
           width: 2,
           fill: gradientFill as any,
           points: { show: false },
-          paths: uPlot.paths.stepped!({ align: 1 }),
+          paths: uPlot.paths.spline!(),
         },
       ],
       hooks: {
@@ -106,11 +120,14 @@ function UPlotChart({ data }: { data: StatsData }) {
             const ctx = u.ctx;
             const { left, width } = u.bbox;
             ctx.save();
-            for (let i = 0; i < ZONE_FILL.length; i++) {
-              const top = Math.round(u.valToPos(i + 0.5, "y", true));
-              const bottom = Math.round(u.valToPos(i - 0.5, "y", true));
-              ctx.fillStyle = ZONE_FILL[i];
+            for (let i = 0; i < ZONES.length; i++) {
+              const top = Math.round(u.valToPos(i + 1, "y", true));
+              const bottom = Math.round(u.valToPos(i, "y", true));
+              ctx.fillStyle = ZONES[i].fill;
               ctx.fillRect(left, top, width, bottom - top);
+              // Thin edge between zones
+              ctx.fillStyle = ZONES[i].edge;
+              ctx.fillRect(left, top, width, 1);
             }
             ctx.restore();
           },

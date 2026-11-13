@@ -3,17 +3,20 @@ import { db } from "@/lib/db";
 import { loginWorldServers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import http from "http";
-import { activityFor, activityFromLevel, activityLevel, type ActivityThresholds } from "@/lib/activity";
+import { activityFor, activityFromLevel, activityLevel, bandPosition, type ActivityThresholds } from "@/lib/activity";
 import { getActivityThresholds } from "@/lib/public-servers";
 import { canSeeExactCounts } from "@/lib/servers";
 
 /**
- * Population history as activity bands (0 idle .. 3 high per sample). Exact
+ * Population history as activity bands (0 idle .. 3 high per sample), with a
+ * coarse position inside the band (pos: 0..1 in quarter steps) so the chart
+ * can show activity rising and falling without the count. Exact
  * counts (`players` per point, `avg` / `max`) are added only for the world's
  * claimed owner and platform admins; the public gets bands only.
  */
 interface BandPoint {
   level: number;
+  pos: number;
   time: string;
   players?: number;
 }
@@ -33,6 +36,7 @@ function normalizePeerHistory(json: any, t: ActivityThresholds) {
   const raw: any[] = Array.isArray(json?.history) ? json.history : [];
   const history: BandPoint[] = raw.map((h) => ({
     level: typeof h.level === "number" ? h.level : activityLevel(activityFor(h.players, t)),
+    pos: typeof h.pos === "number" ? h.pos : typeof h.players === "number" ? bandPosition(h.players, t) : 0.5,
     time: String(h.time),
   }));
   return {
@@ -165,6 +169,7 @@ export async function GET(
   const counts = values.map(([, val]) => parseInt(val, 10) || 0);
   const history: BandPoint[] = values.map(([ts], i) => ({
     level: activityLevel(activityFor(counts[i], thresholds)),
+    pos: bandPosition(counts[i], thresholds),
     time: new Date(ts * 1000).toISOString(),
     ...(exact ? { players: counts[i] } : {}),
   }));
