@@ -8,6 +8,7 @@ import Image from "next/image";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
+import { ActivityBadge } from "@/components/activity-badge";
 import { serverPath } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ const jsonLd = [
     name: "EQEmulator.dev",
     alternateName: ["EQEmu Server List"],
     url: "https://eqemulator.dev",
-    description: "EQEmu server list with live player counts, guides for new players, and a community login server for EQ Emulator worlds.",
+    description: "EQEmu server list with live status and activity, guides for new players, and a community login server for EQ Emulator worlds.",
     inLanguage: "en",
     publisher: { "@id": "https://eqemulator.dev/#organization" },
   },
@@ -42,7 +43,25 @@ const jsonLd = [
   },
 ];
 
-const TOP_WORLDS = 6;
+const FEATURED_WORLDS = 6;
+
+/**
+ * Online worlds to feature: verified operators first, in an order that
+ * rotates once a day, so every world takes its turn instead of the busiest
+ * ones always taking the top spots. Stable within a day (no reshuffle per
+ * request, and server and client render the same list).
+ */
+function featuredWorlds(online: PublicServer[], count: number): PublicServer[] {
+  const day = Math.floor(Date.now() / 86_400_000);
+  const rank = (s: PublicServer) => {
+    let h = day;
+    for (const ch of s.server_short_name || s.server_long_name) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
+    return h >>> 0;
+  };
+  return [...online]
+    .sort((a, b) => Number(!!b.is_trusted) - Number(!!a.is_trusted) || rank(a) - rank(b))
+    .slice(0, count);
+}
 
 export default async function HomePage() {
   const [session, servers] = await Promise.all([
@@ -51,10 +70,7 @@ export default async function HomePage() {
   ]);
 
   const online = servers.filter((s) => s.server_status >= 0 && !s.is_offline);
-  const totalPlayers = online.reduce((sum, s) => sum + (s.players_online ?? 0), 0);
-  const topWorlds = [...online]
-    .sort((a, b) => (b.players_online ?? 0) - (a.players_online ?? 0))
-    .slice(0, TOP_WORLDS);
+  const topWorlds = featuredWorlds(online, FEATURED_WORLDS);
 
   return (
     <>
@@ -150,7 +166,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Top worlds right now */}
+      {/* A rotating handful of online worlds */}
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
@@ -159,7 +175,7 @@ export default async function HomePage() {
             </span>
             <h2 className="font-display text-2xl font-bold text-parchment-100">
               {online.length > 0
-                ? `${totalPlayers.toLocaleString()} adventurers across ${online.length} ${online.length === 1 ? "world" : "worlds"}`
+                ? `${online.length} ${online.length === 1 ? "world" : "worlds"} online now`
                 : "EQEmu worlds"}
             </h2>
           </div>
@@ -197,16 +213,9 @@ export default async function HomePage() {
                     </div>
                     <span className="h-2 w-2 mt-1.5 rounded-full flex-shrink-0 bg-forest-500" aria-hidden="true" />
                   </div>
-                  <div className="mt-3 flex items-center gap-1.5 text-sm">
-                    <Users className="h-3.5 w-3.5 text-frost-400/60" aria-hidden="true" />
-                    {s.show_player_count === false ? (
-                      <span className="text-parchment-600">Online</span>
-                    ) : (
-                      <>
-                        <span className="font-display font-bold text-frost-300">{s.players_online ?? 0}</span>
-                        <span className="text-parchment-500">online</span>
-                      </>
-                    )}
+                  <div className="mt-3 flex items-center gap-2 text-xs">
+                    <span className="text-parchment-500 uppercase tracking-[0.15em] font-display">Activity</span>
+                    <ActivityBadge activity={s.activity} />
                   </div>
                 </Link>
               </li>
@@ -284,7 +293,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
             {[
-              { title: "See who's playing", desc: "Player counts and status come straight from the worlds, updated every few seconds, with population history on every server page." },
+              { title: "See what's active", desc: "Status and activity come straight from the worlds, updated every few seconds, with activity history on every server page." },
               { title: "One login, every world", desc: "Titanium, RoF2, The Outer Brood and the current client all log in here, and one login works on every world in the directory." },
               { title: "Built by the community", desc: "Open source and run by players. An independent community site, separate from the EQEmulator forums." },
             ].map(({ title, desc }) => (
@@ -333,8 +342,8 @@ export default async function HomePage() {
                 </h2>
                 <p className="text-parchment-300 text-sm leading-relaxed mb-5">
                   A federated login mesh instead of one box that everyone depends on. Every client
-                  from Titanium to The Outer Brood and the current live client, live player counts
-                  your players can see, and a profile you control. It runs alongside your existing
+                  from Titanium to The Outer Brood and the current live client, live status and
+                  activity your players can see, and a profile you control. It runs alongside your existing
                   login server, so there is nothing to migrate.
                 </p>
                 <ul className="space-y-2 text-sm text-parchment-300 mb-6">
@@ -342,7 +351,7 @@ export default async function HomePage() {
                     "One config line to list your world; it appears here within a minute.",
                     "No single point of failure: official nodes sync accounts and listings in real time.",
                     "Your players keep their existing logins. Nothing changes on their side.",
-                    "Claim your listing: description, links, banner, client support and population history.",
+                    "Claim your listing: description, links, banner, client support and activity history.",
                   ].map((t) => (
                     <li key={t} className="flex items-start gap-2.5">
                       <ShieldCheck className="h-4 w-4 mt-0.5 text-arcane-400/80 flex-shrink-0" aria-hidden="true" />

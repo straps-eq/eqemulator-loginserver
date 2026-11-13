@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { loginWorldServers, serverProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { activityFor } from "@/lib/activity";
+import { getActivityThresholds } from "@/lib/public-servers";
+import { canSeeExactCounts, getLiveData } from "@/lib/servers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,32 +38,10 @@ export async function GET(
     .where(eq(serverProfiles.worldServerId, server.id))
     .limit(1);
 
-  // Get live data from loginserver API
-  let liveData = null;
+  // Live data from the loginserver, falling back to the federated cache
+  let liveData: any = null;
   try {
-    const http = require("http");
-    const apiUrl = process.env.LOGINSERVER_API_URL || "http://loginserver:6000";
-    const token = process.env.LOGINSERVER_API_TOKEN || "";
-    const liveServers: any[] = await new Promise((resolve) => {
-      const req = http.get(`${apiUrl}/v1/servers/list`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }, (res: any) => {
-        let data = "";
-        res.on("data", (chunk: string) => data += chunk);
-        res.on("end", () => {
-          try {
-            const json = JSON.parse(data);
-            resolve(Array.isArray(json) ? json : []);
-          } catch { resolve([]); }
-        });
-      });
-      req.on("error", () => resolve([]));
-      req.setTimeout(5000, () => { req.destroy(); resolve([]); });
-    });
-
-    liveData = liveServers.find(
-      (s) => s.server_short_name === server.shortName || s.server_long_name === server.longName
-    );
+    liveData = await getLiveData(server.shortName, server.longName);
   } catch {}
 
   return NextResponse.json({
@@ -71,8 +52,9 @@ export async function GET(
     list_type_id: server.loginServerListTypeId,
     is_trusted: server.isServerTrusted,
     note: server.note,
-    // Live data
-    players_online: liveData?.players_online ?? 0,
+    // Live data. Activity band; the exact count only for the owner / admins.
+    activity: activityFor(liveData?.players_online ?? 0, await getActivityThresholds()),
+    ...((await canSeeExactCounts(server)) ? { players_online: liveData?.players_online ?? 0 } : {}),
     zones_booted: liveData?.zones_booted ?? 0,
     server_status: liveData?.server_status ?? -1,
     // Profile data

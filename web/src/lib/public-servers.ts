@@ -4,12 +4,16 @@ import { inArray, eq } from "drizzle-orm";
 import http from "http";
 import { dedupeLiveServers } from "@/lib/loginserver-api";
 import { getClientSupportSummaries, type ClientSupportSummary } from "@/lib/client-probe/store";
+import { activityFor, parseThresholds, DEFAULT_THRESHOLDS, type Activity, type ActivityThresholds } from "@/lib/activity";
 
 /**
  * The public server directory: live worlds from the loginserver, federated
  * worlds from peers, and claimed worlds that are currently offline, enriched
- * with profile settings (tier, hidden counts, trust). Shared by /api/servers,
- * the directory page and the home page so they all render the same list.
+ * with profile settings (tier, trust). Shared by /api/servers, the directory
+ * page and the home page so they all render the same list.
+ *
+ * getServerListWithCounts() keeps exact player counts (admin pages only);
+ * getPublicServerList() replaces them with an activity band (lib/activity.ts).
  */
 
 /**
@@ -36,7 +40,10 @@ export interface PublicServer {
   server_list_type_id: number;
   server_status: number;
   zones_booted: number;
+  /** Exact count: only in getServerListWithCounts(), never in the public list. */
   players_online?: number;
+  /** Idle / low / medium / high: what the public site shows instead of a count. */
+  activity: Activity;
   world_id: number;
   db_id?: number | null;
   is_trusted?: boolean;
@@ -86,14 +93,40 @@ async function getLiveServers() {
   });
 }
 
-/** Compute population tier from thresholds (if no manual override). */
-function autoTier(playersOnline: number, highMin: number, mediumMin: number): string {
-  if (playersOnline >= highMin) return "high";
-  if (playersOnline >= mediumMin) return "medium";
-  return "low";
+/** Activity thresholds from Admin -> tier settings; defaults if unset or unreadable. */
+export async function getActivityThresholds(): Promise<ActivityThresholds> {
+  try {
+    const rows = await db.select().from(platformConfig).where(
+      inArray(platformConfig.configKey, ["tier_high_min_players", "tier_medium_min_players"])
+    );
+    const map = new Map(rows.map((r) => [r.configKey, r.configValue]));
+    return parseThresholds(map.get("tier_medium_min_players"), map.get("tier_high_min_players"));
+  } catch {
+    return DEFAULT_THRESHOLDS;
+  }
 }
 
+/** In-game list type tier (high/medium/low): the activity band, with Idle shown as Low. */
+function autoTier(playersOnline: number, t: ActivityThresholds): string {
+  const a = activityFor(playersOnline, t);
+  return a === "idle" ? "low" : a;
+}
+
+/** The public directory: an activity band per world, never an exact count. */
 export async function getPublicServerList(): Promise<PublicServer[]> {
+  const list = await getServerListWithCounts();
+  return list.map(toPublicServer);
+}
+
+/** Drop the exact count and the admin-only tier fields from one entry. */
+export function toPublicServer(s: PublicServer): PublicServer {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { players_online, show_player_count, display_tier, tier_override, ...rest } = s;
+  return rest as PublicServer;
+}
+
+/** The directory with exact player counts. Admin pages and internal use only. */
+export async function getServerListWithCounts(): Promise<PublicServer[]> {
   const now = Date.now();
   if (cachedResponse && now < cachedResponse.expires) {
     return cachedResponse.data;
@@ -108,17 +141,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
   ]);
   const nodeMap = new Map(fedNodes.map((n: any) => [n.id, n.name]));
 
-  // Tier thresholds — graceful fallback if platform_config table is missing
-  let highMin = 400;
-  let mediumMin = 100;
-  try {
-    const configRows = await db.select().from(platformConfig).where(
-      inArray(platformConfig.configKey, ["tier_high_min_players", "tier_medium_min_players"])
-    );
-    const configMap = new Map(configRows.map((r) => [r.configKey, r.configValue]));
-    highMin = parseInt(configMap.get("tier_high_min_players") || "400", 10);
-    mediumMin = parseInt(configMap.get("tier_medium_min_players") || "100", 10);
-  } catch {}
+  const thresholds = await getActivityThresholds();
 
   const enriched = liveServers.map((live: any) => {
     const dbMatch = matchDbServer(dbServers, live);
@@ -128,14 +151,15 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
       : null;
 
     const manualTier = profile?.displayTier;
-    const effectiveTier = manualTier || autoTier(live.players_online ?? 0, highMin, mediumMin);
+    const effectiveTier = manualTier || autoTier(live.players_online ?? 0, thresholds);
     const showPlayerCount = profile?.showPlayerCount ?? 1;
 
     // Strip sensitive IPs from live server data
     const { local_ip, remote_ip, ...safeFields } = live;
     return {
       ...safeFields,
-      players_online: showPlayerCount ? live.players_online : undefined,
+      players_online: live.players_online ?? 0,
+      activity: activityFor(live.players_online, thresholds),
       db_id: dbMatch?.id ?? null,
       is_trusted: dbMatch?.isServerTrusted ? true : adminId > 0,
       tag_description: dbMatch?.tagDescription || null,
@@ -170,7 +194,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
       ) as Record<string, any> | undefined;
       const manualTier = profile?.displayTier;
       const playersOnline = liveFed?.players_online ?? 0;
-      const effectiveTier = manualTier || autoTier(playersOnline, highMin, mediumMin);
+      const effectiveTier = manualTier || autoTier(playersOnline, thresholds);
       const showPlayerCount = profile?.showPlayerCount ?? 1;
       return {
         server_long_name: d.longName,
@@ -178,7 +202,8 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
         server_list_type_id: d.loginServerListTypeId,
         server_status: liveFed?.server_status ?? -1,
         zones_booted: liveFed?.zones_booted ?? 0,
-        players_online: showPlayerCount ? playersOnline : undefined,
+        players_online: playersOnline,
+        activity: activityFor(playersOnline, thresholds),
         world_id: liveFed?.world_id ?? 0,
         db_id: d.id,
         is_trusted: d.isServerTrusted ? true : (d.loginServerAdminId || 0) > 0,
@@ -222,7 +247,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
       const isLiveOnPeer = liveFed && (liveFed.server_status >= 0 || liveFed.zones_booted > 0);
       const playersOnline = liveFed?.players_online ?? 0;
       const manualTier = profile?.displayTier;
-      const effectiveTier = manualTier || (isLiveOnPeer ? autoTier(playersOnline, highMin, mediumMin) : "low");
+      const effectiveTier = manualTier || (isLiveOnPeer ? autoTier(playersOnline, thresholds) : "low");
       const showPlayerCount = profile?.showPlayerCount ?? 1;
       return {
         server_long_name: d.longName,
@@ -230,7 +255,8 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
         server_list_type_id: d.loginServerListTypeId,
         server_status: liveFed?.server_status ?? -1,
         zones_booted: liveFed?.zones_booted ?? 0,
-        players_online: showPlayerCount ? playersOnline : undefined,
+        players_online: isLiveOnPeer ? playersOnline : 0,
+        activity: activityFor(isLiveOnPeer ? playersOnline : 0, thresholds),
         world_id: liveFed?.world_id ?? 0,
         db_id: d.id,
         is_trusted: d.isServerTrusted ? true : adminId > 0,
@@ -269,7 +295,7 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
         (p) => p.worldServerId === dbMatch.id || ((dbMatch.loginServerAdminId || 0) > 0 && p.loginServerAdminId === dbMatch.loginServerAdminId)
       );
       const manualTier = profile?.displayTier;
-      const tier = manualTier || autoTier(live.players_online ?? 0, highMin, mediumMin);
+      const tier = manualTier || autoTier(live.players_online ?? 0, thresholds);
       const wantListType = tierToListType[tier] ?? 3;
       if (dbMatch.loginServerListTypeId !== wantListType) {
         updates.push(

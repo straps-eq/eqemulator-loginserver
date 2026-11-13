@@ -8,12 +8,14 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { serverPath, slugify } from "@/lib/slug";
-import { getServer, getLiveData } from "@/lib/servers";
+import { getServer, getLiveData, canSeeExactCounts } from "@/lib/servers";
 import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { getClientSupportSummary } from "@/lib/client-probe/store";
+import { activityFor } from "@/lib/activity";
+import { getActivityThresholds } from "@/lib/public-servers";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +28,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     if (server) {
       const title = `${server.longName} — EQEmu Server`;
       const description = server.tagDescription
-        ? `${server.longName}: ${server.tagDescription}. Live player counts, population history, and server details on EQEmulator.dev.`
-        : `${server.longName} — live player counts, population history, and server details on EQEmulator.dev.`;
+        ? `${server.longName}: ${server.tagDescription}. Live status, activity history, and server details on EQEmulator.dev.`
+        : `${server.longName} — live status, activity history, and server details on EQEmulator.dev.`;
       return {
         title,
         description,
@@ -69,10 +71,12 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
   const isClaimed = adminId > 0;
   const isTrusted = !!server.isServerTrusted || isClaimed;
 
-  const [profile, liveData, clientSupport] = await Promise.all([
+  const [profile, liveData, clientSupport, thresholds, exact] = await Promise.all([
     getProfile(server.id, adminId),
     getLiveData(server.shortName, server.longName),
     getClientSupportSummary(server.id),
+    getActivityThresholds(),
+    canSeeExactCounts(server),
   ]);
 
   const serverJsonLd = {
@@ -87,8 +91,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
       "@type": "VideoGame",
       name: "EverQuest",
     },
-    ...(liveData?.players_online !== undefined && {
-      numberOfPlayers: liveData.players_online,
+    ...(liveData && {
       serverStatus: liveData.server_status >= 0 ? "Online" : "Offline",
     }),
   };
@@ -134,7 +137,8 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               clientSupport,
               description: profile?.description,
             }}
-            initialPlayers={liveData?.players_online ?? 0}
+            initialActivity={activityFor(liveData?.players_online ?? 0, thresholds)}
+            initialPlayers={exact ? liveData?.players_online ?? 0 : null}
             initialStatus={liveData?.server_status ?? -1}
           />
 

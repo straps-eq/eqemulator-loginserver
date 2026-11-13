@@ -44,8 +44,8 @@ export default function ChoosingAServerPage() {
       <p>
         A busy world means groups, trading and raids. A quieter world can be relaxed and friendly, and
         often suits solo or boxed play. Every world in our <Link href="/servers">EQEmu server list</Link>{" "}
-        shows players online right now, and each server page has population history so you can see when
-        people play.
+        shows how busy it is right now (Idle, Low, Medium or High), and each server page has an activity
+        history so you can see when people play.
       </p>
 
       <h2>4. Which client do you have?</h2>

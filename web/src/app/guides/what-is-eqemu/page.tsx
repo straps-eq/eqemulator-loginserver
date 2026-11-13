@@ -93,8 +93,8 @@ export default function WhatIsEqemuPage() {
         <a href="https://www.eqemulator.org/" target="_blank" rel="noopener noreferrer">eqemulator.org</a>.
       </p>
       <p>
-        <strong>EQEmulator.dev</strong> is a player hub for EQEmu worlds: a live server list with player
-        counts and population history, plain-English guides, and a community login server that works with
+        <strong>EQEmulator.dev</strong> is a player hub for EQEmu worlds: a live server list with activity
+        and history for every world, plain-English guides, and a community login server that works with
         every client from Titanium to the current one. It is an independent community site, separate from eqemulator.org.
       </p>
 

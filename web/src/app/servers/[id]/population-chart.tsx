@@ -3,13 +3,24 @@
 import { useEffect, useState, useRef } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { ACTIVITY_LABELS, ACTIVITY_ORDER, type Activity } from "@/lib/activity";
 
+/** Activity history from /api/servers/[id]/history: a band level (0 idle .. 3 high) per sample. */
 interface StatsData {
-  history: { players: number; time: string }[];
-  stats: { avg: number; max: number; samples: number };
+  history: { level: number; time: string }[];
+  /** avg / max only for the world's owner and admins. */
+  stats: { typical: Activity | null; busiest: Activity | null; samples: number; avg?: number; max?: number };
 }
 
-function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
+/** Faint horizontal zone per band behind the line, strongest for High. */
+const ZONE_FILL = [
+  "rgba(184,158,122,0.025)",
+  "rgba(217,204,180,0.04)",
+  "rgba(212,166,80,0.06)",
+  "rgba(109,166,122,0.08)",
+];
+
+function UPlotChart({ data }: { data: StatsData }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
 
@@ -18,8 +29,8 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
     if (!containerRef.current || data.history.length < 2) return;
 
     const timestamps = data.history.map((h) => Math.floor(new Date(h.time).getTime() / 1000));
-    const players = data.history.map((h) => h.players);
-    const plotData: uPlot.AlignedData = [timestamps, players];
+    const levels = data.history.map((h) => h.level);
+    const plotData: uPlot.AlignedData = [timestamps, levels];
 
     const gradientFill = (u: uPlot) => {
       const ctx = u.ctx;
@@ -68,51 +79,39 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
           font: "9px 'JetBrains Mono', monospace",
           labelFont: "9px 'JetBrains Mono', monospace",
           gap: 6,
-          size: 38,
-          values: (u: uPlot, vals: number[]) => vals.map((v) => String(Math.round(v))),
+          size: 52,
+          splits: () => [0, 1, 2, 3],
+          values: (u: uPlot, vals: number[]) => vals.map((v) => ACTIVITY_LABELS[ACTIVITY_ORDER[v]] ?? ""),
         },
       ],
       scales: {
         x: { time: true },
-        y: {
-          auto: true,
-          range: (u: uPlot, min: number, max: number) => {
-            if (min === max) return [Math.max(0, min - 10), max + 10];
-            const pad = (max - min) * 0.1;
-            return [Math.max(0, min - pad * 0.5), max + pad];
-          },
-        },
+        // Always the full Idle..High scale, so a quiet world reads as quiet, not as a dramatic swing.
+        y: { auto: false, range: [-0.5, 3.5] },
       },
       series: [
         {},
         {
-          label: "Players",
+          label: "Activity",
           stroke: "rgba(212,166,80,0.85)",
           width: 2,
           fill: gradientFill as any,
           points: { show: false },
+          paths: uPlot.paths.stepped!({ align: 1 }),
         },
       ],
       hooks: {
-        draw: [
+        drawClear: [
           (u: uPlot) => {
-            if (avg <= 0) return;
             const ctx = u.ctx;
             const { left, width } = u.bbox;
-            const y = Math.round(u.valToPos(avg, "y", true));
             ctx.save();
-            ctx.setLineDash([4, 6]);
-            ctx.strokeStyle = "rgba(129,140,248,0.22)";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(left, y);
-            ctx.lineTo(left + width, y);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = "rgba(129,140,248,0.45)";
-            ctx.font = "9px monospace";
-            ctx.textAlign = "left";
-            ctx.fillText(`AVG ${avg}`, left + 4, y - 5);
+            for (let i = 0; i < ZONE_FILL.length; i++) {
+              const top = Math.round(u.valToPos(i + 0.5, "y", true));
+              const bottom = Math.round(u.valToPos(i - 0.5, "y", true));
+              ctx.fillStyle = ZONE_FILL[i];
+              ctx.fillRect(left, top, width, bottom - top);
+            }
             ctx.restore();
           },
         ],
@@ -136,7 +135,7 @@ function UPlotChart({ data, avg }: { data: StatsData; avg: number }) {
       plotRef.current?.destroy();
       plotRef.current = null;
     };
-  }, [data, avg]);
+  }, [data]);
 
   return <div ref={containerRef} className="w-full h-full uplot-dark" />;
 }
@@ -179,11 +178,17 @@ export function PopulationChart({ serverId, shortName }: { serverId: number; sho
               <div className="absolute inset-0 h-1 w-1 rounded-full bg-frost-400 animate-ping opacity-30" />
             </div>
             <span className="font-display text-[9px] tracking-[0.25em] uppercase text-frost-400/60">
-              Population Telemetry
+              Activity History
             </span>
-            {data && data.stats.samples > 0 && (
+            {data && data.stats.samples > 0 && data.stats.typical && (
               <span className="text-[9px] text-parchment-600 font-mono ml-2">
-                avg {data.stats.avg} · peak {data.stats.max}
+                typical {ACTIVITY_LABELS[data.stats.typical].toLowerCase()}
+                {data.stats.busiest ? ` · busiest ${ACTIVITY_LABELS[data.stats.busiest].toLowerCase()}` : ""}
+              </span>
+            )}
+            {data && typeof data.stats.avg === "number" && typeof data.stats.max === "number" && (
+              <span className="text-[9px] text-parchment-500 font-mono ml-2" title="Only you can see exact numbers">
+                avg {data.stats.avg} · peak {data.stats.max} players (only visible to you)
               </span>
             )}
           </div>
@@ -210,7 +215,7 @@ export function PopulationChart({ serverId, shortName }: { serverId: number; sho
 
         {data && data.history.length > 1 ? (
           <div className="h-44 sm:h-48">
-            <UPlotChart data={data} avg={data.stats.avg} />
+            <UPlotChart data={data} />
           </div>
         ) : data && data.history.length <= 1 ? (
           <div className="h-44 sm:h-48 flex flex-col items-center justify-center">

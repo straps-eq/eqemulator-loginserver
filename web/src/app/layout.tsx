@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     template: "%s | EQEmulator.dev",
   },
   description:
-    "Find an EQEmu (EverQuest Emulator) server and start playing. Live player counts for every world, step-by-step guides for Titanium, RoF2 and ToB, and one game login for every world.",
+    "Find an EQEmu (EverQuest Emulator) server and start playing. Live status for every world, step-by-step guides for Titanium, RoF2 and ToB, and one game login for every world.",
   keywords: [
     "eqemu", "eq emu", "eq emulator", "eqemulator", "everquest emulator",
     "eqemu servers", "everquest private server",
@@ -55,12 +55,12 @@ export const metadata: Metadata = {
     siteName: "EQEmulator.dev",
     title: "EQEmu Server List — Live EQ Emulator Servers & How to Play",
     description:
-      "Find an EQEmu server and start playing. Live player counts, step-by-step guides, and one game login for every world.",
+      "Find an EQEmu server and start playing. Live status for every world, step-by-step guides, and one game login for every world.",
   },
   twitter: {
     card: "summary_large_image",
     title: "EQEmu Server List — Live EQ Emulator Servers & How to Play",
-    description: "Find an EQEmu server and start playing, with live player counts for every world.",
+    description: "Find an EQEmu server and start playing, with live status for every world.",
   },
   icons: {
     icon: [

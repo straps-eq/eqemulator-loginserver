@@ -3,6 +3,47 @@ import { db } from "@/lib/db";
 import { loginWorldServers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import http from "http";
+import { activityFor, activityFromLevel, activityLevel, type ActivityThresholds } from "@/lib/activity";
+import { getActivityThresholds } from "@/lib/public-servers";
+import { canSeeExactCounts } from "@/lib/servers";
+
+/**
+ * Population history as activity bands (0 idle .. 3 high per sample). Exact
+ * counts (`players` per point, `avg` / `max`) are added only for the world's
+ * claimed owner and platform admins; the public gets bands only.
+ */
+interface BandPoint {
+  level: number;
+  time: string;
+  players?: number;
+}
+
+function bandStats(levels: number[]) {
+  if (levels.length === 0) return { typical: null, busiest: null };
+  const sorted = [...levels].sort((a, b) => a - b);
+  return {
+    // The band the world sits in half the time or more.
+    typical: activityFromLevel(sorted[Math.floor((sorted.length - 1) / 2)]),
+    busiest: activityFromLevel(sorted[sorted.length - 1]),
+  };
+}
+
+/** A peer on an older version still answers with player counts: band them here. */
+function normalizePeerHistory(json: any, t: ActivityThresholds) {
+  const raw: any[] = Array.isArray(json?.history) ? json.history : [];
+  const history: BandPoint[] = raw.map((h) => ({
+    level: typeof h.level === "number" ? h.level : activityLevel(activityFor(h.players, t)),
+    time: String(h.time),
+  }));
+  return {
+    history,
+    stats: {
+      ...bandStats(history.map((h) => h.level)),
+      samples: history.length,
+      uptime_pct: json?.stats?.uptime_pct ?? null,
+    },
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +80,7 @@ export async function GET(
     .select({
       shortName: loginWorldServers.shortName,
       federationSourceNodeId: loginWorldServers.federationSourceNodeId,
+      loginServerAdminId: loginWorldServers.loginServerAdminId,
     })
     .from(loginWorldServers)
     .where(
@@ -81,7 +123,7 @@ export async function GET(
               { signal: AbortSignal.timeout(10000) }
             );
             if (histRes.ok) {
-              return NextResponse.json(await histRes.json());
+              return NextResponse.json(normalizePeerHistory(await histRes.json(), await getActivityThresholds()));
             }
           }
         }
@@ -104,30 +146,31 @@ export async function GET(
   const playersQuery = `eqemu_server_players_online{server_short_name="${escaped}"}`;
   const statusQuery = `eqemu_server_status{server_short_name="${escaped}"}`;
 
-  const [playersResult, statusResult] = await Promise.all([
+  const [playersResult, statusResult, thresholds, exact] = await Promise.all([
     promQuery(playersQuery, start, end, step),
     promQuery(statusQuery, start, end, step),
+    getActivityThresholds(),
+    canSeeExactCounts(server),
   ]);
 
   if (!playersResult || playersResult.status !== "success" || !playersResult.data?.result?.length) {
     return NextResponse.json({
       history: [],
-      stats: { avg: 0, max: 0, samples: 0, uptime_pct: null },
+      stats: { typical: null, busiest: null, samples: 0, uptime_pct: null },
     });
   }
 
   const values: [number, string][] = playersResult.data.result[0].values;
 
-  const history = values.map(([ts, val]) => ({
-    players: parseInt(val, 10) || 0,
+  const counts = values.map(([, val]) => parseInt(val, 10) || 0);
+  const history: BandPoint[] = values.map(([ts], i) => ({
+    level: activityLevel(activityFor(counts[i], thresholds)),
     time: new Date(ts * 1000).toISOString(),
+    ...(exact ? { players: counts[i] } : {}),
   }));
-
-  const playerCounts = history.map((h) => h.players);
-  const avg = playerCounts.length > 0
-    ? Math.round(playerCounts.reduce((a, b) => a + b, 0) / playerCounts.length)
-    : 0;
-  const max = playerCounts.length > 0 ? Math.max(...playerCounts) : 0;
+  const exactStats = exact && counts.length > 0
+    ? { avg: Math.round(counts.reduce((a, b) => a + b, 0) / counts.length), max: Math.max(...counts) }
+    : {};
 
   // Compute uptime % from status metric
   let uptime_pct: number | null = null;
@@ -141,6 +184,6 @@ export async function GET(
 
   return NextResponse.json({
     history,
-    stats: { avg, max, samples: history.length, uptime_pct },
+    stats: { ...bandStats(history.map((h) => h.level)), ...exactStats, samples: history.length, uptime_pct },
   });
 }
