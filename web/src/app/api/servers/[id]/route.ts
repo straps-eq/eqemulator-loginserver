@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { loginWorldServers, serverProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { activityFor } from "@/lib/activity";
+import { activityFor, publicStatus } from "@/lib/activity";
 import { getActivityThresholds } from "@/lib/public-servers";
 import { canSeeExactCounts, getLiveData } from "@/lib/servers";
 
@@ -56,7 +56,8 @@ export async function GET(
     activity: activityFor(liveData?.players_online ?? 0, await getActivityThresholds()),
     ...((await canSeeExactCounts(server)) ? { players_online: liveData?.players_online ?? 0 } : {}),
     zones_booted: liveData?.zones_booted ?? 0,
-    server_status: liveData?.server_status ?? -1,
+    // Up / down / locked only: a world reports its player count as its status.
+    server_status: publicStatus(liveData?.server_status ?? -1),
     // Profile data
     profile: profile ? {
       description: profile.description,

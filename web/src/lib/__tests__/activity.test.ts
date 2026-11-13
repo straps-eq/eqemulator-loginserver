@@ -1,7 +1,7 @@
 // Activity bands. Run with `npm test`.
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { activityFor, activityFromLevel, activityLevel, parseThresholds, DEFAULT_THRESHOLDS } from "../activity";
+import { activityFor, activityFromLevel, activityLevel, parseThresholds, publicStatus, DEFAULT_THRESHOLDS } from "../activity";
 
 test("default bands: idle 0, low 1-74, medium 75-250, high 251+", () => {
   assert.equal(activityFor(0), "idle");
@@ -28,4 +28,13 @@ test("parseThresholds falls back on bad config", () => {
   assert.deepEqual(parseThresholds("abc", "0"), DEFAULT_THRESHOLDS);
   // high must be above medium
   assert.deepEqual(parseThresholds("300", "100"), { mediumMin: 300, highMin: 301 });
+});
+
+test("publicStatus hides the player count a world reports as its status", () => {
+  assert.equal(publicStatus(447), 0);
+  assert.equal(publicStatus(0), 0);
+  assert.equal(publicStatus(-1), -1);
+  assert.equal(publicStatus(-2), -2);
+  assert.equal(publicStatus(-7), -1);
+  assert.equal(publicStatus(undefined), -1);
 });

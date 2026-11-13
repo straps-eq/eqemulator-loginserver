@@ -14,7 +14,7 @@ import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { getClientSupportSummary } from "@/lib/client-probe/store";
-import { activityFor } from "@/lib/activity";
+import { activityFor, publicStatus } from "@/lib/activity";
 import { getActivityThresholds } from "@/lib/public-servers";
 
 export const dynamic = "force-dynamic";
@@ -139,7 +139,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
             }}
             initialActivity={activityFor(liveData?.players_online ?? 0, thresholds)}
             initialPlayers={exact ? liveData?.players_online ?? 0 : null}
-            initialStatus={liveData?.server_status ?? -1}
+            initialStatus={publicStatus(liveData?.server_status ?? -1)}
           />
 
           {/* Population chart */}

@@ -4,7 +4,7 @@ import { inArray, eq } from "drizzle-orm";
 import http from "http";
 import { dedupeLiveServers } from "@/lib/loginserver-api";
 import { getClientSupportSummaries, type ClientSupportSummary } from "@/lib/client-probe/store";
-import { activityFor, parseThresholds, DEFAULT_THRESHOLDS, type Activity, type ActivityThresholds } from "@/lib/activity";
+import { activityFor, publicStatus, parseThresholds, DEFAULT_THRESHOLDS, type Activity, type ActivityThresholds } from "@/lib/activity";
 
 /**
  * The public server directory: live worlds from the loginserver, federated
@@ -118,11 +118,15 @@ export async function getPublicServerList(): Promise<PublicServer[]> {
   return list.map(toPublicServer);
 }
 
-/** Drop the exact count and the admin-only tier fields from one entry. */
+/**
+ * Drop the exact count and the admin-only tier fields from one entry, and
+ * reduce server_status to up / down / locked (a world reports its player
+ * count as its status).
+ */
 export function toPublicServer(s: PublicServer): PublicServer {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { players_online, show_player_count, display_tier, tier_override, ...rest } = s;
-  return rest as PublicServer;
+  return { ...rest, server_status: publicStatus(s.server_status) } as PublicServer;
 }
 
 /** The directory with exact player counts. Admin pages and internal use only. */
