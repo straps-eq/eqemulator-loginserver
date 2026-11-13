@@ -8,6 +8,7 @@ import {
   clientChips,
   directoryHref,
   byName,
+  byListing,
   isTestServer,
   type FilterableServer,
 } from "../server-filters";
@@ -63,6 +64,23 @@ test("directoryHref", () => {
 
 test("sorts", () => {
   assert.deepEqual([...servers].sort(byName).map((s) => s.server_long_name), ["akanon", "Bristlebane", "Cazic", "Druzzil", "Erollisi"]);
+});
+
+test("listing order: active A-Z, then idle/offline, then test/dev", () => {
+  const w = (server_long_name: string, activity: string, server_status = 1, is_offline = false) =>
+    ({ server_long_name, activity, server_status, is_offline, client_support: null });
+  const list = [
+    w("Zebra", "low"),
+    w("Quiet Realm", "idle"),
+    w("|T| Busy Test", "high"),
+    w("Alpha", "medium"),
+    w("Gone", "idle", -1, true),
+    w("Locked Up", "low", -2),
+    w("Beta", "idle"),
+  ];
+  assert.deepEqual(list.sort(byListing).map((s) => s.server_long_name), [
+    "Alpha", "Zebra", "Beta", "Gone", "Locked Up", "Quiet Realm", "|T| Busy Test",
+  ]);
 });
 
 test("name sort puts test and dev worlds last", () => {

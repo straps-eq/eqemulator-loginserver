@@ -2,8 +2,9 @@
  * Client filter and order for the server directory (/servers?client=).
  * Pure functions, safe to import from client components and unit tests.
  *
- * The directory is A-Z, not by population: like the in-game server select, a
- * small world gets the same spot as a busy one. Activity shows inline.
+ * The directory is A-Z within three groups, not ranked by population: worlds
+ * with players on, then idle or offline worlds, then test/dev worlds. A small
+ * world gets the same footing as a busy one; activity shows inline.
  */
 import { CLIENT_ORDER, type ClientId } from "./client-probe/labels";
 
@@ -13,6 +14,10 @@ export const PRIMARY_CLIENTS: ClientId[] = ["titanium", "rof2", "tob", "eql"];
 /** The fields filtering needs, so this module doesn't pull in the DB layer. */
 export interface FilterableServer {
   server_long_name: string;
+  /** Activity band; "idle" (or missing) sorts into the quiet group. */
+  activity?: string;
+  server_status?: number;
+  is_offline?: boolean;
   client_support?: { supported: string[]; unreachable: boolean } | null;
 }
 
@@ -50,6 +55,24 @@ export function isTestServer(name: string): boolean {
 export function byName(a: FilterableServer, b: FilterableServer): number {
   const ta = isTestServer(a.server_long_name), tb = isTestServer(b.server_long_name);
   if (ta !== tb) return ta ? 1 : -1;
+  return a.server_long_name.localeCompare(b.server_long_name, "en", { sensitivity: "base" });
+}
+
+/** Online with players on (any band above Idle). */
+export function isActive(s: FilterableServer): boolean {
+  const online = (s.server_status ?? -1) >= 0 && !s.is_offline;
+  return online && !!s.activity && s.activity !== "idle";
+}
+
+/**
+ * Directory order: active worlds A–Z, then idle / offline / locked worlds
+ * A–Z, then test/dev worlds A–Z (a test world stays last even when busy).
+ */
+export function byListing(a: FilterableServer, b: FilterableServer): number {
+  const ta = isTestServer(a.server_long_name), tb = isTestServer(b.server_long_name);
+  if (ta !== tb) return ta ? 1 : -1;
+  const aa = isActive(a), ab = isActive(b);
+  if (aa !== ab) return aa ? -1 : 1;
   return a.server_long_name.localeCompare(b.server_long_name, "en", { sensitivity: "base" });
 }
 
