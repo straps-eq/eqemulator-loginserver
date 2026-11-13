@@ -75,7 +75,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
   // test/dev (byListing already orders them that way).
   const sections = [
     { key: "active", label: null as string | null, servers: sorted.filter((s) => !isTestServer(s.server_long_name) && isActive(s)) },
-    { key: "quiet", label: "Idle & offline", servers: sorted.filter((s) => !isTestServer(s.server_long_name) && !isActive(s)) },
+    { key: "quiet", label: "Idle", servers: sorted.filter((s) => !isTestServer(s.server_long_name) && !isActive(s)) },
     { key: "test", label: "Test & dev", servers: sorted.filter((s) => isTestServer(s.server_long_name)) },
   ].filter((g) => g.servers.length > 0);
 
@@ -88,7 +88,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <h1 className="font-display text-3xl font-bold text-parchment-100">EQEmu Server List</h1>
         <p className="text-parchment-500 mt-2 text-sm">
           <span className="text-frost-400">{onlineCount}</span> world{onlineCount !== 1 ? "s" : ""} online, listed A to Z.
-          Activity shows how busy each world is right now: Low, Medium or High. Idle and offline worlds, then test servers, are listed below.
+          Activity shows how busy each world is right now: Low, Medium or High. Idle worlds, then test servers, are listed below.
         </p>
       </div>
 
