@@ -9,6 +9,7 @@ import { serializeJsonLd } from "@/lib/json-ld";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicServerList, type PublicServer } from "@/lib/public-servers";
 import { ActivityBadge } from "@/components/activity-badge";
+import { isActive, isTestServer } from "@/lib/server-filters";
 import { serverPath } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,8 @@ const jsonLd = [
 const FEATURED_WORLDS = 6;
 
 /**
- * Online worlds to feature: verified operators first, in an order that
+ * Online worlds to feature: active before idle, test/dev last, verified
+ * operators first within each, in an order that
  * rotates once a day, so every world takes its turn instead of the busiest
  * ones always taking the top spots. Stable within a day (no reshuffle per
  * request, and server and client render the same list).
@@ -58,8 +60,11 @@ function featuredWorlds(online: PublicServer[], count: number): PublicServer[] {
     for (const ch of s.server_short_name || s.server_long_name) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
     return h >>> 0;
   };
+  // Worlds with players on before idle ones, test/dev worlds last, verified
+  // operators first within each, then the daily rotation.
+  const group = (s: PublicServer) => (isTestServer(s.server_long_name) ? 2 : isActive(s) ? 0 : 1);
   return [...online]
-    .sort((a, b) => Number(!!b.is_trusted) - Number(!!a.is_trusted) || rank(a) - rank(b))
+    .sort((a, b) => group(a) - group(b) || Number(!!b.is_trusted) - Number(!!a.is_trusted) || rank(a) - rank(b))
     .slice(0, count);
 }
 

@@ -10,7 +10,7 @@ import { ClientSupportInline } from "@/components/client-badges";
 import { ActivityBadge } from "@/components/activity-badge";
 import { CLIENT_LABELS, CLIENT_TITLES, type ClientId } from "@/lib/client-probe/labels";
 import {
-  byName,
+  byListing,
   clientChips,
   directoryHref,
   filterByClient,
@@ -66,9 +66,9 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
   const uncheckedCount = client ? servers.filter(isUnchecked).length : 0;
   const chips = clientChips(servers, client);
 
-  // One A-Z list (test/dev worlds last), like the in-game server select: a
-  // small world gets the same footing as a busy one. Activity shows per row.
-  const sorted = [...visible].sort(byName);
+  // A-Z, not ranked by population, so a small world gets the same footing as a
+  // busy one: worlds with players on, then idle/offline worlds, then test/dev.
+  const sorted = [...visible].sort(byListing);
 
   return (
     <>
@@ -79,7 +79,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
         <h1 className="font-display text-3xl font-bold text-parchment-100">EQEmu Server List</h1>
         <p className="text-parchment-500 mt-2 text-sm">
           <span className="text-frost-400">{onlineCount}</span> world{onlineCount !== 1 ? "s" : ""} online, listed A to Z.
-          Activity shows how busy each world is right now: Idle, Low, Medium or High.
+          Activity shows how busy each world is right now: Low, Medium or High. Idle worlds and test servers are listed after them.
         </p>
       </div>
 
