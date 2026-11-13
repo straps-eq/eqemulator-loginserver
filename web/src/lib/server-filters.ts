@@ -13,6 +13,8 @@ export const PRIMARY_CLIENTS: ClientId[] = ["titanium", "rof2", "tob", "eql"];
 /** The fields filtering needs, so this module doesn't pull in the DB layer. */
 export interface FilterableServer {
   server_long_name: string;
+  /** Activity band (lib/activity.ts); "idle" worlds sort after active ones. */
+  activity?: string;
   client_support?: { supported: string[]; unreachable: boolean } | null;
 }
 
@@ -46,10 +48,16 @@ export function isTestServer(name: string): boolean {
   return /^\|[A-Za-z*]\|/.test(n) || /\[[^\]]*\b(test|dev|beta)\b[^\]]*\]/i.test(n) || /\b(test|dev|installer)\b/i.test(n);
 }
 
-/** A–Z, with test/dev worlds after all the others. */
+/** 0 = players on, 1 = idle, 2 = test/dev (whatever its activity). */
+function listGroup(s: FilterableServer): number {
+  if (isTestServer(s.server_long_name)) return 2;
+  return s.activity === "idle" ? 1 : 0;
+}
+
+/** A–Z within groups: worlds with players on, then idle worlds, then test/dev worlds. */
 export function byName(a: FilterableServer, b: FilterableServer): number {
-  const ta = isTestServer(a.server_long_name), tb = isTestServer(b.server_long_name);
-  if (ta !== tb) return ta ? 1 : -1;
+  const ga = listGroup(a), gb = listGroup(b);
+  if (ga !== gb) return ga - gb;
   return a.server_long_name.localeCompare(b.server_long_name, "en", { sensitivity: "base" });
 }
 

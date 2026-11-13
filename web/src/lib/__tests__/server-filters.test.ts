@@ -74,3 +74,14 @@ test("name sort puts test and dev worlds last", () => {
   assert.ok(isTestServer("[Dev] Somewhere"));
   assert.ok(!isTestServer("Project Lazarus"));
 });
+
+test("name sort puts idle worlds after active ones, and test/dev worlds last", () => {
+  const list: FilterableServer[] = [
+    { server_long_name: "Alpha", activity: "idle" },
+    { server_long_name: "Zebra", activity: "low" },
+    { server_long_name: "|D| Dev Box", activity: "medium" },
+    { server_long_name: "Bravo", activity: "high" },
+    { server_long_name: "Charlie", activity: "idle" },
+  ];
+  assert.deepEqual(list.sort(byName).map((s) => s.server_long_name), ["Bravo", "Zebra", "Alpha", "Charlie", "|D| Dev Box"]);
+});

@@ -66,7 +66,7 @@ export function ServerList({ initial }: { initial: ServerData[] }) {
   const uncheckedCount = client ? servers.filter(isUnchecked).length : 0;
   const chips = clientChips(servers, client);
 
-  // One A-Z list (test/dev worlds last), like the in-game server select: a
+  // One A-Z list (idle worlds after active ones, test/dev worlds last), like the in-game server select: a
   // small world gets the same footing as a busy one. Activity shows per row.
   const sorted = [...visible].sort(byName);
 
