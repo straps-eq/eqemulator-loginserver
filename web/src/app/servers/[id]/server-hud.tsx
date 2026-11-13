@@ -24,7 +24,19 @@ interface Props {
   serverId: number;
   info: ServerInfo;
   initialActivity: Activity;
+  /** Exact count, only when the viewer is the world's owner or an admin; null otherwise. */
+  initialPlayers: number | null;
   initialStatus: number;
+}
+
+/** Small exact figure under a band, for the owner / admins only. */
+function ExactNote({ value, suffix }: { value: number | null; suffix: string }) {
+  if (value === null) return null;
+  return (
+    <span className="text-[10px] font-mono text-parchment-500 mt-1" title="Only you can see exact numbers">
+      {value} {suffix}
+    </span>
+  );
 }
 
 /** A band shown big: signal bars over the label, in the band's color. */
@@ -74,8 +86,12 @@ function ensureProtocol(url: string): string {
   return `https://${url}`;
 }
 
-export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Props) {
+export function ServerHUD({ serverId, info, initialActivity, initialPlayers, initialStatus }: Props) {
+  const exact = initialPlayers !== null;
   const [activity, setActivity] = useState<Activity>(initialActivity);
+  const [players, setPlayers] = useState<number | null>(initialPlayers);
+  const [avgPlayers, setAvgPlayers] = useState<number | null>(null);
+  const [peakPlayers, setPeakPlayers] = useState<number | null>(null);
   const [status, setStatus] = useState(initialStatus);
   const [uptime, setUptime] = useState<number | null>(null);
   const [typical, setTypical] = useState<Activity | null>(null);
@@ -92,6 +108,8 @@ export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Pr
         if (data.stats) {
           setTypical(data.stats.typical ?? null);
           setBusiest(data.stats.busiest ?? null);
+          if (typeof data.stats.avg === "number") setAvgPlayers(data.stats.avg);
+          if (typeof data.stats.max === "number") setPeakPlayers(data.stats.max);
           if (data.stats.uptime_pct !== undefined && data.stats.uptime_pct !== null) {
             setUptime(data.stats.uptime_pct);
           }
@@ -102,24 +120,20 @@ export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Pr
     // Poll live data
     const poll = async () => {
       try {
-        const res = await fetch("/api/servers");
+        // This world's own endpoint: the band for everyone, the exact count
+        // too when the viewer is its owner or an admin.
+        const res = await fetch(`/api/servers/${serverId}`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) {
-            const match = data.find(
-              (s: any) => s.server_short_name === info.shortName || s.server_long_name === info.longName
-            );
-            if (match) {
-              setActivity(match.activity ?? "idle");
-              setStatus(match.server_status ?? -1);
-            }
-          }
+          setActivity(data.activity ?? "idle");
+          setStatus(data.server_status ?? -1);
+          if (exact && typeof data.players_online === "number") setPlayers(data.players_online);
         }
       } catch {}
     };
     const interval = setInterval(poll, 15000);
     return () => clearInterval(interval);
-  }, [serverId, info.shortName, info.longName]);
+  }, [serverId, exact]);
 
   const isOnline = status >= 0;
   const isLocked = status === -2;
@@ -203,6 +217,7 @@ export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Pr
             <Users className="h-5 w-5 text-frost-400/50 mb-3" />
             <BandValue activity={isOnline ? activity : null} />
             <span className="text-xs text-frost-400/60 uppercase tracking-[0.2em] mt-2">Activity</span>
+            <ExactNote value={players} suffix="online" />
           </div>
 
           {/* Uptime */}
@@ -223,6 +238,7 @@ export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Pr
             <Users className="h-5 w-5 text-arcane-400/40 mb-3" />
             <BandValue activity={typical} size="md" />
             <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Typical</span>
+            <ExactNote value={avgPlayers} suffix="avg" />
           </div>
 
           {/* Busiest band over 30 days */}
@@ -230,6 +246,7 @@ export function ServerHUD({ serverId, info, initialActivity, initialStatus }: Pr
             <ActivityIcon className="h-5 w-5 text-frost-400/40 mb-3" />
             <BandValue activity={busiest} size="md" />
             <span className="text-xs text-parchment-500 uppercase tracking-[0.2em] mt-2">Busiest</span>
+            <ExactNote value={peakPlayers} suffix="peak" />
           </div>
         </div>
 

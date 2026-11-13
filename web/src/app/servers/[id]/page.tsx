@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { serverPath, slugify } from "@/lib/slug";
-import { getServer, getLiveData } from "@/lib/servers";
+import { getServer, getLiveData, canSeeExactCounts } from "@/lib/servers";
 import { ServerHUD } from "./server-hud";
 import { PopulationChart } from "./population-chart";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -71,11 +71,12 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
   const isClaimed = adminId > 0;
   const isTrusted = !!server.isServerTrusted || isClaimed;
 
-  const [profile, liveData, clientSupport, thresholds] = await Promise.all([
+  const [profile, liveData, clientSupport, thresholds, exact] = await Promise.all([
     getProfile(server.id, adminId),
     getLiveData(server.shortName, server.longName),
     getClientSupportSummary(server.id),
     getActivityThresholds(),
+    canSeeExactCounts(server),
   ]);
 
   const serverJsonLd = {
@@ -137,6 +138,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               description: profile?.description,
             }}
             initialActivity={activityFor(liveData?.players_online ?? 0, thresholds)}
+            initialPlayers={exact ? liveData?.players_online ?? 0 : null}
             initialStatus={liveData?.server_status ?? -1}
           />
 

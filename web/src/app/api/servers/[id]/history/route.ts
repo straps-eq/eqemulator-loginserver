@@ -5,15 +5,17 @@ import { eq } from "drizzle-orm";
 import http from "http";
 import { activityFor, activityFromLevel, activityLevel, type ActivityThresholds } from "@/lib/activity";
 import { getActivityThresholds } from "@/lib/public-servers";
+import { canSeeExactCounts } from "@/lib/servers";
 
 /**
- * Population history as activity bands (0 idle .. 3 high per sample), never
- * exact counts: the public site shows bands only. The counts stay in
- * Prometheus.
+ * Population history as activity bands (0 idle .. 3 high per sample). Exact
+ * counts (`players` per point, `avg` / `max`) are added only for the world's
+ * claimed owner and platform admins; the public gets bands only.
  */
 interface BandPoint {
   level: number;
   time: string;
+  players?: number;
 }
 
 function bandStats(levels: number[]) {
@@ -78,6 +80,7 @@ export async function GET(
     .select({
       shortName: loginWorldServers.shortName,
       federationSourceNodeId: loginWorldServers.federationSourceNodeId,
+      loginServerAdminId: loginWorldServers.loginServerAdminId,
     })
     .from(loginWorldServers)
     .where(
@@ -143,10 +146,11 @@ export async function GET(
   const playersQuery = `eqemu_server_players_online{server_short_name="${escaped}"}`;
   const statusQuery = `eqemu_server_status{server_short_name="${escaped}"}`;
 
-  const [playersResult, statusResult, thresholds] = await Promise.all([
+  const [playersResult, statusResult, thresholds, exact] = await Promise.all([
     promQuery(playersQuery, start, end, step),
     promQuery(statusQuery, start, end, step),
     getActivityThresholds(),
+    canSeeExactCounts(server),
   ]);
 
   if (!playersResult || playersResult.status !== "success" || !playersResult.data?.result?.length) {
@@ -158,10 +162,15 @@ export async function GET(
 
   const values: [number, string][] = playersResult.data.result[0].values;
 
-  const history: BandPoint[] = values.map(([ts, val]) => ({
-    level: activityLevel(activityFor(parseInt(val, 10) || 0, thresholds)),
+  const counts = values.map(([, val]) => parseInt(val, 10) || 0);
+  const history: BandPoint[] = values.map(([ts], i) => ({
+    level: activityLevel(activityFor(counts[i], thresholds)),
     time: new Date(ts * 1000).toISOString(),
+    ...(exact ? { players: counts[i] } : {}),
   }));
+  const exactStats = exact && counts.length > 0
+    ? { avg: Math.round(counts.reduce((a, b) => a + b, 0) / counts.length), max: Math.max(...counts) }
+    : {};
 
   // Compute uptime % from status metric
   let uptime_pct: number | null = null;
@@ -175,6 +184,6 @@ export async function GET(
 
   return NextResponse.json({
     history,
-    stats: { ...bandStats(history.map((h) => h.level)), samples: history.length, uptime_pct },
+    stats: { ...bandStats(history.map((h) => h.level)), ...exactStats, samples: history.length, uptime_pct },
   });
 }

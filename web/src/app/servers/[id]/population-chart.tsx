@@ -8,7 +8,8 @@ import { ACTIVITY_LABELS, ACTIVITY_ORDER, type Activity } from "@/lib/activity";
 /** Activity history from /api/servers/[id]/history: a band level (0 idle .. 3 high) per sample. */
 interface StatsData {
   history: { level: number; time: string }[];
-  stats: { typical: Activity | null; busiest: Activity | null; samples: number };
+  /** avg / max only for the world's owner and admins. */
+  stats: { typical: Activity | null; busiest: Activity | null; samples: number; avg?: number; max?: number };
 }
 
 /** Faint horizontal zone per band behind the line, strongest for High. */
@@ -183,6 +184,11 @@ export function PopulationChart({ serverId, shortName }: { serverId: number; sho
               <span className="text-[9px] text-parchment-600 font-mono ml-2">
                 typical {ACTIVITY_LABELS[data.stats.typical].toLowerCase()}
                 {data.stats.busiest ? ` · busiest ${ACTIVITY_LABELS[data.stats.busiest].toLowerCase()}` : ""}
+              </span>
+            )}
+            {data && typeof data.stats.avg === "number" && typeof data.stats.max === "number" && (
+              <span className="text-[9px] text-parchment-500 font-mono ml-2" title="Only you can see exact numbers">
+                avg {data.stats.avg} · peak {data.stats.max} players (only visible to you)
               </span>
             )}
           </div>

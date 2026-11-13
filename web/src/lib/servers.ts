@@ -63,3 +63,30 @@ export async function getLiveData(shortName: string, longName: string) {
   }
 }
 
+
+/**
+ * Whether the logged-in viewer may see this world's exact player counts. The
+ * public site shows activity bands only; the world's claimed owner (a platform
+ * account linked to the world's login server admin account) and platform
+ * admins see the numbers too.
+ */
+export async function canSeeExactCounts(server: { loginServerAdminId: number | null }): Promise<boolean> {
+  try {
+    const { getSession } = await import("@/lib/session");
+    const session = await getSession();
+    if (!session.isLoggedIn || !session.accountId) return false;
+    if (session.isAdmin) return true;
+    const adminId = server.loginServerAdminId || 0;
+    if (adminId <= 0) return false;
+    const { worldServerAdminLinks } = await import("@/db/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ id: worldServerAdminLinks.id })
+      .from(worldServerAdminLinks)
+      .where(and(eq(worldServerAdminLinks.platformAccountId, session.accountId), eq(worldServerAdminLinks.loginServerAdminId, adminId)))
+      .limit(1);
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
