@@ -7,13 +7,15 @@ count column and every list entry carried the count.
 
 What this patch does, when worldservers.population_bands is true (the default):
   * The login reply always says "don't show player counts", whatever
-    show_player_count says. Titanium and RoF2 then show UP / DOWN / LOCKED,
-    and clients that label population themselves (ToB, live) show their own
-    words, like Daybreak's servers do.
-  * Every server list entry (local and federated, every client) carries the
-    lowest count of its band instead of the real number, so a patched client
-    or a packet capture can't read the real count either: Idle 0, Low 1,
-    Medium 75, High 251.
+    show_player_count says. Titanium and RoF2 show UP / DOWN / LOCKED.
+  * Every server list entry (local and federated, every client) carries 0 as
+    its player count, so a patched client or a packet capture can't read the
+    real number.
+  * For ToB / live / EQL clients, a world that is up gets the population bits
+    in its status flags, which is what the client's server select reads for
+    the Status word (eqmain.dll, read in Ghidra; the count is never used for
+    it): 0x10 Low, 0 Med, 0x20 High. Idle and Low send Low. Down (1) and
+    Locked (4) are unchanged. Older clients get no new bits.
 
 Bands match the website: Idle 0, Low 1-74, Medium 75-250, High 251+. The two
 cut-offs can be changed with worldservers.population_medium_at (75) and
@@ -47,6 +49,11 @@ def replace_n(s, old, new, n, what):
     return s.replace(old, new)
 
 
+def replace_first(s, old, new, n, what):
+    assert s.count(old) == n, f"{what}: expected {n} of {old!r}, found {s.count(old)}"
+    return s.replace(old, new, 1)
+
+
 def insert_after(s, anchor, text, what):
     assert s.count(anchor) == 1, f"{what}: anchor not found exactly once: {anchor!r}"
     i = s.find(anchor) + len(anchor)
@@ -76,19 +83,23 @@ inline Settings &Get()
 
 inline bool Enabled() { return Get().enabled; }
 
-// Count sent to the client: the lowest count of the world's band, never the real number.
-inline uint32_t ListCount(uint32_t players)
+// Count sent to the client. Never the real number while bands are on.
+inline uint32_t ListCount(uint32_t players) { return Enabled() ? 0 : players; }
+
+// Status flags for a ToB/live world that is up: the client shows Low for
+// 0x10, High for 0x20 and Med for neither.
+inline int32_t TobUpFlags(uint32_t players)
 {
-	if (!Enabled() || players == 0) {
-		return players;
+	if (!Enabled()) {
+		return 0;
 	}
 	if (players < Get().medium_at) {
-		return 1;
+		return 0x10;
 	}
 	if (players < Get().high_at) {
-		return Get().medium_at;
+		return 0;
 	}
-	return Get().high_at;
+	return 0x20;
 }
 
 }
@@ -111,6 +122,15 @@ s = replace_n(
     2,
     f"{f} count",
 )
+# The ToB branch comes first in SerializeForClientServerList.
+assert s.find("version == cv_tob") < s.find("out.WriteInt32(LS::ServerStatusFlags::Up);"), f"{f}: ToB branch not first"
+s = replace_first(
+    s,
+    "out.WriteInt32(LS::ServerStatusFlags::Up);",
+    "out.WriteInt32(LS::ServerStatusFlags::Up | PopulationBands::TobUpFlags(GetPlayersOnline()));",
+    2,
+    f"{f} ToB status",
+)
 write(f, s)
 
 # ── world_server_manager.cpp: federated worlds, ToB and older clients ──
@@ -123,6 +143,17 @@ s = replace_n(
     "buf.WriteUInt32(PopulationBands::ListCount(fs.players_online));",
     2,
     f"{f} count",
+)
+# The ToB branch comes first for federated entries too.
+i_tob = s.find("if (client->GetClientVersion() == cv_tob) {\n\t\t\tbuf.WriteString(fs.remote_ip);")
+assert i_tob > 0, f"{f}: federated ToB branch not found"
+assert i_tob < s.find("buf.WriteInt32(LS::ServerStatusFlags::Up);"), f"{f}: federated ToB branch not first"
+s = replace_first(
+    s,
+    "buf.WriteInt32(LS::ServerStatusFlags::Up);",
+    "buf.WriteInt32(LS::ServerStatusFlags::Up | PopulationBands::TobUpFlags(fs.players_online));",
+    2,
+    f"{f} ToB status",
 )
 write(f, s)
 
