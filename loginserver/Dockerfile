@@ -158,6 +158,13 @@ COPY patches/auto_register_id.py /tmp/auto_register_id.py
 RUN python3 /tmp/auto_register_id.py /build/source \
  && grep -n 'm_server_id                    = created.id;' /build/source/loginserver/world_server.cpp
 
+# Patch: the in-game server list shows population bands like the website
+# ("Ascendant (Medium)") and never sends the real player count. Off with
+# worldservers.population_bands: false. Details in the script.
+COPY patches/population_bands.py /tmp/population_bands.py
+RUN python3 /tmp/population_bands.py /build/source \
+ && grep -n 'PopulationBands::' /build/source/loginserver/world_server.cpp /build/source/loginserver/world_server_manager.cpp /build/source/loginserver/client.cpp /build/source/loginserver/main.cpp
+
 # Build loginserver only
 RUN mkdir build && cd build \
     && cmake .. \
